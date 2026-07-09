@@ -1,0 +1,36 @@
+{
+  "name": "gherkin-node-test",
+  "version": "0.1.0",
+  "description": "The smallest honest Gherkin runner — zero dependencies, on Node's built-in test runner, built for agent-driven BDD.",
+  "license": "MIT",
+  "author": "Bing Ho <reps-attic-riot@duck.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bingh0/gherkin-node-test.git"
+  },
+  "type": "commonjs",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.3"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "gherkin",
+    "bdd",
+    "cucumber",
+    "node-test",
+    "zero-dependency",
+    "acceptance-testing",
+    "agent",
+    "vibe-coding"
+  ],
+  "dependencies": {},
+  "devDependencies": {}
+}
