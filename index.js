@@ -89,6 +89,13 @@ function registerTest(title, opts, fn) {
   test(title, opts, fn);
 }
 
+// Under Bun, test.only() focuses the whole test FILE — including guard tests
+// registered by a DIFFERENT runFeatures call in that file. Tracked per test
+// file (Bun.main follows the file being collected, even though `bun test`
+// loads every file in one process): a file mixing runFeatures calls with and
+// without @only would silently disable the un-focused call's ratchet.
+const bunFocusByFile = isBun ? new Map() : null;
+
 /** @typedef {{ keyword: string, text: string, table?: string[][] }} Step */
 /** @typedef {{ name: string, steps: Step[], line: number, tags: string[] }} Scenario */
 /** @typedef {{ feature: string, background: Step[], scenarios: Scenario[] }} ParsedFeature */
@@ -570,8 +577,21 @@ function runFeatures(dir, definers, opts = {}) {
   // the ratchet. (Not done under Node, where only: without --test-only prints
   // a per-test warning; Node's --test-only focus does skip the guards — see
   // README.)
-  const guardOpts = isBun && features.some(({ parsed }) => parsed.scenarios.some((s) => s.tags.includes('@only')))
-    ? { only: true } : {};
+  const hasOnly = features.some(({ parsed }) => parsed.scenarios.some((s) => s.tags.includes('@only')));
+  /* node:coverage ignore next 12 */
+  if (bunFocusByFile) {
+    const key = /** @type {any} */ (globalThis).Bun.main;
+    const seen = bunFocusByFile.get(key) || { withOnly: false, withoutOnly: false };
+    if (hasOnly ? seen.withoutOnly : seen.withOnly) {
+      throw new Error(
+        `under Bun, @only focuses the whole test file: a runFeatures call ${hasOnly ? 'with' : 'without'} @only `
+        + `cannot share a test file with one ${hasOnly ? 'without' : 'with'} it — the un-focused call's guard `
+        + 'tests would be silently skipped. Split the calls into separate test files or remove @only.');
+    }
+    if (hasOnly) seen.withOnly = true; else seen.withoutOnly = true;
+    bunFocusByFile.set(key, seen);
+  }
+  const guardOpts = isBun && hasOnly ? { only: true } : {};
 
   registerTest('step definers map only to existing feature files', guardOpts, () => {
     const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));

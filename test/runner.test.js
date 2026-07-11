@@ -105,6 +105,23 @@ test('runFeatures: @todo failures are reported but do not fail the run', () => {
 //    guards too — focus mode cannot bypass the binding ratchet.
 //  - Node: @only is honored under --test-only, which skips everything not
 //    only-marked, guards included (focus is a local workflow, not CI posture).
+// A test FILE mixing runFeatures calls with and without @only: under Bun the
+// focus is file-wide, so the un-focused call's guards would silently vanish —
+// the mix must be rejected at load. Under node the same file runs normally
+// (@only is inert without --test-only).
+test('runFeatures: mixing @only and non-@only calls in one file is rejected under Bun', () => {
+  const { status, out } = runFixture('multionly.fixture.js');
+  const c = counts(out);
+  if (isBun) {
+    assert.notStrictEqual(status, 0, 'the mixed file must fail to load');
+    assert.match(out, /cannot share a test file/, 'the rejection names the hazard');
+  } else {
+    assert.strictEqual(status, 0, out);
+    assert.strictEqual(c.fail, 0, out);
+    assert.strictEqual(c.pass, 7, `2 orphan guards + 2 feature guards + 3 scenarios:\n${out}`);
+  }
+});
+
 test('runFeatures: @only focus mode cannot silently disable the guards (bun) / focuses under --test-only (node)', () => {
   const { status, out } = runFixture('onlytag.fixture.js', { focus: true });
   assert.strictEqual(status, 0, out);

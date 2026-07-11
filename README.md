@@ -178,10 +178,13 @@ pinned by tests here:
 The `@only` difference has a sharp edge, so the runner blunts it: since a
 committed `@only` would focus the file on every Bun run, `runFeatures`
 **only-marks its guard tests too** — focus mode can never silently disable the
-binding ratchet. (Under Node, `--test-only` does skip the guards; focus is a
-local workflow, not a CI posture.) And because the two runtimes would disagree
-about what `@skip @only` on one scenario means, combining semantic tags is a
-parse error — see the rejection table below.
+binding ratchet. For the same reason, a test file that mixes `runFeatures`
+calls *with* and *without* `@only` is rejected loudly at load under Bun — the
+file-wide focus would silently skip the un-focused call's guards. (Under Node,
+`--test-only` does skip the guards; focus is a local workflow, not a CI
+posture.) And because the two runtimes would disagree about what `@skip @only`
+on one scenario means, combining semantic tags is a parse error — see the
+rejection table below.
 
 One Bun-specific footnote: `bun test` runs Bun's test runner; `bun run test`
 runs this package's `test` script (`node --test`). Both work — they're just
