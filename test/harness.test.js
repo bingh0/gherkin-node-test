@@ -121,7 +121,7 @@ const REJECTED = [
   ['conflicting semantic tags on a scenario outline',
     '@todo @skip\nScenario Outline: o\n  Given <a>\n  Examples:\n    | a |\n    | 1 |',
     /conflicting tags \(@todo @skip\)/],
-  ['a near-miss @only (would silently deselect under --test-only)',
+  ['a near-miss @only (would silently dodge the loud @only rejection)',
     '@ONLY\nScenario: s\n  Given x', /near-miss tag is silently inert/],
   ['the Rule: keyword',
     'Rule: r\n  Scenario: s\n    Given x', /Rule: keyword/],

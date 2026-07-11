@@ -1,9 +1,10 @@
 // @ts-check
 'use strict';
-// Fixture: an @only scenario among ordinary ones. Under Bun, test.only()
-// focuses its file on EVERY run, so runFeatures only-marks the guards too —
-// the binding ratchet must survive focus mode. Under node, @only is honored
-// via --test-only (which skips the guards; documented).
+// Fixture: an @only scenario among ordinary ones. @only is rejected loudly on
+// every runtime — never mapped to only:/test.only, whose semantics differ
+// irreconcilably across the three runners. The rejection registers a failing
+// test and is ADDITIVE: both scenarios (the tagged one included) still run, so
+// rejection never narrows the suite it polices.
 const path = require('node:path');
 const assert = require('node:assert');
 const { runFeatures } = require('../index');

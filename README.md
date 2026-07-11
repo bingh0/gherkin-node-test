@@ -3,9 +3,11 @@
 **The smallest honest Gherkin runner.** Zero dependencies, no build step, no
 CLI — it turns `.feature` files into real tests on your runtime's built-in
 runner: [`node:test`](https://nodejs.org/api/test.html) under Node,
-[`bun:test`](https://bun.sh/docs/cli/test) natively under Bun — and it treats
-every silence as a bug. One file, ~600 lines, small enough to read in one
-sitting or to vendor outright.
+[`bun:test`](https://bun.sh/docs/cli/test) natively under Bun, and `node:test`
+under [Deno](https://docs.deno.com/runtime/reference/cli/test/) (whose
+`node:test` bridges to the native `Deno.test` runner) — and it treats every
+silence as a bug. One file, ~700 lines, small enough to read in one sitting or
+to vendor outright.
 
 ```sh
 npm i -D gherkin-node-test    # or just copy index.js into your repo
@@ -41,7 +43,8 @@ False greens have specific, boring causes. Each one is a design decision here:
 | Step definitions collide across the suite's global namespace | There is no global namespace: **each feature gets its own registry**. An agent editing one feature structurally cannot break another's bindings. |
 | A scaffolded step stub passes vacuously | Missing-step errors include a **paste-ready definition whose body throws** `pending`. You cannot paste your way to a false green. |
 | A failing assertion leaks the temp dir / process it was about to clean up | `world.defer(fn)` runs cleanup LIFO **even when a step fails**. |
-| A typo'd `@skip` tag is silently inert | Misplaced tags, dangling tags, and near-miss tags (`@Skip`, `@ONLY`) are **loud errors** — worst case is `@only`, where the typo would silently *deselect* the scenario under `--test-only`. |
+| A typo'd `@skip` tag is silently inert | Misplaced tags, dangling tags, and near-miss tags (`@Skip`, `@ONLY`) are **loud errors** — `@Skip` would run a scenario meant to be skipped, `@Only` would dodge the loud `@only` rejection. |
+| A committed `@only` silently narrows what CI runs | `@only` **never focuses anything — it's rejected as a failing test** on every runtime. Focus is a per-run CLI flag (`--test-name-pattern` / `-t` / `--filter`), which can't be committed into the suite. |
 
 The same properties turn out to be exactly what a coding agent needs, because
 agents act on error output. A located `file:line` error, a failure message
@@ -52,8 +55,8 @@ couldn't personally re-read the implementation, which is rapidly becoming
 everyone's situation.
 
 And because the runner compiles scenarios into the runtime's own test runner,
-there is no second toolchain: one command (`node --test`, or `bun test` under
-Bun) runs unit tests and acceptance criteria together, with watch mode,
+there is no second toolchain: one command (`node --test`, `bun test`, or
+`deno test`) runs unit tests and acceptance criteria together, with watch mode,
 coverage, and CI reporters inherited from the runtime itself.
 
 ## Quick start
@@ -98,7 +101,7 @@ module.exports = (reg) => {
 ```
 
 ```sh
-node --test    # or: bun test
+node --test    # or: bun test   # or: deno test --allow-read
 ```
 
 Each scenario becomes one test named `Feature :: Scenario`. A fresh
@@ -157,9 +160,9 @@ guard (renaming a `.feature` file can't silently strand its steps), and
 skip-still-binds (`@skip` means "don't run", never "don't bind" — otherwise
 a tag would be a hole in the ratchet).
 
-## Runs on Bun — natively
+## Runs on Bun and Deno — natively
 
-Under Bun this runner registers scenarios directly on
+**Bun.** Under Bun this runner registers scenarios directly on
 [`bun:test`](https://bun.sh/docs/cli/test), not through Bun's `node:test`
 compatibility shim (which Bun's own docs mark partial, and which deliberately
 drops the `only:` option). Same feature files, same guards, same ratchet —
@@ -167,28 +170,74 @@ drops the `only:` option). Same feature files, same guards, same ratchet —
 lane runs this repo's entire suite, subprocess proofs included, to keep this
 section true.
 
-Two behaviors differ between the runtimes, both inherent to `bun:test` and
-pinned by tests here:
+**Deno.** Under Deno the same code runs through `node:test` — and that *is*
+native here: Deno's `node:test` is not a partial reimplementation but a
+faithful polyfill that bridges registrations to the built-in `Deno.test`
+runner. So there is no Deno-specific registration path to maintain —
+`deno test --allow-read` runs the same feature files and guards. (Deno needs
+read permission for the `.feature` files, and nothing else: the library reads
+no env vars and spawns nothing. Add `--allow-run --allow-env` only when
+running this repo's *own* suite, whose `test/runner.test.js` spawns
+subprocesses.) Verified against Deno 2.9.2; a CI deno lane keeps this true.
 
-| | `node --test` | `bun test` |
-|---|---|---|
-| `@only` | inert until you pass `--test-only` | **focuses its file on every run** — no flag needed (`--only` widens the focus across files); in CI, Bun refuses `.only` outright, so a committed `@only` **fails the run loudly** |
-| `@todo` scenario bodies | always executed; failures shown, never gate | not executed unless you pass `--todo`, where a *failing* todo is expected and a *passing* todo *fails the run* |
+### One behavior on all three runtimes
 
-The `@only` difference has a sharp edge, so the runner blunts it: since a
-committed `@only` would focus the file on every Bun run, `runFeatures`
-**only-marks its guard tests too** — focus mode can never silently disable the
-binding ratchet. For the same reason, a test file that mixes `runFeatures`
-calls *with* and *without* `@only` is rejected loudly at load under Bun — the
-file-wide focus would silently skip the un-focused call's guards. (Under Node,
-`--test-only` does skip the guards; focus is a local workflow, not a CI
-posture.) And because the two runtimes would disagree about what `@skip @only`
-on one scenario means, combining semantic tags is a parse error — see the
-rejection table below.
+The guarantees are identical everywhere, by construction: **where the
+runtimes' own test runners would diverge dangerously, this runner rejects the
+construct loudly instead of behaving three different ways.** Two rules exist
+solely for that:
 
-One Bun-specific footnote: `bun test` runs Bun's test runner; `bun run test`
-runs this package's `test` script (`node --test`). Both work — they're just
-different runtimes.
+**`@only` is rejected — it never focuses anything.** The three runners' focus
+semantics are irreconcilable: Node keeps `only:` inert unless you also pass
+`--test-only`; Bun and Deno focus the tagged scenario's whole file on **every**
+run, no flag — and Deno exits `0` doing it, so a committed `@only` would
+silently narrow a CI run to the focused scenarios *while staying green*. That
+is exactly the false green this runner exists to prevent, so the tag maps to
+nothing on any runtime: it registers a failing test
+(`<feature basename> :: @only is not supported`) whose message names the fix. The
+rejection is *additive* — every scenario, tagged or not, still registers and
+runs, so the rejection never narrows the suite it polices. To actually focus
+one scenario, use your runner's per-run filter — a CLI argument that *cannot
+be committed into the suite*:
+
+```sh
+node --test --test-name-pattern "increment"
+bun test -t "increment"
+deno test --allow-read --filter "increment"
+```
+
+(Two cautions on runner-native focus, both runner behavior rather than this
+library's: Node's `--test-only` flag is useless here — nothing is ever
+only-marked, so it filters out every test and reports a green zero-test run.
+And under Bun and Deno, a `test.only(...)` of your *own* in the same file as
+`runFeatures` focus-filters this library's scenarios **and guards** out,
+because their focus is file-wide. A feature test file that contains exactly
+one `runFeatures` call and nothing else — the shape the one-call rule below
+pushes you toward anyway — has neither problem.)
+
+**One `runFeatures` call per test file.** Deno silently swallows a top-level
+throw once an earlier `test()` has been registered in the same file — which is
+exactly where a *second* call's load-time errors (a non-function definer, an
+unparseable feature file) would vanish with exit `0`. So a second call in the
+same test file is refused, uniformly: it registers a single failing test
+naming the rule and does nothing else, and the first call is untouched. One
+call per file keeps every load error ahead of every registration — loud on all
+three runtimes. (The refusal is *registered*, not thrown, for the same
+swallow reason.)
+
+What still differs — the honest list, pinned by tests:
+
+- **`@todo` scenario bodies**: Node executes them (failures shown, never
+  gate); Bun executes them only under `bun test --todo` (where a *passing*
+  todo fails the run); Deno never executes them (todo folds into "ignored").
+  The safety-relevant part is uniform: `@todo` never gates the suite anywhere,
+  and its steps must still bind.
+- **Reporter output** (test counts, summary format) is each runtime's own.
+- **Permissions**: only Deno needs a flag (`--allow-read`).
+
+One footnote: `bun test` and `deno test` run those runtimes' own test
+runners; `bun run test` runs this package's `test` script (`node --test`).
+Both work — they're just different runtimes.
 
 ## N-version verification
 
@@ -240,7 +289,7 @@ comparison.
 | `<placeholder>` | substituted from the Examples columns — in step text **and** step data tables; every `<name>` must match a column |
 | Steps | `Given` `When` `Then` `And` `But` `*`, followed by step text |
 | Step data tables | `\|` rows after a step attach to it; the step function receives a **`DataTable`** as its last argument |
-| Tags | `@skip` / `@todo` / `@only` map to the runner's options of the same name — at most one per scenario; tags on `Feature:` apply to all its scenarios; any other tag is carried on `scenario.tags` with no runtime effect |
+| Tags | `@skip` → skipped (steps must still bind); `@todo` → registered, never gates; `@only` → **rejected loudly** (focus with your runner's per-run filter instead); the three are mutually exclusive; tags on `Feature:` apply to all its scenarios; any other tag is carried on `scenario.tags` with no runtime effect |
 | `# comment` | ignored anywhere |
 | Feature narrative | the `As a… / I want… / So that…` prose block is ignored |
 
@@ -251,9 +300,11 @@ literal, so cells like `C:\Temp` or `Cmd+\` need no escaping.
 Tag semantics: `@skip` never executes the scenario (but its steps must still be
 *bound* — skip means "don't run", never "don't bind"); `@todo` doesn't gate the
 run (Node executes the body and reports failures; Bun executes it only under
-`--todo`); `@only` is honored under `node --test --test-only`, and under Bun
-focuses on every run. The three are mutually exclusive — the runtimes disagree
-on what a combination would mean, so a combination is a parse error.
+`--todo`; Deno never executes it); `@only` is **rejected as a failing test on
+every runtime** — see [One behavior on all three runtimes](#one-behavior-on-all-three-runtimes)
+for why, and for the per-runner focus alternatives. The three are mutually
+exclusive — the runtimes disagree on what a combination would mean, so a
+combination is a parse error.
 
 ### Step matching and `DataTable`
 
@@ -313,7 +364,7 @@ throws `GherkinSyntaxError` with the offending line number:
 | A `Scenario`/`Scenario Outline` with no steps | would run zero assertions and pass vacuously |
 | A step *after* its `Examples:` table | malformed ordering; the step would mis-attach |
 | Tags anywhere but immediately before `Feature:` / `Scenario:` / `Scenario Outline:` | a mis-placed `@skip` would silently not skip |
-| A near-miss semantic tag (`@Skip`, `@SKIP`, `@Only`, …) | would be silently inert — worst for `@only`, which would silently *deselect* under `--test-only` |
+| A near-miss semantic tag (`@Skip`, `@SKIP`, `@Only`, …) | would be silently inert — `@Skip` would run a scenario meant to be skipped, `@Only` would dodge the loud `@only` rejection |
 | Combined semantic tags (`@skip @only` on one scenario) | `node:test` takes them as options with its own precedence, `bun:test` as mutually exclusive methods — a combination can't mean the same thing on both, so it must not mean anything silently |
 | `Rule:` (Gherkin 6) | grouping would be silently flattened |
 | A step before any `Scenario`/`Background` | would be silently discarded |
@@ -335,17 +386,17 @@ still can't pass vacuously).
   **@cucumber/gherkin** is the real parser.
 
 The niche here is exactly: Gherkin on the runtime's built-in runner —
-`node:test` or `bun:test` — zero dependencies, loud by construction.
+`node:test`, `bun:test`, or Deno — zero dependencies, loud by construction.
 
 ## API
 
 | Export | Purpose |
 |---|---|
-| `runFeatures(dir, definers, { wip }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests |
+| `runFeatures(dir, definers, { wip }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; **one call per test file** (a second call is refused loudly) |
 | `parseFeature(text, filename?)` | parse → `{ feature, background, scenarios }`; throws `GherkinSyntaxError` |
 | `StepRegistry` | `.define(pattern, fn)` / `.find(text)` |
 | `executeSteps(steps, registry, world?)` | run a flat step list against a shared world (installs `world.defer`) |
-| `runFeature(parsed, registry)` | register one runner test per scenario (tags mapped, unbound → TODO) |
+| `runFeature(parsed, registry)` | register one runner test per scenario (`@skip`/`@todo` mapped; `@only` → failing test; unbound → TODO) |
 | `runFeatureFile(file, registry)` | read + parse + run a single `.feature` file |
 | `DataTable` | cucumber-compatible step table: `raw` / `rows` / `hashes` / `rowsHash` / `transpose` |
 | `buildSnippet(text)` | paste-ready step definition for an unbound step (body throws) |

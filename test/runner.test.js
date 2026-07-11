@@ -4,9 +4,10 @@
 // Subprocess tests for the parts of the runner whose FAILURE behavior can't
 // execute inside a passing suite: runFeatures' guard tests must actually fail
 // a real runner invocation (exit code + message), not merely intend to. Each
-// fixture is a *.fixture.js file (never auto-discovered by either runner)
-// that this test spawns explicitly and asserts on. The suite itself runs
-// under BOTH runtimes: `node --test` spawns node, `bun test` spawns bun.
+// fixture is a *.fixture.js file (never auto-discovered by any runner) that
+// this test spawns explicitly and asserts on. The suite itself runs under ALL
+// THREE runtimes: `node --test` spawns node, `bun test` spawns bun, and
+// `deno test` spawns deno.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -15,54 +16,78 @@ const { spawnSync } = require('node:child_process');
 const { StepRegistry, runFeatureFile } = require('../index');
 
 const isBun = !!process.versions.bun;
+const isDeno = !!(/** @type {any} */ (globalThis).Deno?.version?.deno);
+
+// runFeatureFile: the thin single-file entry point registers real tests in
+// THIS suite — if parsing or binding broke, these scenarios would fail here.
+// Deliberately FIRST, before any test() below has registered: under Deno a
+// load-time throw after an earlier registration would be silently swallowed,
+// so this block sits where its own load errors stay loud on every runtime.
+{
+  const reg = new StepRegistry();
+  reg.define(/^a counter at (\d+)$/, (w, n) => { w.count = Number(n); });
+  reg.define(/^I add (\d+)$/, (w, n) => { w.count += Number(n); });
+  reg.define(/^the counter is (\d+)$/, (w, n) => assert.strictEqual(w.count, Number(n)));
+  runFeatureFile(path.join(__dirname, '..', 'fixtures', 'features-good', 'counter.feature'), reg);
+}
 
 /**
- * Spawn a fixture under the runtime running this suite.
- * `focus` = node's --test-only (Bun needs no flag: @only always focuses);
- * `runTodo` = bun's --todo, which executes todo bodies (node always does);
- * `ci` = pretend the child runs in CI (meaningful under Bun, see below).
- * @param {string} fixture
- * @param {{ focus?: boolean, runTodo?: boolean, ci?: boolean }} [mode]
+ * Spawn one or more fixtures under the runtime running this suite.
+ * `runTodo` = bun's --todo, which executes todo bodies (node always executes
+ * them; Deno never does — it ignores todo bodies). `nodeFlags` = extra
+ * node-only runner flags (e.g. isolation modes). There is no focus mode: this
+ * library never emits only:/test.only, on any runtime.
+ * @param {string | string[]} fixture
+ * @param {{ runTodo?: boolean, nodeFlags?: string[] }} [mode]
  * @returns {{ status: number | null, out: string }}
  */
 function runFixture(fixture, mode = {}) {
-  const file = path.join(__dirname, '..', 'fixtures', fixture);
+  const files = (Array.isArray(fixture) ? fixture : [fixture])
+    .map((f) => path.join(__dirname, '..', 'fixtures', f));
   // Strip the parent test-runner's context vars: with NODE_TEST_CONTEXT set,
   // the child would behave as a runner *child process* (different reporter,
   // different exit semantics) instead of a fresh standalone run.
   const env = { ...process.env, NO_COLOR: '1' };
   delete env.NODE_TEST_CONTEXT;
   delete env.NODE_OPTIONS;
-  if (isBun) {
-    // Bun refuses test.only() when it detects CI (CI env var wins over all
-    // other signals — see the ci-behavior test below). Fixtures test focus
-    // SEMANTICS, so by default the child opts out of CI detection; ci: true
-    // opts back in to pin the CI behavior itself.
-    env.CI = mode.ci ? 'true' : 'false';
-  }
-  const args = isBun
-    ? ['test', ...(mode.runTodo ? ['--todo'] : []), file]
-    : ['--test', ...(mode.focus ? ['--test-only'] : []), file];
+  // Deno has no --todo (it always ignores todo bodies), so mode.runTodo is
+  // node/bun-only (node needs no flag either — it always executes them). The
+  // child gets --allow-read ONLY — the documented minimum — so every fixture
+  // run re-proves that the library needs no other permission. (NO_COLOR is
+  // honored by the Deno runtime itself, outside the permission sandbox.)
+  const args = isDeno
+    ? ['test', '--no-check', '--allow-read', ...files]
+    : isBun
+      ? ['test', ...(mode.runTodo ? ['--todo'] : []), ...files]
+      : ['--test', ...(mode.nodeFlags || []), ...files];
   const r = spawnSync(process.execPath, args, { encoding: 'utf8', env });
   return { status: r.status, out: r.stdout + r.stderr };
 }
 
 /**
- * Parse the summary counts from either runner's output: node prints
- * "pass 3" (spec and TAP reporters alike), bun prints " 3 pass". Bun omits
- * zero counts entirely, so an absent line reads as 0. Matched per-runtime so
- * a count-like phrase in a failure message can't shadow the real summary.
+ * Parse the summary counts from each runner's output: node prints "pass 3"
+ * (spec and TAP reporters alike), bun prints " 3 pass", deno prints "3 passed".
+ * Bun and Deno omit zero counts, so an absent line reads as 0. Matched
+ * per-runtime so a count-like phrase in a failure message can't shadow the real
+ * summary. Deno folds BOTH @skip and @todo into a single "ignored" count (its
+ * node:test bridges todo → Deno.test ignore) — so under Deno `todo` and `skip`
+ * both report that merged count; the fixtures here use only one at a time, so
+ * the merge is unambiguous for these assertions.
  * @param {string} out
  * @returns {{ pass: number, fail: number, todo: number, skip: number }}
  */
 function counts(out) {
   /** @param {string} name */
   const grab = (name) => {
-    const m = isBun
-      ? out.match(new RegExp(`(\\d+) ${name}`))
+    const m = isBun || isDeno
+      ? out.match(new RegExp(`(\\d+) ${name}`)) // bun "3 pass", deno "3 passed"
       : out.match(new RegExp(`${name}(?:ped)? (\\d+)`)); // node reports "skipped N"
     return m ? Number(m[1]) : 0;
   };
+  if (isDeno) {
+    const ignored = grab('ignored');
+    return { pass: grab('passed'), fail: grab('failed'), todo: ignored, skip: ignored };
+  }
   return { pass: grab('pass'), fail: grab('fail'), todo: grab('todo'), skip: grab('skip') };
 }
 
@@ -99,75 +124,86 @@ test('runFeatures: a definer key naming no feature file FAILS the run', () => {
 });
 
 // Node executes @todo bodies on every run; Bun only under `bun test --todo`
-// (where a throwing todo is EXPECTED and a passing one fails). Spawning with
-// runTodo exercises the strictest mode both runtimes offer.
+// (where a throwing todo is EXPECTED and a passing one fails); Deno NEVER
+// executes them (todo → ignored). Spawning with runTodo exercises the strictest
+// mode node/bun offer; under Deno the body never runs, so there is no failure
+// text to see — the contract is only that todo doesn't gate the run.
 test('runFeatures: @todo failures are reported but do not fail the run', () => {
   const { status, out } = runFixture('todotag.fixture.js', { runTodo: true });
   assert.strictEqual(status, 0, out);
-  assert.match(out, /todo failure/, 'the failure is visible in the output');
-  assert.strictEqual(counts(out).todo, 1, '…but only as TODO, which does not gate');
+  if (!isDeno) assert.match(out, /todo failure/, 'the failure is visible in the output');
+  assert.strictEqual(counts(out).todo, 1, '…but only as TODO/ignored, which does not gate');
 });
 
-// The @only focus-mode contract differs by design and is pinned here:
-//  - Bun: @only focuses its file on EVERY run, so runFeatures only-marks the
-//    guards too — focus mode cannot bypass the binding ratchet.
-//  - Node: @only is honored under --test-only, which skips everything not
-//    only-marked, guards included (focus is a local workflow, not CI posture).
-// A test FILE mixing runFeatures calls with and without @only: under Bun the
-// focus is file-wide, so the un-focused call's guards would silently vanish —
-// the mix must be rejected at load. Under node the same file runs normally
-// (@only is inert without --test-only).
-test('runFeatures: mixing @only and non-@only calls in one file is rejected under Bun', () => {
-  const { status, out } = runFixture('multionly.fixture.js');
+// @only is rejected identically on EVERY runtime — the runners' focus
+// semantics are irreconcilable (Node: inert without --test-only; Bun/Deno:
+// focuses its file on every run with no flag, and Deno exits 0 doing it, so a
+// committed @only would silently narrow a CI run there). The rejection is a
+// registered FAILING test, not a throw (Deno swallows a load-time throw once
+// an earlier test has registered), and it is additive: every scenario still
+// registers and runs — rejection never narrows the suite it polices.
+test('runFeatures: @only is rejected loudly, and the full suite still runs', () => {
+  const { status, out } = runFixture('onlytag.fixture.js');
+  assert.notStrictEqual(status, 0, 'a committed @only must fail the run');
+  assert.match(out, /@only is not supported; run one scenario with/,
+    'the rejection names the per-runtime focus alternatives');
   const c = counts(out);
-  if (isBun) {
-    assert.notStrictEqual(status, 0, 'the mixed file must fail to load');
-    assert.match(out, /cannot share a test file/, 'the rejection names the hazard');
-  } else {
-    assert.strictEqual(status, 0, out);
-    assert.strictEqual(c.fail, 0, out);
-    assert.strictEqual(c.pass, 7, `2 orphan guards + 2 feature guards + 3 scenarios:\n${out}`);
-  }
+  assert.strictEqual(c.fail, 1, out);
+  assert.strictEqual(c.pass, 4,
+    `orphan guard + binding guard + BOTH scenarios (tagged one included) still run:\n${out}`);
 });
 
-test('runFeatures: @only focus mode cannot silently disable the guards (bun) / focuses under --test-only (node)', () => {
-  const { status, out } = runFixture('onlytag.fixture.js', { focus: true });
+// ONE runFeatures call per test file, on every runtime: a second call is
+// refused as a registered failing test (never a throw — under Deno a
+// top-level throw after an earlier call has registered a test is silently
+// swallowed, which is exactly how a second call's load-time errors would
+// vanish). The first call is untouched — its guards and scenarios run.
+test('runFeatures: a second call in the same test file is refused loudly', () => {
+  const { status, out } = runFixture('twocalls.fixture.js');
+  assert.notStrictEqual(status, 0, 'the second call must fail the run');
+  assert.match(out, /one call per test file/, 'the rejection names the rule');
+  assert.match(out, /Give each feature directory its own test file/, 'and the fix');
+  const c = counts(out);
+  assert.strictEqual(c.fail, 1, out);
+  assert.strictEqual(c.pass, 3, `the FIRST call runs in full (orphan guard + binding guard + scenario):\n${out}`);
+});
+
+// The one-call rule is per test FILE, never per process: two files with one
+// call each must both register everything. Bun and Deno load every test file
+// into one process, so this pins that the file-identity key follows the file
+// being collected (Bun.main / Deno.mainModule) rather than the process entry.
+test('runFeatures: two test files with one call each are both honored', () => {
+  const { status, out } = runFixture(['good.fixture.js', 'wip.fixture.js']);
   assert.strictEqual(status, 0, out);
   const c = counts(out);
   assert.strictEqual(c.fail, 0, out);
-  if (isBun) {
-    assert.strictEqual(c.pass, 3, `both guards + the focused scenario must run:\n${out}`);
-  } else {
-    assert.strictEqual(c.pass, 1, `--test-only runs just the @only scenario:\n${out}`);
-  }
+  assert.strictEqual(c.pass, 5, `good's 3 (orphan + binding + scenario) + wip's 2 guards must ALL register:\n${out}`);
+  assert.strictEqual(c.todo, 1, `wip's unbound scenario still reports as TODO:\n${out}`);
 });
 
-// Bun refuses .only outright when it detects CI ("set CI=false to override").
-// For this runner that's the ratchet closing one more door: a committed @only
-// can't silently shrink a CI run under Bun — it fails it, loudly. Pinned so a
-// Bun release changing the policy shows up as a diff here, not as silence.
-test('runFeatures: under Bun, a committed @only fails a CI run loudly', { skip: !isBun }, () => {
-  const { status, out } = runFixture('onlytag.fixture.js', { ci: true });
-  assert.notStrictEqual(status, 0, 'CI must not run a focused suite');
-  assert.match(out, /\.only is disabled in CI/);
+// Same rule when node itself goes single-process: --test-isolation=none
+// (node >= 22.8) loads every test file into ONE process where require.main
+// pins to the FIRST file — the one-call key must still tell the files apart
+// (it also keys on the calling file from the stack). Before that fix, the
+// second file's entire suite was falsely refused as a "second call".
+test('runFeatures: node isolation=none cannot falsely trip the one-call rule', () => {
+  if (isBun || isDeno) return; // a node-only execution mode
+  const { status, out } = runFixture(['good.fixture.js', 'wip.fixture.js'],
+    { nodeFlags: ['--experimental-test-isolation=none'] });
+  if (status !== 0 && /bad option/.test(out)) return; // node < 22.8: no such flag
+  assert.strictEqual(status, 0, out);
+  const c = counts(out);
+  assert.strictEqual(c.fail, 0, out);
+  assert.strictEqual(c.pass, 5, `both files' suites must register inside the shared process:\n${out}`);
 });
 
 test('runFeatures: a non-function definer throws a TypeError at load', () => {
   const { runFeatures } = require('../index');
-  assert.throws(
-    () => runFeatures(path.join(__dirname, '..', 'fixtures', 'features-good'),
-      /** @type {any} */ ({ 'counter': 42 })),
-    /definer for "counter" must be a function, got number/,
-  );
+  const boom = () => runFeatures(path.join(__dirname, '..', 'fixtures', 'features-good'),
+    /** @type {any} */ ({ 'counter': 42 }));
+  assert.throws(boom, /definer for "counter" must be a function, got number/);
+  // A THROWING call must not consume the file's one-call slot — the documented
+  // load-time error still throws on a retry (it would otherwise be silently
+  // replaced by a refused-second-call failing test).
+  assert.throws(boom, /definer for "counter" must be a function, got number/);
 });
-
-// runFeatureFile: the thin single-file entry point registers real tests in
-// THIS suite — if parsing or binding broke, these scenarios would fail here.
-{
-  const reg = new StepRegistry();
-  let count = 0;
-  reg.define(/^a counter at (\d+)$/, (w, n) => { w.count = Number(n); count++; });
-  reg.define(/^I add (\d+)$/, (w, n) => { w.count += Number(n); });
-  reg.define(/^the counter is (\d+)$/, (w, n) => assert.strictEqual(w.count, Number(n)));
-  runFeatureFile(path.join(__dirname, '..', 'fixtures', 'features-good', 'counter.feature'), reg);
-}
