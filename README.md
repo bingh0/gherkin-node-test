@@ -172,7 +172,7 @@ pinned by tests here:
 
 | | `node --test` | `bun test` |
 |---|---|---|
-| `@only` | inert until you pass `--test-only` | **focuses its file on every run** — no flag needed (`--only` widens the focus across files) |
+| `@only` | inert until you pass `--test-only` | **focuses its file on every run** — no flag needed (`--only` widens the focus across files); in CI, Bun refuses `.only` outright, so a committed `@only` **fails the run loudly** |
 | `@todo` scenario bodies | always executed; failures shown, never gate | not executed unless you pass `--todo`, where a *failing* todo is expected and a *passing* todo *fails the run* |
 
 The `@only` difference has a sharp edge, so the runner blunts it: since a

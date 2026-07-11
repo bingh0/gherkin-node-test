@@ -19,9 +19,10 @@ const isBun = !!process.versions.bun;
 /**
  * Spawn a fixture under the runtime running this suite.
  * `focus` = node's --test-only (Bun needs no flag: @only always focuses);
- * `runTodo` = bun's --todo, which executes todo bodies (node always does).
+ * `runTodo` = bun's --todo, which executes todo bodies (node always does);
+ * `ci` = pretend the child runs in CI (meaningful under Bun, see below).
  * @param {string} fixture
- * @param {{ focus?: boolean, runTodo?: boolean }} [mode]
+ * @param {{ focus?: boolean, runTodo?: boolean, ci?: boolean }} [mode]
  * @returns {{ status: number | null, out: string }}
  */
 function runFixture(fixture, mode = {}) {
@@ -32,6 +33,13 @@ function runFixture(fixture, mode = {}) {
   const env = { ...process.env, NO_COLOR: '1' };
   delete env.NODE_TEST_CONTEXT;
   delete env.NODE_OPTIONS;
+  if (isBun) {
+    // Bun refuses test.only() when it detects CI (CI env var wins over all
+    // other signals — see the ci-behavior test below). Fixtures test focus
+    // SEMANTICS, so by default the child opts out of CI detection; ci: true
+    // opts back in to pin the CI behavior itself.
+    env.CI = mode.ci ? 'true' : 'false';
+  }
   const args = isBun
     ? ['test', ...(mode.runTodo ? ['--todo'] : []), file]
     : ['--test', ...(mode.focus ? ['--test-only'] : []), file];
@@ -132,6 +140,16 @@ test('runFeatures: @only focus mode cannot silently disable the guards (bun) / f
   } else {
     assert.strictEqual(c.pass, 1, `--test-only runs just the @only scenario:\n${out}`);
   }
+});
+
+// Bun refuses .only outright when it detects CI ("set CI=false to override").
+// For this runner that's the ratchet closing one more door: a committed @only
+// can't silently shrink a CI run under Bun — it fails it, loudly. Pinned so a
+// Bun release changing the policy shows up as a diff here, not as silence.
+test('runFeatures: under Bun, a committed @only fails a CI run loudly', { skip: !isBun }, () => {
+  const { status, out } = runFixture('onlytag.fixture.js', { ci: true });
+  assert.notStrictEqual(status, 0, 'CI must not run a focused suite');
+  assert.match(out, /\.only is disabled in CI/);
 });
 
 test('runFeatures: a non-function definer throws a TypeError at load', () => {
