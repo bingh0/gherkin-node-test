@@ -1,9 +1,11 @@
 # gherkin-node-test
 
 **The smallest honest Gherkin runner.** Zero dependencies, no build step, no
-CLI — it turns `.feature` files into real [`node:test`](https://nodejs.org/api/test.html)
-tests, and it treats every silence as a bug. One file, ~520 lines, small enough
-to read in one sitting or to vendor outright.
+CLI — it turns `.feature` files into real tests on your runtime's built-in
+runner: [`node:test`](https://nodejs.org/api/test.html) under Node,
+[`bun:test`](https://bun.sh/docs/cli/test) natively under Bun — and it treats
+every silence as a bug. One file, ~600 lines, small enough to read in one
+sitting or to vendor outright.
 
 ```sh
 npm i -D gherkin-node-test    # or just copy index.js into your repo
@@ -49,10 +51,10 @@ itself. None of this was designed "for AI"; it was designed for a human who
 couldn't personally re-read the implementation, which is rapidly becoming
 everyone's situation.
 
-And because the runner compiles scenarios into `node:test`, there is no second
-toolchain: one command (`node --test`) runs unit tests and acceptance criteria
-together, with watch mode, coverage, and CI reporters inherited from Node
-itself.
+And because the runner compiles scenarios into the runtime's own test runner,
+there is no second toolchain: one command (`node --test`, or `bun test` under
+Bun) runs unit tests and acceptance criteria together, with watch mode,
+coverage, and CI reporters inherited from the runtime itself.
 
 ## Quick start
 
@@ -96,10 +98,10 @@ module.exports = (reg) => {
 ```
 
 ```sh
-node --test
+node --test    # or: bun test
 ```
 
-Each scenario becomes one `node:test` test named `Feature :: Scenario`. A fresh
+Each scenario becomes one test named `Feature :: Scenario`. A fresh
 `world` object is created per scenario; `Background` steps run before each one.
 Alongside the scenarios, `runFeatures` registers the guard tests described
 above (ambiguity, unbound steps, orphaned definer keys).
@@ -155,6 +157,36 @@ guard (renaming a `.feature` file can't silently strand its steps), and
 skip-still-binds (`@skip` means "don't run", never "don't bind" — otherwise
 a tag would be a hole in the ratchet).
 
+## Runs on Bun — natively
+
+Under Bun this runner registers scenarios directly on
+[`bun:test`](https://bun.sh/docs/cli/test), not through Bun's `node:test`
+compatibility shim (which Bun's own docs mark partial, and which deliberately
+drops the `only:` option). Same feature files, same guards, same ratchet —
+`bun test` instead of `node --test`. Verified against Bun 1.3.14; the CI bun
+lane runs this repo's entire suite, subprocess proofs included, to keep this
+section true.
+
+Two behaviors differ between the runtimes, both inherent to `bun:test` and
+pinned by tests here:
+
+| | `node --test` | `bun test` |
+|---|---|---|
+| `@only` | inert until you pass `--test-only` | **focuses its file on every run** — no flag needed (`--only` widens the focus across files) |
+| `@todo` scenario bodies | always executed; failures shown, never gate | not executed unless you pass `--todo`, where a *failing* todo is expected and a *passing* todo *fails the run* |
+
+The `@only` difference has a sharp edge, so the runner blunts it: since a
+committed `@only` would focus the file on every Bun run, `runFeatures`
+**only-marks its guard tests too** — focus mode can never silently disable the
+binding ratchet. (Under Node, `--test-only` does skip the guards; focus is a
+local workflow, not a CI posture.) And because the two runtimes would disagree
+about what `@skip @only` on one scenario means, combining semantic tags is a
+parse error — see the rejection table below.
+
+One Bun-specific footnote: `bun test` runs Bun's test runner; `bun run test`
+runs this package's `test` script (`node --test`). Both work — they're just
+different runtimes.
+
 ## N-version verification
 
 Because the feature files are language-neutral and strictly separated from
@@ -205,7 +237,7 @@ comparison.
 | `<placeholder>` | substituted from the Examples columns — in step text **and** step data tables; every `<name>` must match a column |
 | Steps | `Given` `When` `Then` `And` `But` `*`, followed by step text |
 | Step data tables | `\|` rows after a step attach to it; the step function receives a **`DataTable`** as its last argument |
-| Tags | `@skip` / `@todo` / `@only` map to the `node:test` options of the same name; tags on `Feature:` apply to all its scenarios; any other tag is carried on `scenario.tags` with no runtime effect |
+| Tags | `@skip` / `@todo` / `@only` map to the runner's options of the same name — at most one per scenario; tags on `Feature:` apply to all its scenarios; any other tag is carried on `scenario.tags` with no runtime effect |
 | `# comment` | ignored anywhere |
 | Feature narrative | the `As a… / I want… / So that…` prose block is ignored |
 
@@ -214,9 +246,11 @@ backslash) and `\n` (newline); a backslash before any other character is
 literal, so cells like `C:\Temp` or `Cmd+\` need no escaping.
 
 Tag semantics: `@skip` never executes the scenario (but its steps must still be
-*bound* — skip means "don't run", never "don't bind"); `@todo` executes it but
-its failures don't fail the run; `@only` is honored under `node --test
---test-only`.
+*bound* — skip means "don't run", never "don't bind"); `@todo` doesn't gate the
+run (Node executes the body and reports failures; Bun executes it only under
+`--todo`); `@only` is honored under `node --test --test-only`, and under Bun
+focuses on every run. The three are mutually exclusive — the runtimes disagree
+on what a combination would mean, so a combination is a parse error.
 
 ### Step matching and `DataTable`
 
@@ -277,6 +311,7 @@ throws `GherkinSyntaxError` with the offending line number:
 | A step *after* its `Examples:` table | malformed ordering; the step would mis-attach |
 | Tags anywhere but immediately before `Feature:` / `Scenario:` / `Scenario Outline:` | a mis-placed `@skip` would silently not skip |
 | A near-miss semantic tag (`@Skip`, `@SKIP`, `@Only`, …) | would be silently inert — worst for `@only`, which would silently *deselect* under `--test-only` |
+| Combined semantic tags (`@skip @only` on one scenario) | `node:test` takes them as options with its own precedence, `bun:test` as mutually exclusive methods — a combination can't mean the same thing on both, so it must not mean anything silently |
 | `Rule:` (Gherkin 6) | grouping would be silently flattened |
 | A step before any `Scenario`/`Background` | would be silently discarded |
 | A 2nd `Feature:` / `Background:`, or `Background:` after a `Scenario` | ambiguous scope |
@@ -296,8 +331,8 @@ still can't pass vacuously).
 - You need the full Gherkin grammar (doc strings, `Rule:`, i18n) →
   **@cucumber/gherkin** is the real parser.
 
-The niche here is exactly: Gherkin on `node:test`, zero dependencies, loud by
-construction.
+The niche here is exactly: Gherkin on the runtime's built-in runner —
+`node:test` or `bun:test` — zero dependencies, loud by construction.
 
 ## API
 
@@ -307,7 +342,7 @@ construction.
 | `parseFeature(text, filename?)` | parse → `{ feature, background, scenarios }`; throws `GherkinSyntaxError` |
 | `StepRegistry` | `.define(pattern, fn)` / `.find(text)` |
 | `executeSteps(steps, registry, world?)` | run a flat step list against a shared world (installs `world.defer`) |
-| `runFeature(parsed, registry)` | register a `node:test` per scenario (tags mapped, unbound → TODO) |
+| `runFeature(parsed, registry)` | register one runner test per scenario (tags mapped, unbound → TODO) |
 | `runFeatureFile(file, registry)` | read + parse + run a single `.feature` file |
 | `DataTable` | cucumber-compatible step table: `raw` / `rows` / `hashes` / `rowsHash` / `transpose` |
 | `buildSnippet(text)` | paste-ready step definition for an unbound step (body throws) |

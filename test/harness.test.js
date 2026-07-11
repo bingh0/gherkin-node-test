@@ -113,6 +113,14 @@ const REJECTED = [
     'Scenario: s\n  Given x\n@dangling', /dangling tags/],
   ['a near-miss semantic tag (case typo)',
     '@Skip\nScenario: s\n  Given x', /near-miss tag is silently inert/],
+  // Combined semantic tags: node:test takes them as options with its own
+  // precedence, bun:test as mutually exclusive methods — a combination can't
+  // mean the same thing on both runners, so it must not mean anything silently.
+  ['conflicting semantic tags on a scenario',
+    '@skip @only\nScenario: s\n  Given x', /conflicting tags \(@skip @only\)/],
+  ['conflicting semantic tags on a scenario outline',
+    '@todo @skip\nScenario Outline: o\n  Given <a>\n  Examples:\n    | a |\n    | 1 |',
+    /conflicting tags \(@todo @skip\)/],
   ['a near-miss @only (would silently deselect under --test-only)',
     '@ONLY\nScenario: s\n  Given x', /near-miss tag is silently inert/],
   ['the Rule: keyword',
@@ -163,6 +171,23 @@ for (const [label, body, pattern] of REJECTED) {
 
 test('parseFeature requires a Feature: line', () => {
   assert.throws(() => parseFeature('Scenario: s\n  Given x'), /no Feature: line/);
+});
+
+// Feature-level tags participate in the conflict check too — both on the
+// Feature: line itself and via inheritance onto a scenario's own tags.
+test('parseFeature loudly rejects conflicting tags on the Feature line', () => {
+  assert.throws(() => parseFeature('@skip @todo\nFeature: T\nScenario: s\n  Given x\n'),
+    /conflicting tags \(@skip @todo\)/);
+});
+
+test('parseFeature loudly rejects a feature tag conflicting with a scenario tag', () => {
+  assert.throws(() => parseFeature('@skip\nFeature: T\n@only\nScenario: s\n  Given x\n'),
+    /conflicting tags \(@skip @only\)/);
+});
+
+test('a semantic tag repeated on Feature and Scenario is not a conflict', () => {
+  const { scenarios } = parseFeature('@skip\nFeature: T\n@skip\nScenario: s\n  Given x\n');
+  assert.deepStrictEqual(scenarios[0].tags, ['@skip', '@skip'], 'same tag twice is redundant, not ambiguous');
 });
 
 test('parseFeature still accepts the supported subset unchanged', () => {

@@ -1,11 +1,12 @@
 // @ts-check
 // gherkin-node-test
-// A tiny, zero-dependency Gherkin runner on top of Node's built-in test runner.
+// A tiny, zero-dependency Gherkin runner on top of the runtime's built-in test
+// runner: node:test under Node, bun:test natively under Bun.
 //
 // It parses the practical core of Gherkin — Feature / Background / Scenario /
 // Scenario Outline + Examples, with Given·When·Then·And·But·* steps, step-level
-// data tables, and @skip/@todo/@only tags — and turns each scenario into a
-// node:test test(). Scenario Outlines are expanded once per Examples row.
+// data tables, and @skip/@todo/@only tags — and turns each scenario into one
+// runner test(). Scenario Outlines are expanded once per Examples row.
 //
 // The high-level entry point is runFeatures(dir, definers, { wip }): it
 // discovers every *.feature in dir, runs each against its OWN scoped registry
@@ -26,10 +27,13 @@
 //                       receives a cucumber-compatible DataTable as its last
 //                       argument (raw/rows/hashes/rowsHash/transpose). Cells
 //                       honor \| \\ \n escapes; other backslashes are literal.
-//   Tags:               @skip / @todo / @only map to the node:test options of
-//                       the same name (@only needs `node --test --test-only`);
+//   Tags:               @skip / @todo / @only map to the runner's options of
+//                       the same name (@only needs `node --test --test-only`
+//                       under Node; under Bun it focuses on every run);
 //                       tags on Feature: apply to all its scenarios; all other
 //                       tags (e.g. @AC3) are carried but have no effect.
+//                       Combining @skip/@todo/@only on one scenario is a loud
+//                       error — runners disagree on which would win.
 //   Comments (# ...) and the Feature narrative are ignored.
 //
 // DELIBERATELY NOT SUPPORTED. Structural misuse is REJECTED LOUDLY — each throws
@@ -49,12 +53,41 @@
 // If you need the real thing, reach for @cucumber/gherkin.
 // See README.md for the full grammar and rationale.
 //
-// No npm deps — Node ≥18 stdlib only. Run with `node --test`.
+// No npm deps — Node ≥18 stdlib only. Run with `node --test`, or `bun test`.
 
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert');
-const { test } = require('node:test');
+
+// Under Bun, register tests natively on bun:test: Bun's node:test shim is
+// partial (its own compat docs say "use bun:test instead") and deliberately
+// drops the `only:` option. The dynamic specifier keeps each runtime loading
+// only its own module.
+const isBun = !!process.versions.bun;
+const { test } = require(isBun ? 'bun:test' : 'node:test');
+
+/**
+ * Register one test on the active runner. node:test takes skip/todo/only as
+ * options; bun:test takes them as methods. At most one of the three is ever
+ * set (the parser rejects combined semantic tags), so the method chain cannot
+ * silently invent a precedence the other runner disagrees with.
+ * @param {string} title
+ * @param {{ skip?: boolean, todo?: boolean | string, only?: boolean }} opts
+ * @param {() => (void | Promise<void>)} fn
+ */
+function registerTest(title, opts, fn) {
+  // The Bun branch is invisible to `node --test` coverage by construction;
+  // it is exercised by running this same suite under `bun test` (CI bun lane).
+  /* node:coverage ignore next 7 */
+  if (isBun) {
+    if (opts.skip) test.skip(title, fn);
+    else if (opts.todo) test.todo(title, fn);
+    else if (opts.only) test.only(title, fn);
+    else test(title, fn);
+    return;
+  }
+  test(title, opts, fn);
+}
 
 /** @typedef {{ keyword: string, text: string, table?: string[][] }} Step */
 /** @typedef {{ name: string, steps: Step[], line: number, tags: string[] }} Scenario */
@@ -159,6 +192,19 @@ function parseFeature(text, filename = '<feature>') {
 
   /** Consume pending tags (for a construct that accepts them). */
   const takeTags = () => { const t = pendingTags; pendingTags = []; return t; };
+  /**
+   * Reject a combination of semantic tags: node:test takes them as options
+   * (with its own precedence), bun:test as mutually exclusive methods — a
+   * combination cannot mean the same thing on both runners, so it must not
+   * mean anything silently.
+   * @param {string[]} tags @param {number} lineNo
+   */
+  const noTagConflict = (tags, lineNo) => {
+    const semantic = [...new Set(tags.filter((t) => t === '@skip' || t === '@todo' || t === '@only'))];
+    if (semantic.length > 1) {
+      fail(lineNo, `conflicting tags (${semantic.join(' ')}) — @skip/@todo/@only are mutually exclusive; keep exactly one`);
+    }
+  };
   /** Reject pending tags (for a line that must not carry them). @param {number} lineNo */
   const noTags = (lineNo) => {
     if (pendingTags.length) {
@@ -254,7 +300,7 @@ function parseFeature(text, filename = '<feature>') {
     let m;
     if ((m = line.match(/^Feature:\s*(.*)$/))) {
       if (featureSeen) fail(lineNo, 'multiple Feature: blocks in one file');
-      flushOutline(); feature = m[1]; featureSeen = true; featureTags = takeTags(); cur = null; inExamples = false; continue;
+      flushOutline(); feature = m[1]; featureSeen = true; featureTags = takeTags(); noTagConflict(featureTags, lineNo); cur = null; inExamples = false; continue;
     }
     if (line.startsWith('Background:')) {
       noTags(lineNo);
@@ -266,11 +312,13 @@ function parseFeature(text, filename = '<feature>') {
     if ((m = line.match(/^Scenario Outline:\s*(.*)$/))) {
       flushOutline();
       outline = { name: m[1], steps: [], header: null, rows: [], examplesSeen: false, line: lineNo, tags: [...featureTags, ...takeTags()] };
+      noTagConflict(outline.tags, lineNo);
       cur = outline.steps; inExamples = false; continue;
     }
     if ((m = line.match(/^Scenario:\s*(.*)$/))) {
       flushOutline();
       const sc = { name: m[1], steps: [], line: lineNo, tags: [...featureTags, ...takeTags()] };
+      noTagConflict(sc.tags, lineNo);
       scenarios.push(sc); cur = sc.steps; inExamples = false; continue;
     }
     if (line.startsWith('Examples:')) {
@@ -434,10 +482,11 @@ async function executeSteps(steps, registry, world = {}) {
 }
 
 /**
- * Register one node:test per scenario. Scenarios whose steps aren't all
+ * Register one runner test per scenario. Scenarios whose steps aren't all
  * defined register as TODO (see runFeatures for the guard that keeps TODO from
  * silently swallowing a bound feature). Tag mapping: @skip → skipped, @todo →
- * runs but doesn't gate the suite, @only → honored under `--test-only`.
+ * doesn't gate the suite, @only → honored under `node --test --test-only`
+ * (under Bun, @only focuses its file on every run).
  * @param {ParsedFeature} parsed
  * @param {StepRegistry} registry
  */
@@ -447,7 +496,12 @@ function runFeature(parsed, registry) {
     const title = `${parsed.feature} :: ${sc.name}`;
     const missing = steps.filter((s) => !registry.find(s.text));
     if (missing.length) {
-      test(title, { todo: `${missing.length} undefined step(s); first: "${missing[0].text}"` }, () => {});
+      const reason = `${missing.length} undefined step(s); first: "${missing[0].text}"`;
+      // The placeholder body THROWS its reason: an empty body would pass
+      // vacuously under modes that execute todo bodies — `bun test --todo`
+      // even FAILS a todo that passes. A throwing todo gates nothing on
+      // either runner and keeps the reason visible wherever bodies run.
+      registerTest(title, { todo: reason }, () => { throw new Error(reason); });
       continue;
     }
     const tags = new Set(sc.tags);
@@ -456,7 +510,7 @@ function runFeature(parsed, registry) {
     if (tags.has('@skip')) opts.skip = true;
     if (tags.has('@todo')) opts.todo = true;
     if (tags.has('@only')) opts.only = true;
-    test(title, opts, async () => { await executeSteps(steps, registry); });
+    registerTest(title, opts, async () => { await executeSteps(steps, registry); });
   }
 }
 
@@ -494,12 +548,9 @@ function runFeatures(dir, definers, opts = {}) {
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.feature')).sort();
   const bases = files.map((f) => f.replace(/\.feature$/, ''));
 
-  test('step definers map only to existing feature files', () => {
-    const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));
-    assert.deepStrictEqual(orphaned, [], `definers with no matching .feature in ${dir}: ${orphaned.join(', ')}`);
-  });
-
-  for (const file of files) {
+  // Validate and parse EVERYTHING before registering any test: a bad definer
+  // or an unparseable feature must fail at load, before half a suite exists.
+  const features = files.map((file) => {
     const base = file.replace(/\.feature$/, '');
     const featureFile = path.join(dir, file);
     const definer = definers[base];
@@ -509,8 +560,26 @@ function runFeatures(dir, definers, opts = {}) {
     const registry = new StepRegistry();
     if (definer) definer(registry);
     const parsed = parseFeature(fs.readFileSync(featureFile, 'utf8'), featureFile);
+    return { base, parsed, registry };
+  });
 
-    test(`${base} :: step definitions are ${wip.has(base) ? 'unambiguous' : 'complete and unambiguous'}`, () => {
+  // Under Bun, an @only scenario focuses its whole test file on EVERY run (no
+  // flag needed) — which would silently skip these guards, disabling the
+  // ratchet exactly while someone is iterating. So under Bun the guards are
+  // only-marked too whenever any @only exists: focus mode can never bypass
+  // the ratchet. (Not done under Node, where only: without --test-only prints
+  // a per-test warning; Node's --test-only focus does skip the guards — see
+  // README.)
+  const guardOpts = isBun && features.some(({ parsed }) => parsed.scenarios.some((s) => s.tags.includes('@only')))
+    ? { only: true } : {};
+
+  registerTest('step definers map only to existing feature files', guardOpts, () => {
+    const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));
+    assert.deepStrictEqual(orphaned, [], `definers with no matching .feature in ${dir}: ${orphaned.join(', ')}`);
+  });
+
+  for (const { base, parsed, registry } of features) {
+    registerTest(`${base} :: step definitions are ${wip.has(base) ? 'unambiguous' : 'complete and unambiguous'}`, guardOpts, () => {
       const steps = [...parsed.background, ...parsed.scenarios.flatMap((s) => s.steps)];
       const ambiguous = steps
         .filter((s) => registry.steps.filter((d) => s.text.match(d.re)).length > 1)

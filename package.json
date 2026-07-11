@@ -1,7 +1,7 @@
 {
   "name": "gherkin-node-test",
-  "version": "0.1.0",
-  "description": "The smallest honest Gherkin runner — zero dependencies, on Node's built-in test runner, built for agent-driven BDD.",
+  "version": "0.2.0",
+  "description": "The smallest honest Gherkin runner — zero dependencies, native on node:test and bun:test, built for agent-driven BDD.",
   "license": "MIT",
   "author": "Bing Ho <reps-attic-riot@duck.com>",
   "repository": {
@@ -26,6 +26,8 @@
     "bdd",
     "cucumber",
     "node-test",
+    "bun",
+    "bun-test",
     "zero-dependency",
     "acceptance-testing",
     "agent",
