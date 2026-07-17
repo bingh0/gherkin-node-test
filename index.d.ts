@@ -77,9 +77,10 @@ declare class DataTable {
  * @returns {ParsedFeature}
  */
 declare function parseFeature(text: string, filename?: string): ParsedFeature;
+export type LintSeverity = 'error' | 'warn';
 export type LintFinding = {
     rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline';
-    severity: 'error' | 'warn';
+    severity: LintSeverity;
     line: number;
     message: string;
 };

@@ -475,8 +475,9 @@ function parseFeature(text, filename = '<feature>') {
 // --- Linter -------------------------------------------------------------------
 
 /**
+ * @typedef {'error' | 'warn'} LintSeverity
  * @typedef {{ rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline',
- *             severity: 'error' | 'warn', line: number, message: string }} LintFinding
+ *             severity: LintSeverity, line: number, message: string }} LintFinding
  */
 
 /** The primary step keywords; And/But/* inherit the most recent one. */

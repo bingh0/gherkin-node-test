@@ -1,7 +1,7 @@
 {
   "name": "gherkin-node-test",
   "version": "0.4.0",
-  "description": "The smallest honest Gherkin runner and feature-file linter — zero dependencies, native on node:test, bun:test, and Deno, built for agent-driven BDD.",
+  "description": "The smallest honest Gherkin runner and feature-file linter \u2014 zero dependencies, native on node:test, bun:test, and Deno, built for agent-driven BDD.",
   "license": "MIT",
   "author": "Bing Ho <reps-attic-riot@duck.com>",
   "repository": {
@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "test": "node --test",
-    "types": "npx -y -p typescript tsc index.js --declaration --emitDeclarationOnly --allowJs --outDir . --target es2022 --module nodenext --skipLibCheck"
+    "types": "tsc index.js --declaration --emitDeclarationOnly --allowJs --noCheck --outDir . --target es2022 --module nodenext --skipLibCheck --types node"
   },
   "keywords": [
     "gherkin",
@@ -40,8 +40,9 @@
     "agent",
     "vibe-coding"
   ],
-  "dependencies": {},
   "devDependencies": {
-    "@types/bun": "^1.3.14"
+    "@types/bun": "^1.3.14",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
   }
 }
