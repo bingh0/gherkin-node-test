@@ -60,6 +60,11 @@
 // If you need the real thing, reach for @cucumber/gherkin.
 // See README.md for the full grammar and rationale.
 //
+// LINTER ROLE: lintFeature(text, filename?) exposes the same dialect gate plus
+// deterministic spec lints (no-Then, banned vagueness, single-row outlines) as
+// pure text-in/findings-out — no fs, no registration — for repos whose runner
+// is something else (vitest-cucumber, cucumber-js). See its doc comment.
+//
 // No npm deps — Node ≥18 stdlib only. Run with `node --test`, `bun test`, or
 // `deno test --allow-read` (Deno needs read permission for the .feature files).
 
@@ -164,9 +169,10 @@ function currentTestFile() {
   return { key: `${main}\u0000${caller}`, display: caller || main || 'this test file' };
 }
 
-/** @typedef {{ keyword: string, text: string, table?: string[][] }} Step */
+/** @typedef {{ keyword: string, text: string, line: number, table?: string[][] }} Step */
 /** @typedef {{ name: string, steps: Step[], line: number, tags: string[] }} Scenario */
-/** @typedef {{ feature: string, background: Step[], scenarios: Scenario[], file: string }} ParsedFeature */
+/** @typedef {{ name: string, line: number, rows: number }} OutlineMeta */
+/** @typedef {{ feature: string, background: Step[], scenarios: Scenario[], outlines: OutlineMeta[], file: string }} ParsedFeature */
 /** @typedef {(world: Record<string, any>, ...args: any[]) => (void | Promise<void>)} StepFn */
 
 /**
@@ -257,6 +263,8 @@ function parseFeature(text, filename = '<feature>') {
   const background = [];
   /** @type {Scenario[]} */
   const scenarios = [];
+  /** @type {OutlineMeta[]} */
+  const outlines = [];
   /** @type {Step[] | null} */
   let cur = null;        // array currently collecting steps
   /** @type {{ name: string, steps: Step[], header: string[] | null, rows: string[][], examplesSeen: boolean, line: number, tags: string[] } | null} */
@@ -335,6 +343,7 @@ function parseFeature(text, filename = '<feature>') {
     if (!examplesSeen) fail(line, 'Scenario Outline has no Examples: block');
     if (!header) fail(line, 'Scenario Outline Examples: has no header row');
     if (rows.length === 0) fail(line, 'Scenario Outline Examples: has a header but no data rows');
+    outlines.push({ name, line, rows: rows.length });
     rows.forEach((row, i) => {
       /** @type {Record<string, string>} */
       const map = {};
@@ -349,6 +358,7 @@ function parseFeature(text, filename = '<feature>') {
         steps: steps.map((st) => ({
           keyword: st.keyword,
           text: subst(st.text),
+          line: st.line,
           ...(st.table ? { table: st.table.map((r) => r.map(subst)) } : {}),
         })),
         line,
@@ -417,7 +427,7 @@ function parseFeature(text, filename = '<feature>') {
       noTags(lineNo);
       if (!cur) fail(lineNo, 'step before any Scenario or Background');
       if (inExamples) fail(lineNo, 'step after an Examples: table (steps must precede Examples)');
-      cur.push({ keyword: m[1], text: m[2] });
+      cur.push({ keyword: m[1], text: m[2], line: lineNo });
       continue;
     }
     if (line.startsWith('|')) {
@@ -459,7 +469,128 @@ function parseFeature(text, filename = '<feature>') {
   for (const sc of scenarios) {
     if (sc.steps.length === 0) fail(sc.line, `Scenario "${sc.name}" has no steps`);
   }
-  return { feature, background, scenarios, file: filename };
+  return { feature, background, scenarios, outlines, file: filename };
+}
+
+// --- Linter -------------------------------------------------------------------
+
+/**
+ * @typedef {{ rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline',
+ *             severity: 'error' | 'warn', line: number, message: string }} LintFinding
+ */
+
+/** The primary step keywords; And/But/* inherit the most recent one. */
+const PRIMARY_KEYWORDS = new Set(['Given', 'When', 'Then']);
+
+// Words that make a Then assert nothing checkable. Deliberately short — every
+// entry is a word whose presence in an outcome step is near-certainly vacuous
+// ("Then it works correctly"). Consumers wanting a house list run their own
+// pass over the same parse; this one is the floor, not the ceiling.
+const VAGUE_THEN = /\b(works|correctly|properly|as expected|handles|appropriate)\b/i;
+
+/**
+ * Lint one feature file's text: the dialect gate plus deterministic spec
+ * lints. Pure text-in/findings-out — no filesystem, no environment, no test
+ * registration — so it behaves identically on Node, Bun, and Deno, and
+ * directory walking stays in the consumer. This is the supported way to use
+ * gherkin-node-test as a LINTER inside a repo whose runner is something else
+ * (vitest-cucumber, cucumber-js): the linter gates dialect membership and
+ * spec quality; the executor's interpretation of the file stays authoritative.
+ *
+ * Rules:
+ *  - `dialect` (error): the text is outside the supported subset — the exact
+ *    GherkinSyntaxError the runner would throw, as a finding. The parser stops
+ *    at the first violation, so a dialect finding is always alone.
+ *  - `no-then` (warn): a scenario whose own steps never resolve to Then — it
+ *    runs code but asserts nothing. And/But/* inherit the preceding primary
+ *    keyword (a Background is walked first, so a scenario continuing the
+ *    Background's context is resolved correctly).
+ *  - `vague-then` (warn): a Then-resolved step containing a word from the
+ *    banned-vagueness list above.
+ *  - `single-row-outline` (warn): a Scenario Outline with one Examples row —
+ *    a scenario with extra ceremony, and usually a missing case.
+ *
+ * Findings from a Scenario Outline are reported once per source construct,
+ * not once per expanded row — except a vague-then introduced BY a placeholder
+ * substitution, which is reported for exactly the rows that produce it.
+ *
+ * Severity is descriptive, not policy: `dialect` is an error because the
+ * runner would refuse the file; the lints warn because adopting them on an
+ * existing suite needs a debt register, and that register (a wip-style
+ * allowlist, filtering by rule) belongs to the consumer.
+ *
+ * @param {string} text     raw .feature file contents
+ * @param {string} [filename] used only to prefix the dialect finding's message
+ * @returns {LintFinding[]} sorted by line, then declaration order
+ */
+function lintFeature(text, filename = '<feature>') {
+  /** @type {ParsedFeature} */
+  let parsed;
+  try {
+    parsed = parseFeature(text, filename);
+  } catch (e) {
+    if (!(e instanceof GherkinSyntaxError)) throw e;
+    // The structured finding already carries .line; strip the parser's
+    // file:line prefix so consumers composing "file:line: message" from the
+    // finding don't print it twice.
+    const prefix = `${filename}:${e.line}: `;
+    const message = e.message.startsWith(prefix) ? e.message.slice(prefix.length) : e.message;
+    return [{ rule: 'dialect', severity: 'error', line: e.line, message }];
+  }
+
+  /** @type {LintFinding[]} */
+  const findings = [];
+  const seen = new Set();
+  /** @param {LintFinding['rule']} rule @param {number} line @param {string} message */
+  const warn = (rule, line, message) => {
+    // Identical (rule, line, message) triples collapse: expanded outline rows
+    // share their source lines, so a row-independent finding lands once while
+    // a substitution-dependent one (different message text) lands per row.
+    const key = `${rule} ${line} ${message}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    findings.push({ rule, severity: 'warn', line, message });
+  };
+  /** @param {Step} st */
+  const checkVague = (st) => {
+    const m = st.text.match(VAGUE_THEN);
+    if (m) {
+      warn('vague-then', st.line,
+        `vague Then "${st.text}" — "${m[0]}" is not a checkable outcome; name the observable result`);
+    }
+  };
+
+  // Background steps are shared by every scenario: resolve and lint them once.
+  /** @type {string | null} */
+  let bgLast = null;
+  for (const st of parsed.background) {
+    if (PRIMARY_KEYWORDS.has(st.keyword)) bgLast = st.keyword;
+    if (bgLast === 'Then') checkVague(st);
+  }
+
+  const outlineByLine = new Map(parsed.outlines.map((o) => [o.line, o]));
+  for (const sc of parsed.scenarios) {
+    const outline = outlineByLine.get(sc.line);
+    let last = bgLast;
+    let hasThen = false;
+    for (const st of sc.steps) {
+      if (PRIMARY_KEYWORDS.has(st.keyword)) last = st.keyword;
+      if (last === 'Then') { hasThen = true; checkVague(st); }
+    }
+    if (!hasThen) {
+      const label = outline ? `Scenario Outline "${outline.name}"` : `Scenario "${sc.name}"`;
+      warn('no-then', sc.line, `${label} has no Then step — it runs code but asserts nothing`);
+    }
+  }
+
+  for (const o of parsed.outlines) {
+    if (o.rows === 1) {
+      warn('single-row-outline', o.line,
+        `Scenario Outline "${o.name}" has one Examples row — a scenario with extra ceremony, and usually a missing case`);
+    }
+  }
+
+  return findings.sort((a, b) => a.line - b.line);
 }
 
 // --- Step registry ----------------------------------------------------------
@@ -713,6 +844,6 @@ function runFeatures(dir, definers, opts = {}) {
 }
 
 module.exports = {
-  parseFeature, StepRegistry, executeSteps, runFeature, runFeatureFile, runFeatures,
+  parseFeature, lintFeature, StepRegistry, executeSteps, runFeature, runFeatureFile, runFeatures,
   DataTable, buildSnippet, GherkinSyntaxError,
 };

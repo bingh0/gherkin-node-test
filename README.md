@@ -6,8 +6,10 @@ runner: [`node:test`](https://nodejs.org/api/test.html) under Node,
 [`bun:test`](https://bun.sh/docs/cli/test) natively under Bun, and `node:test`
 under [Deno](https://docs.deno.com/runtime/reference/cli/test/) (whose
 `node:test` bridges to the native `Deno.test` runner) — and it treats every
-silence as a bug. One file, ~700 lines, small enough to read in one sitting or
-to vendor outright.
+silence as a bug. One file, ~850 lines, small enough to read in one sitting or
+to vendor outright. The same file doubles as a **feature-file linter** for
+projects whose runner is something else — see
+[the linter role](#the-linter-role--under-someone-elses-runner).
 
 ```sh
 npm i -D gherkin-node-test    # or just copy index.js into your repo
@@ -375,13 +377,73 @@ Two non-features by design, with no dedicated error: **Cucumber Expressions**
 reads as narrative; if that empties a scenario, the no-steps guard fires, so it
 still can't pass vacuously).
 
+## The linter role — under someone else's runner
+
+Everything above assumes this is your runner. It doesn't have to be:
+`lintFeature(text, filename?)` exposes the same loud dialect gate, plus
+deterministic spec lints, as a **pure function** — text in, findings out. No
+filesystem, no environment, no test registration, so it behaves identically on
+Node, Bun, and Deno, and directory walking stays in *your* code.
+
+The use case: your project runs its features on another executor
+(vitest-cucumber, cucumber-js) but you want its `.feature` files held to this
+dialect — say, because they must stay portable to a second implementation, or
+because you want the spec-quality floor without changing runners. One guard
+test in your existing suite does it:
+
+```js
+// feature-guards.test.ts (vitest example)
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { test, expect } from 'vitest';
+import { lintFeature } from 'gherkin-node-test';
+
+test('every feature file is in-dialect and non-vacuous', () => {
+  const files = readdirSync('tests', { recursive: true, encoding: 'utf8' })
+    .filter((f) => f.endsWith('.feature'))
+    .map((f) => join('tests', f));
+  const problems = files.flatMap((file) =>
+    lintFeature(readFileSync(file, 'utf8'), file)
+      .map((f) => `${file}:${f.line}: [${f.rule}] ${f.message}`));
+  expect(problems).toEqual([]);
+});
+```
+
+Findings carry `{ rule, severity, line, message }`:
+
+| Rule | Severity | Fires on |
+|---|---|---|
+| `dialect` | error | anything the [rejection table](#deliberately-unsupported--and-rejected-loudly) rejects — the exact `GherkinSyntaxError`, as a finding (the parser stops at the first violation, so it arrives alone) |
+| `no-then` | warn | a scenario whose steps never resolve to `Then` — runs code, asserts nothing (`And`/`But`/`*` inherit the preceding primary keyword, across a `Background`) |
+| `vague-then` | warn | a `Then`-resolved step containing *works · correctly · properly · as expected · handles · appropriate* — words that assert nothing checkable |
+| `single-row-outline` | warn | a `Scenario Outline` with one `Examples` row — a scenario with extra ceremony, and usually a missing case |
+
+Outline findings are reported once per source construct, not once per expanded
+row — except a vagueness introduced *by* a placeholder substitution, which is
+reported for exactly the rows that produce it.
+
+Severity is descriptive, not policy. `dialect` is an error because the runner
+would refuse the file; the lints warn because adopting them on an existing
+suite needs a debt register, and that register — a `wip`-style allowlist,
+filtering by rule — belongs in your guard test, where it's grep-able, not
+hidden in a config file.
+
+**The two-parser rule.** When the linter and the executor are different
+parsers, the executor's interpretation of a feature file is the authoritative
+one — the linter gates *dialect membership and spec quality*, never meaning.
+Keep drafting inside the conservative intersection (no escapes in table cells,
+no exotic placeholder tricks) and the two parsers have nothing to disagree
+about; pin the version of this package, and the pinned version *is* your
+de-facto dialect version.
+
 ## When *not* to use this
 
 - You want tag-expression filtering, parallel workers, retries, HTML
   living-documentation reports, or attachments → **cucumber-js**. That's a
   platform; this is a file.
 - You're on Vitest/Jest → **vitest-cucumber** / **jest-cucumber** integrate
-  with the runner you already have.
+  with the runner you already have. (You can still point `lintFeature` at the
+  same `.feature` files — see [the linter role](#the-linter-role--under-someone-elses-runner).)
 - You need the full Gherkin grammar (doc strings, `Rule:`, i18n) →
   **@cucumber/gherkin** is the real parser.
 
@@ -393,7 +455,8 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 | Export | Purpose |
 |---|---|
 | `runFeatures(dir, definers, { wip }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; **one call per test file** (a second call is refused loudly) |
-| `parseFeature(text, filename?)` | parse → `{ feature, background, scenarios }`; throws `GherkinSyntaxError` |
+| `parseFeature(text, filename?)` | parse → `{ feature, background, scenarios, outlines }`; throws `GherkinSyntaxError` |
+| `lintFeature(text, filename?)` | **linter**: dialect gate + spec lints as `{ rule, severity, line, message }[]` — pure text-in/findings-out, for use under another runner |
 | `StepRegistry` | `.define(pattern, fn)` / `.find(text)` |
 | `executeSteps(steps, registry, world?)` | run a flat step list against a shared world (installs `world.defer`) |
 | `runFeature(parsed, registry)` | register one runner test per scenario (`@skip`/`@todo` mapped; `@only` → failing test; unbound → TODO) |

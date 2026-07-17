@@ -1,7 +1,7 @@
 {
   "name": "gherkin-node-test",
-  "version": "0.3.0",
-  "description": "The smallest honest Gherkin runner — zero dependencies, native on node:test, bun:test, and Deno, built for agent-driven BDD.",
+  "version": "0.4.0",
+  "description": "The smallest honest Gherkin runner and feature-file linter — zero dependencies, native on node:test, bun:test, and Deno, built for agent-driven BDD.",
   "license": "MIT",
   "author": "Bing Ho <reps-attic-riot@duck.com>",
   "repository": {
@@ -10,19 +10,24 @@
   },
   "type": "commonjs",
   "main": "index.js",
+  "types": "index.d.ts",
   "engines": {
     "node": ">=18.3"
   },
   "files": [
     "index.js",
+    "index.d.ts",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "types": "npx -y -p typescript tsc index.js --declaration --emitDeclarationOnly --allowJs --outDir . --target es2022 --module nodenext --skipLibCheck"
   },
   "keywords": [
     "gherkin",
+    "gherkin-lint",
+    "linter",
     "bdd",
     "cucumber",
     "node-test",
