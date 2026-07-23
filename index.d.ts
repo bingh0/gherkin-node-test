@@ -42,13 +42,13 @@ declare function registerTest(title: string, opts: {
  * @param {any} testFn a `test` function with `.skip` and `.todo` methods
  * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry) => void,
  *             runFeatureFile: (file: string, registry: StepRegistry) => void,
- *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<string> }) => void }}
+ *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<WipEntry> }) => void }}
  */
 declare function bindRunner(testFn: any): {
     runFeature: (parsed: ParsedFeature, registry: StepRegistry) => void;
     runFeatureFile: (file: string, registry: StepRegistry) => void;
     runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: {
-        wip?: Iterable<string>;
+        wip?: Iterable<WipEntry>;
     }) => void;
 };
 export type Step = {
@@ -284,20 +284,44 @@ declare function runFeature(parsed: ParsedFeature, registry: StepRegistry, regis
  *   bindRunner, defaults to the runtime's native runner
  */
 declare function runFeatureFile(file: string, registry: StepRegistry, register?: typeof registerTest): void;
+export type WipEntry = string | {
+    feature: string;
+    scenarios: string[];
+};
+/**
+ * One `wip` allowlist entry: a feature basename (the whole feature is still
+ * bootstrapping) or `{ feature, scenarios }` (only those scenarios are, named
+ * by source title). A structured shape rather than a `"base::title"` string
+ * because titles are free text — no delimiter is safe to split on.
+ * @typedef {string | { feature: string, scenarios: string[] }} WipEntry
+ */
 /**
  * Discover and run every *.feature in `dir`, each against its OWN scoped
  * registry — one feature's step patterns can never match another feature's
  * steps, so there is no global step namespace to collide in.
  *
  * Guards registered alongside the scenarios:
- *  - every key in `definers` must name an existing feature file (a renamed
- *    feature can't silently strand its steps);
+ *  - every key in `definers` and every feature named in `wip` must match an
+ *    existing feature file (a renamed feature can't silently strand its steps
+ *    — or its allowlist entry);
  *  - within each feature, every step must match exactly one definition — no
- *    ambiguity, and (unless the feature is listed in `wip`) no unbound steps,
- *    because unbound scenarios register as TODO, which node:test reports as
- *    PASSING. The failure message includes a paste-ready snippet per missing
- *    step. @skip'd scenarios are ratcheted too: skip means "don't run",
- *    never "don't bind".
+ *    ambiguity, and (unless allowed by `wip`) no unbound steps, because
+ *    unbound scenarios register as TODO, which node:test reports as PASSING.
+ *    The failure message includes a paste-ready snippet per missing step.
+ *    @skip'd scenarios are ratcheted too: skip means "don't run", never
+ *    "don't bind";
+ *  - `wip` itself is ratcheted: an entry whose feature (or scenario) has
+ *    become fully bound FAILS until the entry is removed — an allowlist that
+ *    could rot silently would hold the unbound-step ratchet open for nothing.
+ *
+ * `wip` entries come in two shapes. A feature basename holds the whole
+ * feature open. `{ feature, scenarios }` holds open only the named scenarios
+ * — by SOURCE title, so an outline's title covers every expanded row — and
+ * keeps the full ratchet on the rest of the feature. Scenario wip means
+ * "expected-unbound", never "skip": a listed scenario whose steps all happen
+ * to be bound runs normally (and trips the staleness guard). The two shapes
+ * are mutually exclusive per feature — a basename entry would silently
+ * swallow a scenario list for the same feature, so that combination throws.
  *
  * One runFeatures call per test file, enforced: a second call in the same
  * test file registers a single failing test naming the fix and does nothing
@@ -308,10 +332,10 @@ declare function runFeatureFile(file: string, registry: StepRegistry, register?:
  *
  * @param {string} dir directory containing .feature files
  * @param {Record<string, (reg: StepRegistry) => any>} definers feature basename → step definer
- * @param {{ wip?: Iterable<string> }} [opts] feature basenames still bootstrapping (TODO allowed)
+ * @param {{ wip?: Iterable<WipEntry> }} [opts] features (or scenarios) still bootstrapping (TODO allowed)
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  */
 declare function runFeatures(dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: {
-    wip?: Iterable<string>;
+    wip?: Iterable<WipEntry>;
 }, register?: typeof registerTest): void;

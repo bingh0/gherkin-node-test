@@ -143,7 +143,7 @@ function methodRegister(t, title, opts, fn) {
  * @param {any} testFn a `test` function with `.skip` and `.todo` methods
  * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry) => void,
  *             runFeatureFile: (file: string, registry: StepRegistry) => void,
- *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<string> }) => void }}
+ *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<WipEntry> }) => void }}
  */
 function bindRunner(testFn) {
   if (typeof testFn !== 'function' || typeof testFn.skip !== 'function' || typeof testFn.todo !== 'function') {
@@ -1040,19 +1040,40 @@ function runFeatureFile(file, registry, register = registerTest) {
 // --- High-level runner --------------------------------------------------------
 
 /**
+ * One `wip` allowlist entry: a feature basename (the whole feature is still
+ * bootstrapping) or `{ feature, scenarios }` (only those scenarios are, named
+ * by source title). A structured shape rather than a `"base::title"` string
+ * because titles are free text — no delimiter is safe to split on.
+ * @typedef {string | { feature: string, scenarios: string[] }} WipEntry
+ */
+
+/**
  * Discover and run every *.feature in `dir`, each against its OWN scoped
  * registry — one feature's step patterns can never match another feature's
  * steps, so there is no global step namespace to collide in.
  *
  * Guards registered alongside the scenarios:
- *  - every key in `definers` must name an existing feature file (a renamed
- *    feature can't silently strand its steps);
+ *  - every key in `definers` and every feature named in `wip` must match an
+ *    existing feature file (a renamed feature can't silently strand its steps
+ *    — or its allowlist entry);
  *  - within each feature, every step must match exactly one definition — no
- *    ambiguity, and (unless the feature is listed in `wip`) no unbound steps,
- *    because unbound scenarios register as TODO, which node:test reports as
- *    PASSING. The failure message includes a paste-ready snippet per missing
- *    step. @skip'd scenarios are ratcheted too: skip means "don't run",
- *    never "don't bind".
+ *    ambiguity, and (unless allowed by `wip`) no unbound steps, because
+ *    unbound scenarios register as TODO, which node:test reports as PASSING.
+ *    The failure message includes a paste-ready snippet per missing step.
+ *    @skip'd scenarios are ratcheted too: skip means "don't run", never
+ *    "don't bind";
+ *  - `wip` itself is ratcheted: an entry whose feature (or scenario) has
+ *    become fully bound FAILS until the entry is removed — an allowlist that
+ *    could rot silently would hold the unbound-step ratchet open for nothing.
+ *
+ * `wip` entries come in two shapes. A feature basename holds the whole
+ * feature open. `{ feature, scenarios }` holds open only the named scenarios
+ * — by SOURCE title, so an outline's title covers every expanded row — and
+ * keeps the full ratchet on the rest of the feature. Scenario wip means
+ * "expected-unbound", never "skip": a listed scenario whose steps all happen
+ * to be bound runs normally (and trips the staleness guard). The two shapes
+ * are mutually exclusive per feature — a basename entry would silently
+ * swallow a scenario list for the same feature, so that combination throws.
  *
  * One runFeatures call per test file, enforced: a second call in the same
  * test file registers a single failing test naming the fix and does nothing
@@ -1063,7 +1084,7 @@ function runFeatureFile(file, registry, register = registerTest) {
  *
  * @param {string} dir directory containing .feature files
  * @param {Record<string, (reg: StepRegistry) => any>} definers feature basename → step definer
- * @param {{ wip?: Iterable<string> }} [opts] feature basenames still bootstrapping (TODO allowed)
+ * @param {{ wip?: Iterable<WipEntry> }} [opts] features (or scenarios) still bootstrapping (TODO allowed)
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  */
@@ -1088,7 +1109,35 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     return;
   }
 
-  const wip = new Set(opts.wip || []);
+  // Normalize the wip allowlist into its two granularities. Shape errors
+  // throw at load, like a bad definer: a malformed allowlist must not become
+  // a silently narrower (or wider) one.
+  /** @type {Set<string>} */
+  const wip = new Set();
+  /** @type {Map<string, Set<string>>} */
+  const wipScenarios = new Map();
+  for (const entry of opts.wip || []) {
+    if (typeof entry === 'string') { wip.add(entry); continue; }
+    const shaped = !!entry && typeof entry === 'object'
+      && typeof entry.feature === 'string'
+      && Array.isArray(entry.scenarios) && entry.scenarios.length > 0
+      && entry.scenarios.every((t) => typeof t === 'string');
+    if (!shaped) {
+      throw new TypeError(
+        `wip entry must be a feature basename or { feature, scenarios: [source titles] }, got ${JSON.stringify(entry)}`);
+    }
+    const titles = wipScenarios.get(entry.feature) || new Set();
+    for (const t of entry.scenarios) titles.add(t);
+    wipScenarios.set(entry.feature, titles);
+  }
+  for (const base of wipScenarios.keys()) {
+    if (wip.has(base)) {
+      throw new TypeError(
+        `'${base}' is in wip both as a whole feature and per-scenario — the basename entry `
+        + 'would silently swallow the scenario list; keep exactly one of the two');
+    }
+  }
+
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.feature')).sort();
   const bases = files.map(featureBase);
 
@@ -1114,24 +1163,68 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   // call is the one the rule permits.
   if (native) filesWithRunFeatures.add(testFile.key);
 
-  register('step definers map only to existing feature files', {}, () => {
+  register('step definers and wip entries map only to existing feature files', {}, () => {
     const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));
     assert.deepStrictEqual(orphaned, [], `definers with no matching .feature in ${dir}: ${orphaned.join(', ')}`);
+    const wipOrphaned = [...wip, ...wipScenarios.keys()].filter((k) => !bases.includes(k));
+    assert.deepStrictEqual(wipOrphaned, [], `wip entries with no matching .feature in ${dir}: ${wipOrphaned.join(', ')}`);
   });
 
   for (const { base, parsed, registry } of features) {
-    register(`${base} :: step definitions are ${wip.has(base) ? 'unambiguous' : 'complete and unambiguous'}`, {}, () => {
-      const steps = [...parsed.background, ...parsed.scenarios.flatMap((s) => s.steps)];
-      const ambiguous = steps
+    const titles = wipScenarios.get(base);
+    const mode = wip.has(base) ? 'unambiguous'
+      : titles ? 'complete outside wip and unambiguous'
+        : 'complete and unambiguous';
+    register(`${base} :: step definitions are ${mode}`, {}, () => {
+      const allSteps = [...parsed.background, ...parsed.scenarios.flatMap((s) => s.steps)];
+      const ambiguous = allSteps
         .filter((s) => registry.steps.filter((d) => s.text.match(d.re)).length > 1)
         .map((s) => `"${s.text}"`);
       assert.strictEqual(ambiguous.length, 0, `steps matching >1 definition: ${ambiguous.join('; ')}`);
-      if (!wip.has(base)) {
-        const unresolved = [...new Set(steps.filter((s) => !registry.find(s.text)).map((s) => s.text))];
+      /** @param {Step[]} steps */
+      const unbound = (steps) => [...new Set(steps.filter((s) => !registry.find(s.text)).map((s) => s.text))];
+      if (wip.has(base)) {
+        // The staleness half of the ratchet: an allowlist that could rot
+        // silently would hold the unbound-step check open for nothing.
+        assert.notStrictEqual(unbound(allSteps).length, 0,
+          `'${base}' is fully bound — remove it from wip; the entry now only holds the unbound-step ratchet open`);
+        return;
+      }
+      if (!titles) {
+        const unresolved = unbound(allSteps);
         assert.strictEqual(unresolved.length, 0,
           `unbound steps would register as TODO (passing); bind them or add '${base}' to wip:\n\n`
           + unresolved.map((t) => `// ${t}\n${buildSnippet(t)}`).join('\n\n'));
+        return;
       }
+      // Scenario-scoped wip. Titles are SOURCE titles: a plain scenario's
+      // name, or an outline's pre-substitution title covering every expanded
+      // row (expanded scenarios keep their outline's source line — the same
+      // resolution duplicateTitles uses). The duplicate-title rejection is
+      // what makes a source title an unambiguous address here.
+      /** @type {Map<number, string>} */
+      const outlineByLine = new Map(parsed.outlines.map((o) => [o.line, o.name]));
+      /** @param {ParsedFeature['scenarios'][number]} sc */
+      const sourceTitle = (sc) => outlineByLine.get(sc.line) ?? sc.name;
+      const known = new Set(parsed.scenarios.map(sourceTitle));
+      const unknown = [...titles].filter((t) => !known.has(t));
+      assert.deepStrictEqual(unknown, [],
+        `wip scenario titles with no matching Scenario/Scenario Outline in ${parsed.file}: `
+        + unknown.map((t) => `'${t}'`).join(', '));
+      // Background steps belong to every scenario, so they are enforced
+      // exactly as often as an enforced scenario exists to carry them.
+      const enforced = parsed.scenarios.filter((sc) => !titles.has(sourceTitle(sc)));
+      const unresolved = unbound(enforced.flatMap((sc) => [...parsed.background, ...sc.steps]));
+      assert.strictEqual(unresolved.length, 0,
+        `unbound steps would register as TODO (passing); bind them or add their scenarios to '${base}''s wip entry:\n\n`
+        + unresolved.map((t) => `// ${t}\n${buildSnippet(t)}`).join('\n\n'));
+      // Per-scenario staleness, same ratchet as the whole-feature form.
+      const stale = [...titles].filter((t) => parsed.scenarios
+        .filter((sc) => sourceTitle(sc) === t)
+        .every((sc) => unbound([...parsed.background, ...sc.steps]).length === 0));
+      assert.deepStrictEqual(stale, [],
+        `wip scenarios in '${base}' are fully bound — remove them from the wip entry: `
+        + stale.map((t) => `'${t}'`).join(', '));
     });
 
     runFeature(parsed, registry, register);

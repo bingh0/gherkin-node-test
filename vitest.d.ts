@@ -4,17 +4,22 @@
 // and keep it compiling under `skipLibCheck: false` (test/typecheck pins that).
 //
 // index.d.ts is an `export =` module, so its classes arrive as VALUES; the
-// usable instance type is spelled InstanceType<typeof StepRegistry>.
-import { ParsedFeature, StepRegistry } from './index.js';
+// usable instance type is spelled InstanceType<typeof StepRegistry>. Registry
+// and Definer are exported so consumers never have to spell that dance:
+// `import { type Definer } from 'gherkin-node-test/vitest'` types a definer
+// extracted to a named function.
+import { ParsedFeature, StepRegistry, WipEntry } from './index.js';
 
-type Registry = InstanceType<typeof StepRegistry>;
+export type Registry = InstanceType<typeof StepRegistry>;
+export type Definer = (reg: Registry) => any;
+export type { WipEntry };
 
 export declare function runFeature(parsed: ParsedFeature, registry: Registry): void;
 export declare function runFeatureFile(file: string, registry: Registry): void;
 export declare function runFeatures(
   dir: string,
-  definers: Record<string, (reg: Registry) => any>,
-  opts?: { wip?: Iterable<string> },
+  definers: Record<string, Definer>,
+  opts?: { wip?: Iterable<WipEntry> },
 ): void;
 
 export {

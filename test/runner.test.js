@@ -116,6 +116,71 @@ test('runFeatures: the same unbound feature passes when explicitly wip', () => {
   assert.strictEqual(counts(out).todo, 1, 'bootstrap mode: scenario reported as TODO, run stays green');
 });
 
+// --- Scenario-scoped wip -----------------------------------------------------
+// { feature, scenarios } holds open only the named scenarios (by SOURCE title
+// — an outline's title covers every expanded row) while the rest of the
+// feature keeps the full unbound-step ratchet. Both wip shapes are ratcheted
+// against rot: fully bound but still listed FAILS until the entry is removed.
+
+test('runFeatures: scenario-scoped wip pends exactly the listed scenarios, run stays green', () => {
+  const { status, out } = runFixture('scenariowip.fixture.js');
+  assert.strictEqual(status, 0, out);
+  const c = counts(out);
+  assert.strictEqual(c.pass, 3, `orphan guard + feature guard + the enforced scenario:\n${out}`);
+  assert.strictEqual(c.todo, 3, `plain pending scenario + BOTH expanded outline rows report as TODO:\n${out}`);
+  assert.strictEqual(c.fail, 0, out);
+});
+
+test('runFeatures: the ratchet stays tight on scenarios OUTSIDE the wip entry', () => {
+  const { status, out } = runFixture('scenariowip-ratchet.fixture.js');
+  assert.notStrictEqual(status, 0, 'an unbound step in an uncovered scenario must fail the run');
+  assert.match(out, /add their scenarios to 'partial''s wip entry/);
+  assert.match(out, /reg\.define\(/, 'failure message contains the paste-ready snippet');
+});
+
+test('runFeatures: a wip title naming no scenario FAILS the run', () => {
+  const { status, out } = runFixture('scenariowip-orphan.fixture.js');
+  assert.notStrictEqual(status, 0, 'a stranded scenario title must fail the run');
+  assert.match(out, /wip scenario titles with no matching Scenario\/Scenario Outline/);
+  assert.match(out, /'no such scenario'/);
+});
+
+test('runFeatures: a fully bound scenario still listed in wip FAILS the run', () => {
+  const { status, out } = runFixture('scenariowip-stale.fixture.js');
+  assert.notStrictEqual(status, 0, 'a stale scenario entry must fail the run');
+  assert.match(out, /wip scenarios in 'partial' are fully bound/);
+  assert.match(out, /'ready'/);
+});
+
+test('runFeatures: a fully bound feature still listed whole in wip FAILS the run', () => {
+  const { status, out } = runFixture('wipstale.fixture.js');
+  assert.notStrictEqual(status, 0, 'a stale whole-feature entry must fail the run');
+  assert.match(out, /'counter' is fully bound — remove it from wip/);
+});
+
+test('runFeatures: a wip basename naming no feature file FAILS the run', () => {
+  const { status, out } = runFixture('wiporphan.fixture.js');
+  assert.notStrictEqual(status, 0, 'a stranded wip basename must fail the run');
+  assert.match(out, /wip entries with no matching \.feature/);
+  assert.match(out, /ghost/);
+});
+
+test('runFeatures: malformed and conflicting wip entries throw a TypeError at load', () => {
+  const { runFeatures } = require('../index');
+  const dir = path.join(__dirname, '..', 'fixtures', 'features-partial');
+  const definers = { 'partial': () => {} };
+  assert.throws(
+    () => runFeatures(dir, definers, /** @type {any} */ ({ wip: [{ feature: 'partial' }] })),
+    /wip entry must be a feature basename or \{ feature, scenarios/);
+  assert.throws(
+    () => runFeatures(dir, definers, /** @type {any} */ ({ wip: [{ feature: 'partial', scenarios: [] }] })),
+    /wip entry must be/, 'an empty scenario list claims nothing — reject the shape');
+  assert.throws(
+    () => runFeatures(dir, definers,
+      { wip: ['partial', { feature: 'partial', scenarios: ['pending thing'] }] }),
+    /both as a whole feature and per-scenario/);
+});
+
 test('runFeatures: a definer key naming no feature file FAILS the run', () => {
   const { status, out } = runFixture('orphan.fixture.js');
   assert.notStrictEqual(status, 0, 'orphaned definers must fail the run');

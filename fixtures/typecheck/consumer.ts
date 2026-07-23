@@ -29,9 +29,12 @@ export function typecheckMainEntry(): void {
 
 export function typecheckVitestEntry(): void {
   const reg = new vitestEntry.StepRegistry();
-  vitestEntry.runFeatures('features', {
-    counter: (r) => r.define(/^a$/, () => {}),
-  }, { wip: [] });
+  // 0.7.0 exported types: Registry/Definer spare consumers the
+  // InstanceType<typeof StepRegistry> dance the export = shape forces.
+  const definer: vitestEntry.Definer = (r: vitestEntry.Registry) => r.define(/^a$/, () => {});
+  // 0.7.0 WipEntry union: basenames and scenario-scoped entries mix freely.
+  const wip: vitestEntry.WipEntry[] = ['backlog', { feature: 'partial', scenarios: ['pending thing'] }];
+  vitestEntry.runFeatures('features', { counter: definer }, { wip });
   vitestEntry.runFeature(vitestEntry.parseFeature('Feature: F\nScenario: s\n  Given a\n  Then b\n'), reg);
   void vitestEntry.lintFeature('Feature: F\n');
 }

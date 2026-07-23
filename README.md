@@ -88,7 +88,7 @@ const { runFeatures } = require('gherkin-node-test');
 runFeatures(path.join(__dirname, '..', 'features'), {
   // feature basename → its step definer
   'counter': require('./steps/counter.steps'),
-}, { wip: [] });   // basenames still bootstrapping (unbound steps allowed as TODO)
+}, { wip: [] });   // features (or scenarios) still bootstrapping — see the ratchet
 ```
 
 ```js
@@ -156,6 +156,45 @@ one sanctioned exception:
 tells you exactly which features are not yet fully enforced. It relaxes
 *only* unbound-ness — ambiguity stays a hard error even for wip features
 ("not fully bound yet" never means "allowed to be ambiguous").
+
+### Scenario-scoped wip
+
+A basename holds a *whole* feature open — the right grain while
+bootstrapping, but too coarse for a feature that is 10/12 bound with two
+scenarios waiting on an interface that doesn't exist yet. Wip-ing the whole
+feature would relax the ratchet for the ten bound scenarios too. So `wip`
+entries come in a second shape:
+
+```js
+runFeatures('features', definers, {
+  wip: [
+    'checkout',                      // whole feature still bootstrapping
+    { feature: 'smoothing',          // 10/12 bound: hold open ONLY these two,
+      scenarios: [                   //   by source title (an outline's title
+        'resumes after a gap',       //   covers every expanded row)
+        'streams the tail <mode>',
+      ] },
+  ],
+});
+```
+
+The named scenarios register as TODO exactly like whole-feature wip; every
+*other* scenario in the feature keeps the full can't-silently-lose-a-binding
+guarantee. Two properties keep the finer grain honest:
+
+- **Scenario wip means "expected-unbound", never "skip".** A listed scenario
+  whose steps all happen to be bound runs normally — this lever cannot
+  suppress executable code. To pend it, leave its distinguishing step
+  unbound; there always is one (the step touching the unbuilt interface).
+- **Both wip shapes are ratcheted against rot.** An entry whose feature — or
+  scenario — has become fully bound *fails the suite* until the entry is
+  removed: an allowlist that could go stale silently would hold the ratchet
+  open for nothing. Likewise an entry naming a feature or scenario that no
+  longer exists fails loudly; renaming can't strand debt off the register.
+
+Under a wip'd feature, the TODOs you see are exactly the ones the register
+declares — a reviewer can tell "intentionally pending" from "someone broke a
+binding" by grepping the entry.
 
 Two companion rules seal the ratchet's other entrances: the orphan-definer
 guard (renaming a `.feature` file can't silently strand its steps), and
@@ -391,6 +430,24 @@ re-run — named with the substituted title and a row suffix:
 step text **and** step data tables; a `<name>` with no matching column is a
 parse error, not a silent leak into the step text.
 
+Table-cell substitution matters when the varying value has no natural home in
+the step sentence — it lives in a data-table cell instead, and the step text
+never mentions the placeholder at all:
+
+```gherkin
+Scenario Outline: rejects a malformed <field>
+  Given a submission
+    | field   | value   |
+    | email   | a@b.c   |
+    | <field> | <value> |
+  Then the submission is rejected
+
+  Examples:
+    | field | value |
+    | phone | nope  |
+    | zip   | -1    |
+```
+
 One honest caveat: expansion is text substitution, so the *step definitions*
 decide what actually binds. The quick-start steps match `(\d+)` — the `-3` and
 `0.5` rows won't bind until you widen that to something like
@@ -590,7 +647,7 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 
 | Export | Purpose |
 |---|---|
-| `runFeatures(dir, definers, { wip }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; **one call per test file** (a second call is refused loudly) |
+| `runFeatures(dir, definers, { wip }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; `wip` takes basenames or `{ feature, scenarios }`; **one call per test file** (a second call is refused loudly) |
 | `parseFeature(text, filename?)` | parse → `{ feature, background, scenarios, outlines }`; throws `GherkinSyntaxError` |
 | `lintFeature(text, filename?)` | **linter**: dialect gate + spec lints as `{ rule, severity, line, message }[]` — pure text-in/findings-out, for use under another runner |
 | `StepRegistry` | `.define(pattern, fn)` / `.find(text)` |

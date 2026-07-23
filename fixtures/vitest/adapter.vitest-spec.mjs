@@ -19,6 +19,14 @@ runFeatures(path.join(here, '..', 'features-good'), {
   },
 });
 
+// Scenario-scoped wip through the adapter: the injected-runner path bypasses
+// the one-call-per-file rule, so this second call registers alongside the
+// first — the bound scenario stays enforced and PASSES, the pending plain
+// scenario and both expanded outline rows land as vitest todo.
+runFeatures(path.join(here, '..', 'features-partial'), {
+  'partial': (reg) => { reg.define(/^a bound step$/, () => {}); },
+}, { wip: [{ feature: 'partial', scenarios: ['pending thing', 'pending sweep <k>'] }] });
+
 // The lint surface rides along on the same entry point, so a vitest repo can
 // gate dialect membership without a second import path.
 test('lintFeature is re-exported through the adapter', () => {
