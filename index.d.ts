@@ -79,7 +79,7 @@ declare class DataTable {
 declare function parseFeature(text: string, filename?: string): ParsedFeature;
 export type LintSeverity = 'error' | 'warn';
 export type LintFinding = {
-    rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline';
+    rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline' | 'near-miss-keyword';
     severity: LintSeverity;
     line: number;
     message: string;
@@ -105,6 +105,16 @@ export type LintFinding = {
  *    banned-vagueness list above.
  *  - `single-row-outline` (warn): a Scenario Outline with one Examples row —
  *    a scenario with extra ceremony, and usually a missing case.
+ *  - `near-miss-keyword` (warn): a line inside a scenario or Background body
+ *    whose first word matches a step keyword case-insensitively but not
+ *    exactly (`when I add 5`, `GIVEN a counter`). Keywords are exact-case, so
+ *    the line is not a step — it is narrative, and the parser drops it without
+ *    a word. This is the same hazard as a near-miss semantic tag (`@Skip`),
+ *    which the parser rejects outright; a near-miss STEP keyword still parses,
+ *    so it surfaces here instead. The no-steps guard and `no-then` between them
+ *    catch it only when the dropped line was a scenario's only step, or its
+ *    only Then; a near miss in a scenario that keeps a Given and a Then is
+ *    otherwise invisible, and its requirement is gone.
  *
  * Findings from a Scenario Outline are reported once per source construct,
  * not once per expanded row — except a vague-then introduced BY a placeholder

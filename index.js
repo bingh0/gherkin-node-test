@@ -476,12 +476,17 @@ function parseFeature(text, filename = '<feature>') {
 
 /**
  * @typedef {'error' | 'warn'} LintSeverity
- * @typedef {{ rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline',
+ * @typedef {{ rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline' | 'near-miss-keyword',
  *             severity: LintSeverity, line: number, message: string }} LintFinding
  */
 
 /** The primary step keywords; And/But/* inherit the most recent one. */
 const PRIMARY_KEYWORDS = new Set(['Given', 'When', 'Then']);
+
+// Case-insensitive lookup from a step keyword to its one correct spelling. `*`
+// is excluded: it has no case variants, so it cannot be a near miss.
+const STEP_KEYWORD_BY_LOWER = new Map(
+  ['Given', 'When', 'Then', 'And', 'But'].map((k) => [k.toLowerCase(), k]));
 
 // Words that make a Then assert nothing checkable. Deliberately short — every
 // entry is a word whose presence in an outcome step is near-certainly vacuous
@@ -510,6 +515,16 @@ const VAGUE_THEN = /\b(works|correctly|properly|as expected|handles|appropriate)
  *    banned-vagueness list above.
  *  - `single-row-outline` (warn): a Scenario Outline with one Examples row —
  *    a scenario with extra ceremony, and usually a missing case.
+ *  - `near-miss-keyword` (warn): a line inside a scenario or Background body
+ *    whose first word matches a step keyword case-insensitively but not
+ *    exactly (`when I add 5`, `GIVEN a counter`). Keywords are exact-case, so
+ *    the line is not a step — it is narrative, and the parser drops it without
+ *    a word. This is the same hazard as a near-miss semantic tag (`@Skip`),
+ *    which the parser rejects outright; a near-miss STEP keyword still parses,
+ *    so it surfaces here instead. The no-steps guard and `no-then` between them
+ *    catch it only when the dropped line was a scenario's only step, or its
+ *    only Then; a near miss in a scenario that keeps a Given and a Then is
+ *    otherwise invisible, and its requirement is gone.
  *
  * Findings from a Scenario Outline are reported once per source construct,
  * not once per expanded row — except a vague-then introduced BY a placeholder
@@ -588,6 +603,33 @@ function lintFeature(text, filename = '<feature>') {
     if (o.rows === 1) {
       warn('single-row-outline', o.line,
         `Scenario Outline "${o.name}" has one Examples row — a scenario with extra ceremony, and usually a missing case`);
+    }
+  }
+
+  // near-miss-keyword. Re-walks the raw text rather than the parse, because by
+  // definition these lines are absent from the parse — that is the whole point.
+  // Scoped to scenario and Background bodies: the Feature narrative is prose by
+  // design and may legitimately open a sentence with "Given"/"When", while a
+  // correctly-cased step out there is already the dialect error "step before any
+  // Scenario or Background". Comment, tag and table lines are skipped for the
+  // same reason the parser skips them.
+  let inBody = false;
+  let ln = 0;
+  for (const raw of text.split(/\r?\n/)) {
+    ln += 1;
+    const line = raw.trim();
+    if (!line || line.startsWith('#') || line.startsWith('@') || line.startsWith('|')) continue;
+    if (/^Feature:/.test(line)) { inBody = false; continue; }
+    if (/^(Scenario:|Scenario Outline:|Background:)/.test(line)) { inBody = true; continue; }
+    if (!inBody) continue;
+    // Require a word followed by whitespace and something else: a bare "given"
+    // could not have been a step at any casing, so it is ordinary narrative.
+    const m = line.match(/^(\S+)\s+\S/);
+    if (!m) continue;
+    const exact = STEP_KEYWORD_BY_LOWER.get(m[1].toLowerCase());
+    if (exact && m[1] !== exact) {
+      warn('near-miss-keyword', ln,
+        `"${m[1]}" is not the step keyword "${exact}" — keywords are exact-case, so this line is parsed as narrative and its requirement is silently dropped`);
     }
   }
 

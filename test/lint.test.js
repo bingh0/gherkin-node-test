@@ -142,6 +142,87 @@ test('single-row-outline: one data row is flagged; two rows are not', () => {
   assert.deepStrictEqual(two, []);
 });
 
+// --- near-miss-keyword -------------------------------------------------------------
+
+test('near-miss-keyword: a wrong-case keyword inside a scenario is flagged', () => {
+  // The scenario keeps a Given and a Then, so neither the no-steps guard nor
+  // no-then fires. Without this rule the "when" line vanishes in silence.
+  const findings = lintFeature(feat(
+    'Scenario: increment once\n  Given a counter at 0\n  when I add 5\n  Then the counter is 5\n'));
+  assert.deepStrictEqual(rules(findings), ['near-miss-keyword']);
+  assert.strictEqual(findings[0].line, 4);
+  assert.strictEqual(findings[0].severity, 'warn');
+  assert.match(findings[0].message, /"when" is not the step keyword "When"/);
+});
+
+test('near-miss-keyword: any casing that is not the exact spelling is flagged', () => {
+  for (const [bad, good] of [['GIVEN', 'Given'], ['gIvEn', 'Given'], ['THEN', 'Then'],
+                             ['and', 'And'], ['BUT', 'But']]) {
+    const findings = lintFeature(feat(
+      `Scenario: S\n  Given a counter at 0\n  ${bad} something happens\n  Then the counter is 5\n`));
+    assert.deepStrictEqual(rules(findings), ['near-miss-keyword'], `${bad} should be flagged`);
+    assert.match(findings[0].message, new RegExp(`is not the step keyword "${good}"`));
+  }
+});
+
+test('near-miss-keyword: fires alongside no-then when the lost step was the only Then', () => {
+  const findings = lintFeature(feat(
+    'Scenario: S\n  Given a counter at 0\n  then the counter is 0\n'));
+  assert.deepStrictEqual(rules(findings), ['no-then', 'near-miss-keyword']);
+});
+
+test('near-miss-keyword: a lost step that empties the scenario stays a dialect error', () => {
+  // The no-steps guard throws first, and a dialect finding is always alone.
+  const findings = lintFeature(feat('Scenario: S\n  given a counter at 0\n  then it is 0\n'));
+  assert.deepStrictEqual(rules(findings), ['dialect']);
+});
+
+test('near-miss-keyword: the Feature narrative is prose and is never flagged', () => {
+  // This is why the rule is scoped to scenario bodies. A CORRECTLY cased step
+  // out here is already the dialect error "step before any Scenario".
+  const findings = lintFeature(
+    'Feature: F\n  As a user\n  when the store is seeded I want a counter\n'
+    + '  and I want it to start at zero\n  So that life is good\n\n'
+    + 'Scenario: S\n  Given a counter at 0\n  Then the counter is 0\n');
+  assert.deepStrictEqual(findings, []);
+});
+
+test('near-miss-keyword: Background bodies are checked too', () => {
+  const findings = lintFeature(feat(
+    'Background:\n  and a seeded store\n  Given a counter at 0\n'
+    + 'Scenario: S\n  Then the counter is 0\n'));
+  assert.deepStrictEqual(rules(findings), ['near-miss-keyword']);
+  assert.strictEqual(findings[0].line, 3);
+});
+
+test('near-miss-keyword: stays quiet on words that merely begin with a keyword', () => {
+  const findings = lintFeature(feat(
+    'Scenario: S\n  Given a counter at 0\n  Givens are not keywords\n  Then the counter is 0\n'));
+  assert.deepStrictEqual(findings, []);
+});
+
+test('near-miss-keyword: a bare keyword with no step text is ordinary narrative', () => {
+  // "given" alone could not have been a step at any casing, so flagging it
+  // would be a false positive rather than a rescued requirement.
+  const findings = lintFeature(feat(
+    'Scenario: S\n  Given a counter at 0\n  given\n  Then the counter is 0\n'));
+  assert.deepStrictEqual(findings, []);
+});
+
+test('near-miss-keyword: a tab between keyword and text is a real step, not a near miss', () => {
+  const findings = lintFeature(feat(
+    'Scenario: S\n  Given\ta counter at 0\n  When I add 5\n  Then the counter is 5\n'));
+  assert.deepStrictEqual(findings, []);
+});
+
+test('near-miss-keyword: comment, tag and table lines are not mistaken for steps', () => {
+  const findings = lintFeature(feat(
+    'Scenario Outline: add <n>\n  # when I add things\n  Given a counter at 0\n'
+    + '  When I add <n>\n  Then the counter is <n>\n'
+    + '  Examples:\n    | n |\n    | 1 |\n    | 2 |\n'));
+  assert.deepStrictEqual(findings, []);
+});
+
 // --- ordering & composition -------------------------------------------------------
 
 test('findings are sorted by line across rules', () => {

@@ -451,10 +451,22 @@ Findings carry `{ rule, severity, line, message }`:
 | `no-then` | warn | a scenario whose steps never resolve to `Then` — runs code, asserts nothing (`And`/`But`/`*` inherit the preceding primary keyword, across a `Background`) |
 | `vague-then` | warn | a `Then`-resolved step containing *works · correctly · properly · as expected · handles · appropriate* — words that assert nothing checkable |
 | `single-row-outline` | warn | a `Scenario Outline` with one `Examples` row — a scenario with extra ceremony, and usually a missing case |
+| `near-miss-keyword` | warn | a line inside a scenario or `Background` body whose first word matches a step keyword case-insensitively but not exactly (`when I add 5`, `GIVEN a counter`) — it is narrative, not a step, so the parser drops it and its requirement with it |
 
 Outline findings are reported once per source construct, not once per expanded
 row — except a vagueness introduced *by* a placeholder substitution, which is
 reported for exactly the rows that produce it.
+
+`near-miss-keyword` is the counterpart to the near-miss *tag* the parser already
+rejects outright (`@Skip`, `@Only`). Keywords are exact-case; anything else on a
+step line is narrative, and narrative is ignored without a finding — that is how
+the `As a… / I want…` block is skipped, and it cannot change. The no-steps guard
+and `no-then` between them catch a dropped step only when it was a scenario's
+only step, or its only `Then`. A near miss in a scenario that still has a `Given`
+and a `Then` is otherwise invisible. The rule is scoped to scenario and
+`Background` bodies, because the `Feature` narrative is prose by design — and a
+*correctly* cased step out there is already the `dialect` error "step before any
+Scenario or Background".
 
 Severity is descriptive, not policy. `dialect` is an error because the runner
 would refuse the file; the lints warn because adopting them on an existing
