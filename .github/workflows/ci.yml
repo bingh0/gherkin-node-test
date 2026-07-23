@@ -57,3 +57,21 @@ jobs:
         with:
           deno-version: v2.x
       - run: deno test --allow-read --allow-env --allow-run --no-check
+
+  # The vitest adapter (`gherkin-node-test/vitest`) smoke suite: the bound
+  # counter feature must register and pass on a real vitest, guards included.
+  # One OS is enough — the adapter is pure registration plumbing; the
+  # per-OS/per-runtime behavior lives in the three lanes above.
+  vitest:
+    name: vitest adapter / ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run test:vitest
+      # Strict consumer typecheck (skipLibCheck OFF) of both shipped .d.ts
+      # entry points — hand-written vitest.d.ts has no other gate.
+      - run: npm run typecheck

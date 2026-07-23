@@ -1,7 +1,7 @@
 {
   "name": "gherkin-node-test",
-  "version": "0.5.0",
-  "description": "The smallest honest Gherkin runner and feature-file linter \u2014 zero dependencies, native on node:test, bun:test, and Deno, built for agent-driven BDD.",
+  "version": "0.6.0",
+  "description": "The smallest honest Gherkin runner and feature-file linter — zero dependencies, native on node:test, bun:test, and Deno, with a vitest adapter, built for agent-driven BDD.",
   "license": "MIT",
   "author": "Bing Ho <reps-attic-riot@duck.com>",
   "repository": {
@@ -11,17 +11,41 @@
   "type": "commonjs",
   "main": "index.js",
   "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./vitest": {
+      "types": "./vitest.d.ts",
+      "default": "./vitest.mjs"
+    },
+    "./index.js": "./index.js",
+    "./package.json": "./package.json"
+  },
   "engines": {
     "node": ">=18.3"
+  },
+  "peerDependencies": {
+    "vitest": ">=1"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   },
   "files": [
     "index.js",
     "index.d.ts",
+    "vitest.mjs",
+    "vitest.d.ts",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "test": "node --test",
+    "test:vitest": "vitest run",
+    "typecheck": "tsc -p fixtures/typecheck",
     "types": "tsc index.js --declaration --emitDeclarationOnly --allowJs --noCheck --outDir . --target es2022 --module nodenext --skipLibCheck --types node"
   },
   "keywords": [
@@ -43,6 +67,7 @@
   "devDependencies": {
     "@types/bun": "^1.3.14",
     "@types/node": "^26.1.1",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   }
 }

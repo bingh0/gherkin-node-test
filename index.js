@@ -50,6 +50,8 @@
 //   - multiple Examples per Outline       - a step after its Examples table
 //   - a Scenario/Outline with no steps    - a table row with no preceding step
 //   - ragged table rows                   - a table row missing its closing |
+//   - a Feature with no scenarios (a header + narrative registers nothing and
+//     would read as a passing file)
 //   - tags anywhere but immediately before Feature:/Scenario:/Scenario Outline:
 // Two non-features are NOT special-cased, by design (no dedicated error):
 //   - Cucumber Expressions ({int}, …): step text is matched by RegExp/string via
@@ -98,14 +100,65 @@ const { test } = require(isBun ? 'bun:test' : 'node:test');
 function registerTest(title, opts, fn) {
   // The Bun branch is invisible to `node --test` coverage by construction;
   // it is exercised by running this same suite under `bun test` (CI bun lane).
-  /* node:coverage ignore next 6 */
+  /* node:coverage ignore next 4 */
   if (isBun) {
-    if (opts.skip) test.skip(title, fn);
-    else if (opts.todo) test.todo(title, fn);
-    else test(title, fn);
+    methodRegister(test, title, opts, fn);
     return;
   }
   test(title, opts, fn);
+}
+
+/**
+ * Register on a method-form test function — skip/todo as methods rather than
+ * options. This is bun:test's shape, and vitest's, which is why bindRunner
+ * accepts exactly this shape and nothing wider. The shape is strict about
+ * `.todo(name, fn)` accepting a body: jest's `test.todo` REJECTS one
+ * ("Todo must be called with only a description"), so jest is not this shape
+ * — and the body cannot be dropped to accommodate it, because the throwing
+ * todo body is load-bearing under `bun test --todo`. `opts.todo` may carry a
+ * reason string; method-form runners have nowhere to put it, so the reason
+ * stays visible by the same route as on Bun: the todo body throws it.
+ * @param {any} t
+ * @param {string} title
+ * @param {{ skip?: boolean, todo?: boolean | string }} opts
+ * @param {() => (void | Promise<void>)} fn
+ */
+function methodRegister(t, title, opts, fn) {
+  if (opts.skip) t.skip(title, fn);
+  else if (opts.todo) t.todo(title, fn);
+  else t(title, fn);
+}
+
+/**
+ * Bind the runner entry points to a host test function instead of the
+ * runtime's built-in runner. This is the supported way to run features under
+ * vitest — the `gherkin-node-test/vitest` entry is exactly
+ * `bindRunner(vitest.test)` — or under any runner exposing the method-form
+ * shape `test(name, fn)` with `.skip(name, fn)` and `.todo(name, fn)`.
+ *
+ * Everything else is unchanged: scoped registries, the unbound-step ratchet,
+ * the @only and duplicate-title rejections all register through the bound
+ * test function. Only the one-runFeatures-call-per-file guard is bypassed —
+ * see runFeatures for why it is native-runner-only.
+ * @param {any} testFn a `test` function with `.skip` and `.todo` methods
+ * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry) => void,
+ *             runFeatureFile: (file: string, registry: StepRegistry) => void,
+ *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<string> }) => void }}
+ */
+function bindRunner(testFn) {
+  if (typeof testFn !== 'function' || typeof testFn.skip !== 'function' || typeof testFn.todo !== 'function') {
+    throw new TypeError(
+      'bindRunner(test) requires a test function with .skip and .todo methods '
+      + '(vitest and bun:test are both this shape); got '
+      + (typeof testFn === 'function' ? 'a function without them' : typeof testFn));
+  }
+  /** @type {typeof registerTest} */
+  const register = (title, opts, fn) => methodRegister(testFn, title, opts, fn);
+  return {
+    runFeature: (parsed, registry) => runFeature(parsed, registry, register),
+    runFeatureFile: (file, registry) => runFeatureFile(file, registry, register),
+    runFeatures: (dir, definers, opts) => runFeatures(dir, definers, opts, register),
+  };
 }
 
 // ONE runFeatures call per test file, enforced. Under Deno, a top-level throw
@@ -171,7 +224,7 @@ function currentTestFile() {
 
 /** @typedef {{ keyword: string, text: string, line: number, table?: string[][] }} Step */
 /** @typedef {{ name: string, steps: Step[], line: number, tags: string[] }} Scenario */
-/** @typedef {{ name: string, line: number, rows: number }} OutlineMeta */
+/** @typedef {{ name: string, line: number, rows: number, header: string[], headerLine: number, placeholders: string[] }} OutlineMeta */
 /** @typedef {{ line: number, text: string, inBody: boolean }} NarrativeLine */
 /** @typedef {{ feature: string, background: Step[], scenarios: Scenario[], outlines: OutlineMeta[], narrative: NarrativeLine[], file: string }} ParsedFeature */
 /** @typedef {(world: Record<string, any>, ...args: any[]) => (void | Promise<void>)} StepFn */
@@ -259,6 +312,7 @@ function parseFeature(text, filename = '<feature>') {
   const lines = text.split(/\r?\n/);
   let feature = '';
   let featureSeen = false;
+  let featureLine = 0;
   let backgroundSeen = false;
   /** @type {Step[]} */
   const background = [];
@@ -270,7 +324,7 @@ function parseFeature(text, filename = '<feature>') {
   const narrative = [];
   /** @type {Step[] | null} */
   let cur = null;        // array currently collecting steps
-  /** @type {{ name: string, steps: Step[], header: string[] | null, rows: string[][], examplesSeen: boolean, line: number, tags: string[] } | null} */
+  /** @type {{ name: string, steps: Step[], header: string[] | null, headerLine: number, rows: string[][], examplesSeen: boolean, line: number, tags: string[] } | null} */
   let outline = null;    // set while inside a Scenario Outline
   let inExamples = false;
   /** @type {string[]} */
@@ -341,12 +395,31 @@ function parseFeature(text, filename = '<feature>') {
 
   const flushOutline = () => {
     if (!outline) return;
-    const { name, steps, header, rows, examplesSeen, line, tags } = outline;
+    const { name, steps, header, headerLine, rows, examplesSeen, line, tags } = outline;
     if (steps.length === 0) fail(line, `Scenario Outline "${name}" has no steps`);
     if (!examplesSeen) fail(line, 'Scenario Outline has no Examples: block');
     if (!header) fail(line, 'Scenario Outline Examples: has no header row');
     if (rows.length === 0) fail(line, 'Scenario Outline Examples: has a header but no data rows');
-    outlines.push({ name, line, rows: rows.length });
+    // The placeholder names the outline's source actually references — title,
+    // step text, and step-table cells, pre-substitution, in first-appearance
+    // order. Recorded so the linter's unused-column rule reads the parser's own
+    // account of what was referenced, exactly as near-miss-keyword reads its
+    // account of what was dropped.
+    /** @type {string[]} */
+    const placeholders = [];
+    const seenRef = new Set();
+    /** @param {string} s */
+    const collectRefs = (s) => {
+      for (const mm of s.matchAll(/<([^>]+)>/g)) {
+        if (!seenRef.has(mm[1])) { seenRef.add(mm[1]); placeholders.push(mm[1]); }
+      }
+    };
+    collectRefs(name);
+    for (const st of steps) {
+      collectRefs(st.text);
+      if (st.table) for (const r of st.table) for (const c of r) collectRefs(c);
+    }
+    outlines.push({ name, line, rows: rows.length, header, headerLine, placeholders });
     rows.forEach((row, i) => {
       /** @type {Record<string, string>} */
       const map = {};
@@ -399,7 +472,7 @@ function parseFeature(text, filename = '<feature>') {
     let m;
     if ((m = line.match(/^Feature:\s*(.*)$/))) {
       if (featureSeen) fail(lineNo, 'multiple Feature: blocks in one file');
-      flushOutline(); feature = m[1]; featureSeen = true; featureTags = takeTags(); noTagConflict(featureTags, lineNo); cur = null; inExamples = false; continue;
+      flushOutline(); feature = m[1]; featureSeen = true; featureLine = lineNo; featureTags = takeTags(); noTagConflict(featureTags, lineNo); cur = null; inExamples = false; continue;
     }
     if (line.startsWith('Background:')) {
       noTags(lineNo);
@@ -410,7 +483,7 @@ function parseFeature(text, filename = '<feature>') {
     }
     if ((m = line.match(/^Scenario Outline:\s*(.*)$/))) {
       flushOutline();
-      outline = { name: m[1], steps: [], header: null, rows: [], examplesSeen: false, line: lineNo, tags: [...featureTags, ...takeTags()] };
+      outline = { name: m[1], steps: [], header: null, headerLine: 0, rows: [], examplesSeen: false, line: lineNo, tags: [...featureTags, ...takeTags()] };
       noTagConflict(outline.tags, lineNo);
       cur = outline.steps; inExamples = false; continue;
     }
@@ -439,6 +512,7 @@ function parseFeature(text, filename = '<feature>') {
       if (outline && inExamples) {
         if (!outline.header) {
           outline.header = cells;
+          outline.headerLine = lineNo;
         } else if (cells.length !== outline.header.length) {
           fail(lineNo, `Examples row has ${cells.length} cell(s); header has ${outline.header.length}`);
         } else {
@@ -478,6 +552,28 @@ function parseFeature(text, filename = '<feature>') {
   for (const sc of scenarios) {
     if (sc.steps.length === 0) fail(sc.line, `Scenario "${sc.name}" has no steps`);
   }
+  // A Feature with no scenarios is the same hazard one level up: the file
+  // registers nothing, contributes zero assertions, and reads as a passing
+  // file to every consumer — the runner, the linter, and a human scanning
+  // green output. A header plus narrative is exactly how a spec that was
+  // *meant* to be written looks.
+  if (scenarios.length === 0) {
+    // If a construct near miss is why the file is empty ("scenario: s"), name
+    // it: "no scenarios" alone points at the wrong line for the most common
+    // cause, and lintFeature returns early on a dialect error, so its
+    // near-miss-keyword scan never runs for this file.
+    let hint = '';
+    for (const n of narrative) {
+      const c = n.text.match(CONSTRUCT_SHAPE);
+      if (!c) continue;
+      const exact = CONSTRUCT_BY_KEY.get(c[1].toLowerCase().replace(/\s+/g, ''));
+      if (exact && c[0] !== exact) {
+        hint = ` (line ${n.line} "${c[0]}" is not the exact construct keyword "${exact}")`;
+        break;
+      }
+    }
+    fail(featureLine, `Feature "${feature}" has no scenarios — the file registers nothing and would read as passing${hint}`);
+  }
   return { feature, background, scenarios, outlines, narrative, file: filename };
 }
 
@@ -485,9 +581,57 @@ function parseFeature(text, filename = '<feature>') {
 
 /**
  * @typedef {'error' | 'warn'} LintSeverity
- * @typedef {{ rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline' | 'near-miss-keyword',
+ * @typedef {{ rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline' | 'near-miss-keyword'
+ *                   | 'duplicate-title' | 'unused-column',
  *             severity: LintSeverity, line: number, message: string }} LintFinding
  */
+
+/**
+ * Source-level construct titles (Scenario and Scenario Outline, per file) that
+ * repeat an earlier title. Shared by the linter's duplicate-title rule and the
+ * runner's rejection so the two can never disagree about what counts as a
+ * duplicate. Titles are compared pre-expansion: two outlines sharing a title
+ * expand to byte-identical test names (the [n] suffix indexes rows within ONE
+ * outline), and a plain scenario sharing an outline's title collides with it
+ * under any --test-name-pattern that names either.
+ * @param {ParsedFeature} parsed
+ * @returns {{ kind: string, title: string, line: number, firstLine: number }[]}
+ */
+function duplicateTitles(parsed) {
+  const outlineLines = new Set(parsed.outlines.map((o) => o.line));
+  const constructs = [
+    ...parsed.scenarios
+      .filter((sc) => !outlineLines.has(sc.line))
+      .map((sc) => ({ kind: 'Scenario', title: sc.name, line: sc.line })),
+    ...parsed.outlines.map((o) => ({ kind: 'Scenario Outline', title: o.name, line: o.line })),
+  ].sort((a, b) => a.line - b.line);
+  /** @type {Map<string, number>} */
+  const firstAt = new Map();
+  /** @type {{ kind: string, title: string, line: number, firstLine: number }[]} */
+  const dupes = [];
+  for (const c of constructs) {
+    const first = firstAt.get(c.title);
+    if (first !== undefined) dupes.push({ ...c, firstLine: first });
+    else firstAt.set(c.title, c.line);
+  }
+  // Post-expansion backstop: REGISTERED names must be unique even when the
+  // source titles differ — a plain scenario literally titled "adds 1 [1]"
+  // collides with an outline row's expanded name without any source-level
+  // duplicate. Source dupes are reported above with better messages; this
+  // pass only adds collisions those didn't imply. (Rows of one outline can
+  // never collide with each other — the [n] suffix increments per row.)
+  const flaggedLines = new Set(dupes.map((d) => d.line));
+  /** @type {Map<string, number>} */
+  const nameAt = new Map();
+  for (const sc of parsed.scenarios) {
+    const prev = nameAt.get(sc.name);
+    if (prev === undefined) { nameAt.set(sc.name, sc.line); continue; }
+    if (flaggedLines.has(sc.line)) continue;
+    dupes.push({ kind: 'Scenario', title: sc.name, line: sc.line, firstLine: prev });
+    flaggedLines.add(sc.line);
+  }
+  return dupes.sort((a, b) => a.line - b.line);
+}
 
 /** The primary step keywords; And/But/* inherit the most recent one. */
 const PRIMARY_KEYWORDS = new Set(['Given', 'When', 'Then']);
@@ -499,7 +643,8 @@ const STEP_KEYWORD_BY_LOWER = new Map(
 
 // A line that is shaped like a construct header — a construct word (any case,
 // any spacing) followed by a colon — but is not the one exact form the parser
-// recognizes. Keyed by the construct word lowercased with whitespace removed,
+// recognizes. Shared by the linter's near-miss-keyword rule and the parser's
+// no-scenarios hint (module-level consts are initialized before either runs). Keyed by the construct word lowercased with whitespace removed,
 // so `SCENARIO OUTLINE:`, `Scenario outline:` and `ScenarioOutline:` all
 // resolve to the same correction. `Rule:` is deliberately absent: the exact
 // form is itself a dialect error, so a near miss is not a rescue — and
@@ -540,6 +685,21 @@ const VAGUE_THEN = /\b(works|correctly|properly|as expected|handles|appropriate)
  *    banned-vagueness list above.
  *  - `single-row-outline` (warn): a Scenario Outline with one Examples row —
  *    a scenario with extra ceremony, and usually a missing case.
+ *  - `duplicate-title` (error): a Scenario or Scenario Outline title already
+ *    used earlier in the file. Titles are the runner's only handle on a
+ *    scenario — the library rejects @only precisely so that one scenario is
+ *    focused via `--test-name-pattern` / `-t` / `--filter`, and a duplicated
+ *    title breaks that prescription silently: the pattern matches both copies,
+ *    failure reports cannot tell them apart, and two outlines sharing a title
+ *    expand to byte-identical test names (the [n] suffix indexes rows within
+ *    one outline, not across outlines). Compared pre-expansion, per file.
+ *  - `unused-column` (warn): an Examples column no `<placeholder>` in the
+ *    outline's title, steps, or step tables ever references — a case someone
+ *    wrote down that no assertion consumes. The inverse direction (a
+ *    placeholder with no matching column) is already a dialect error. Reported
+ *    at the header row's line. Deliberately a warn: a leading label column
+ *    (`| case | … |`) that exists for the human reader is a legitimate style,
+ *    and repos that ban it can escalate the finding themselves.
  *  - `near-miss-keyword` (warn): a silently dropped line that was almost
  *    certainly meant as syntax, read off the parser's own record of the lines
  *    it ignored as narrative. Two shapes:
@@ -568,9 +728,11 @@ const VAGUE_THEN = /\b(works|correctly|properly|as expected|handles|appropriate)
  * substitution, which is reported for exactly the rows that produce it.
  *
  * Severity is descriptive, not policy: `dialect` is an error because the
- * runner would refuse the file; the lints warn because adopting them on an
- * existing suite needs a debt register, and that register (a wip-style
- * allowlist, filtering by rule) belongs to the consumer.
+ * runner would refuse the file, and `duplicate-title` is an error because the
+ * runner refuses it too (a registered failing test, same mechanism as @only);
+ * the remaining lints warn because adopting them on an existing suite needs a
+ * debt register, and that register (a wip-style allowlist, filtering by rule)
+ * belongs to the consumer.
  *
  * @param {string} text     raw .feature file contents
  * @param {string} [filename] used only to prefix the dialect finding's message
@@ -594,16 +756,18 @@ function lintFeature(text, filename = '<feature>') {
   /** @type {LintFinding[]} */
   const findings = [];
   const seen = new Set();
-  /** @param {LintFinding['rule']} rule @param {number} line @param {string} message */
-  const warn = (rule, line, message) => {
+  /** @param {LintFinding['rule']} rule @param {LintSeverity} severity @param {number} line @param {string} message */
+  const add = (rule, severity, line, message) => {
     // Identical (rule, line, message) triples collapse: expanded outline rows
     // share their source lines, so a row-independent finding lands once while
     // a substitution-dependent one (different message text) lands per row.
     const key = `${rule} ${line} ${message}`;
     if (seen.has(key)) return;
     seen.add(key);
-    findings.push({ rule, severity: 'warn', line, message });
+    findings.push({ rule, severity, line, message });
   };
+  /** @param {LintFinding['rule']} rule @param {number} line @param {string} message */
+  const warn = (rule, line, message) => add(rule, 'warn', line, message);
   /** @param {Step} st */
   const checkVague = (st) => {
     const m = st.text.match(VAGUE_THEN);
@@ -641,6 +805,24 @@ function lintFeature(text, filename = '<feature>') {
       warn('single-row-outline', o.line,
         `Scenario Outline "${o.name}" has one Examples row — a scenario with extra ceremony, and usually a missing case`);
     }
+    // unused-column: read off the parser's own record of which placeholder
+    // names the outline's source references (OutlineMeta.placeholders), so the
+    // rule cannot disagree with the substitution that actually ran.
+    const referenced = new Set(o.placeholders);
+    for (const col of o.header) {
+      if (!referenced.has(col)) {
+        warn('unused-column', o.headerLine,
+          `Examples column "${col}" is never referenced by Scenario Outline "${o.name}" — a case written down that no step or title consumes`);
+      }
+    }
+  }
+
+  // duplicate-title: an error, not a warn — the runner refuses the file (a
+  // registered failing test, the @only mechanism), because a duplicated title
+  // breaks the focus workflow the @only rejection prescribes.
+  for (const d of duplicateTitles(parsed)) {
+    add('duplicate-title', 'error', d.line,
+      `${d.kind} title "${d.title}" repeats line ${d.firstLine}'s — the title is the runner's only handle on a scenario (--test-name-pattern, failure reports), and duplicates cannot be told apart`);
   }
 
   // near-miss-keyword. Walks the narrative lines the parser recorded as it
@@ -795,13 +977,30 @@ async function executeSteps(steps, registry, world = {}) {
  * committed into the suite, which is the point.
  * @param {ParsedFeature} parsed
  * @param {StepRegistry} registry
+ * @param {typeof registerTest} [register] test-registration hook; supplied by
+ *   bindRunner, defaults to the runtime's native runner
  */
-function runFeature(parsed, registry) {
+function runFeature(parsed, registry, register = registerTest) {
+  const base = featureBase(parsed.file);
   if (parsed.scenarios.some((sc) => sc.tags.includes('@only'))) {
-    const base = featureBase(parsed.file);
     const msg = `${parsed.file}: @only is not supported; run one scenario with `
       + '`node --test --test-name-pattern <re>` / `bun test -t <re>` / `deno test --filter <text>`';
-    registerTest(`${base} :: @only is not supported`, {}, () => { throw new Error(msg); });
+    register(`${base} :: @only is not supported`, {}, () => { throw new Error(msg); });
+  }
+  // Duplicate titles are rejected the same way as @only, and for the same
+  // reason: the @only rejection prescribes focusing one scenario by title
+  // pattern, and a duplicated title silently breaks that prescription — the
+  // pattern matches every copy, and two outlines sharing a title expand to
+  // byte-identical test names. Rejection is additive: every scenario below
+  // still registers and runs; nothing narrows.
+  const dupes = duplicateTitles(parsed);
+  if (dupes.length) {
+    const list = dupes.map((d) => `"${d.title}" (lines ${d.firstLine} and ${d.line})`).join('; ');
+    register(`${base} :: scenario titles must be unique`, {}, () => {
+      throw new Error(
+        `${parsed.file}: duplicate scenario title(s): ${list} — the title is how one scenario is `
+        + 'focused (--test-name-pattern / -t / --filter) and how failures are reported; rename the copies apart');
+    });
   }
   for (const sc of parsed.scenarios) {
     const steps = [...parsed.background, ...sc.steps];
@@ -813,7 +1012,7 @@ function runFeature(parsed, registry) {
       // vacuously under modes that execute todo bodies — `bun test --todo`
       // even FAILS a todo that passes. A throwing todo gates nothing on
       // either runner and keeps the reason visible wherever bodies run.
-      registerTest(title, { todo: reason }, () => { throw new Error(reason); });
+      register(title, { todo: reason }, () => { throw new Error(reason); });
       continue;
     }
     const tags = new Set(sc.tags);
@@ -821,16 +1020,18 @@ function runFeature(parsed, registry) {
     const opts = {};
     if (tags.has('@skip')) opts.skip = true;
     if (tags.has('@todo')) opts.todo = true;
-    registerTest(title, opts, async () => { await executeSteps(steps, registry); });
+    register(title, opts, async () => { await executeSteps(steps, registry); });
   }
 }
 
 /**
  * @param {string} file
  * @param {StepRegistry} registry
+ * @param {typeof registerTest} [register] test-registration hook; supplied by
+ *   bindRunner, defaults to the runtime's native runner
  */
-function runFeatureFile(file, registry) {
-  runFeature(parseFeature(fs.readFileSync(file, 'utf8'), file), registry);
+function runFeatureFile(file, registry, register = registerTest) {
+  runFeature(parseFeature(fs.readFileSync(file, 'utf8'), file), registry, register);
 }
 
 // --- High-level runner --------------------------------------------------------
@@ -860,11 +1061,21 @@ function runFeatureFile(file, registry) {
  * @param {string} dir directory containing .feature files
  * @param {Record<string, (reg: StepRegistry) => any>} definers feature basename → step definer
  * @param {{ wip?: Iterable<string> }} [opts] feature basenames still bootstrapping (TODO allowed)
+ * @param {typeof registerTest} [register] test-registration hook; supplied by
+ *   bindRunner, defaults to the runtime's native runner
  */
-function runFeatures(dir, definers, opts = {}) {
+function runFeatures(dir, definers, opts = {}, register = registerTest) {
+  // The one-call-per-file rule is native-runner-only. Both of its halves are
+  // wrong under an injected runner: the Deno load-throw swallow it guards
+  // against doesn't exist there (vitest reports a load-time throw as a
+  // collection error, loudly), and its bookkeeping breaks — vitest's watch
+  // mode re-executes a spec file inside a worker whose require cache (and so
+  // filesWithRunFeatures) survives, so the second run of the SAME single call
+  // would trip the guard.
+  const native = register === registerTest;
   const testFile = currentTestFile();
-  if (filesWithRunFeatures.has(testFile.key)) {
-    registerTest('runFeatures: one call per test file', {}, () => {
+  if (native && filesWithRunFeatures.has(testFile.key)) {
+    register('runFeatures: one call per test file', {}, () => {
       throw new Error(
         `runFeatures(${JSON.stringify(dir)}, …) is a second runFeatures call in ${testFile.display} — `
         + 'one call per test file: a load-time error in a later call (a non-function definer, an '
@@ -898,15 +1109,15 @@ function runFeatures(dir, definers, opts = {}) {
   // must not poison the slot: the corrected retry is still the file's first
   // *registering* call. Registrations start below, so from this point the
   // call is the one the rule permits.
-  filesWithRunFeatures.add(testFile.key);
+  if (native) filesWithRunFeatures.add(testFile.key);
 
-  registerTest('step definers map only to existing feature files', {}, () => {
+  register('step definers map only to existing feature files', {}, () => {
     const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));
     assert.deepStrictEqual(orphaned, [], `definers with no matching .feature in ${dir}: ${orphaned.join(', ')}`);
   });
 
   for (const { base, parsed, registry } of features) {
-    registerTest(`${base} :: step definitions are ${wip.has(base) ? 'unambiguous' : 'complete and unambiguous'}`, {}, () => {
+    register(`${base} :: step definitions are ${wip.has(base) ? 'unambiguous' : 'complete and unambiguous'}`, {}, () => {
       const steps = [...parsed.background, ...parsed.scenarios.flatMap((s) => s.steps)];
       const ambiguous = steps
         .filter((s) => registry.steps.filter((d) => s.text.match(d.re)).length > 1)
@@ -920,11 +1131,11 @@ function runFeatures(dir, definers, opts = {}) {
       }
     });
 
-    runFeature(parsed, registry);
+    runFeature(parsed, registry, register);
   }
 }
 
 module.exports = {
   parseFeature, lintFeature, StepRegistry, executeSteps, runFeature, runFeatureFile, runFeatures,
-  DataTable, buildSnippet, GherkinSyntaxError,
+  bindRunner, DataTable, buildSnippet, GherkinSyntaxError,
 };

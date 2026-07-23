@@ -241,6 +241,63 @@ One footnote: `bun test` and `deno test` run those runtimes' own test
 runners; `bun run test` runs this package's `test` script (`node --test`).
 Both work — they're just different runtimes.
 
+## And under vitest — via the adapter
+
+The three runtimes above are the native path: scenarios register on the
+runtime's built-in runner. Vitest is the one *external* runner with a
+first-class adapter:
+
+```ts
+// test/features.test.ts
+import { runFeatures } from 'gherkin-node-test/vitest';
+
+runFeatures('features', {
+  counter: (reg) => {
+    reg.define(/^a counter at (\d+)$/, (w, n) => { w.count = Number(n); });
+    reg.define(/^I add (\d+)$/, (w, n) => { w.count += Number(n); });
+    reg.define(/^the counter is (\d+)$/, (w, n) => expect(w.count).toBe(Number(n)));
+  },
+});
+```
+
+That is the whole integration: a plain spec file, collected by vitest like any
+other. No plugin, no codegen, no `.feature`-to-`.spec` scaffolding. Everything
+carries over — scoped registries, the binding ratchet and `wip` list, the
+guard tests, the `@only` and duplicate-title rejections — because the adapter
+is nothing but `bindRunner(vitest.test)`: the same registration code pointed at
+vitest's `test()` instead of the runtime's.
+
+Why it exists: **it removes the second parser.** Under vitest-cucumber or
+cucumber-js, the executor parses your feature files with a different grammar
+than the linter that gates them, and any line the two parsers read differently
+is a place where the executed contract silently diverges from the linted one
+(see [the two-parser rule](#the-linter-role--under-someone-elses-runner)).
+Under the adapter, the parse that lints the file *is* the parse that runs it.
+
+Details worth knowing:
+
+- `vitest` is an **optional peer dependency** — only the
+  `gherkin-node-test/vitest` entry imports it, so node/bun/Deno consumers never
+  install it.
+- The one-`runFeatures`-call-per-file rule is **native-runner-only** and does
+  not apply under the adapter. It guards a Deno-specific load-throw swallow
+  that vitest doesn't have (a collection-time throw is reported loudly), and
+  vitest's watch mode re-executes a spec file in a worker whose module cache
+  survives — the guard's bookkeeping would misread that re-run as a second
+  call.
+- `@todo` scenarios and unbound-step placeholders register as `test.todo`;
+  vitest reports them as todo and never runs their bodies, and the unbound-step
+  *ratchet* still fails the suite through the guard test, exactly as on the
+  native runtimes.
+- `bindRunner(testFn)` is exported from the main entry too, for any other
+  runner exposing the method-form shape: `test(name, fn)` plus
+  `.skip(name, fn)` and `.todo(name, fn)`. The shape is strict about todo
+  taking a *body* — jest is **not** this shape (its `test.todo` rejects a
+  second argument, and the throwing todo body can't be dropped to accommodate
+  it: it's load-bearing under `bun test --todo`). The vitest entry is the only
+  binding this package ships and CI-tests; anything else, you're holding the
+  binding.
+
 ## N-version verification
 
 Because the feature files are language-neutral and strictly separated from
@@ -398,6 +455,7 @@ throws `GherkinSyntaxError` with the offending line number:
 | A table row with no preceding step | the data would silently belong to nothing |
 | Unknown `<placeholder>` | almost always a typo; would leak `<name>` into a step |
 | A `Scenario`/`Scenario Outline` with no steps | would run zero assertions and pass vacuously |
+| A `Feature:` with no scenarios | a header plus narrative registers nothing and reads as a passing file — the same vacuous pass, one level up. (This is also the one shape a *prose requirement* file takes: someone wrote the spec down, and nothing checks any of it) |
 | A step *after* its `Examples:` table | malformed ordering; the step would mis-attach |
 | Tags anywhere but immediately before `Feature:` / `Scenario:` / `Scenario Outline:` | a mis-placed `@skip` would silently not skip |
 | A near-miss semantic tag (`@Skip`, `@SKIP`, `@Only`, …) | would be silently inert — `@Skip` would run a scenario meant to be skipped, `@Only` would dodge the loud `@only` rejection |
@@ -452,6 +510,8 @@ Findings carry `{ rule, severity, line, message }`:
 | `vague-then` | warn | a `Then`-resolved step containing *works · correctly · properly · as expected · handles · appropriate* — words that assert nothing checkable |
 | `single-row-outline` | warn | a `Scenario Outline` with one `Examples` row — a scenario with extra ceremony, and usually a missing case |
 | `near-miss-keyword` | warn | a silently dropped line that was almost certainly meant as syntax: a wrong-case step keyword inside a scenario or `Background` body (`when I add 5`, `GIVEN a counter`), or — anywhere — a construct header that isn't the one exact form the parser recognizes (`scenario: b`, `Scenario : b`, `SCENARIO OUTLINE: b`) |
+| `duplicate-title` | error | a `Scenario` or `Scenario Outline` title already used earlier in the file — compared pre-expansion, because two outlines sharing a title expand to **byte-identical** test names (the `[n]` suffix indexes rows within one outline, not across outlines) |
+| `unused-column` | warn | an `Examples` column no `<placeholder>` in the outline's title, steps, or step tables ever references — a case someone wrote down that no assertion consumes. Reported at the header row's line |
 
 Outline findings are reported once per source construct, not once per expanded
 row — except a vagueness introduced *by* a placeholder substitution, which is
@@ -479,11 +539,27 @@ miss is not a rescue — and `rule: never deploy on Friday` is plausible prose.
 The rule reads the narrative lines off the parse (`parseFeature` records what it
 drops), so what the linter checks and what the parser drops cannot drift apart.
 
+`duplicate-title` guards the library's *own* prescription. The `@only`
+rejection tells you to focus one scenario by title pattern
+(`--test-name-pattern` / `-t` / `--filter`) — and a duplicated title breaks
+that silently: the pattern matches every copy, and failure reports cannot tell
+them apart. So the runner refuses it the same way it refuses `@only`: a
+registered failing test, additive — both copies still register and run,
+nothing narrows. In practice a duplicate is a copy-paste-edit where the rename
+was forgotten; check whether the *body* edit was forgotten too.
+
+`unused-column` is the inverse of the `unknown <placeholder>` dialect error,
+and deliberately softer: a leading label column (`| case | … |`) kept for the
+human reader is legitimate style, so an unreferenced column warns rather than
+errors. Repos where every column must be load-bearing escalate the warn in
+their guard test.
+
 Severity is descriptive, not policy. `dialect` is an error because the runner
-would refuse the file; the lints warn because adopting them on an existing
-suite needs a debt register, and that register — a `wip`-style allowlist,
-filtering by rule — belongs in your guard test, where it's grep-able, not
-hidden in a config file.
+would refuse the file, and `duplicate-title` because the runner refuses it
+too; the remaining lints warn because adopting them on an existing suite needs
+a debt register, and that register — a `wip`-style allowlist, filtering by
+rule — belongs in your guard test, where it's grep-able, not hidden in a
+config file.
 
 **The two-parser rule.** When the linter and the executor are different
 parsers, the executor's interpretation of a feature file is the authoritative
@@ -498,9 +574,12 @@ de-facto dialect version.
 - You want tag-expression filtering, parallel workers, retries, HTML
   living-documentation reports, or attachments → **cucumber-js**. That's a
   platform; this is a file.
-- You're on Vitest/Jest → **vitest-cucumber** / **jest-cucumber** integrate
-  with the runner you already have. (You can still point `lintFeature` at the
-  same `.feature` files — see [the linter role](#the-linter-role--under-someone-elses-runner).)
+- You're on Vitest → not a reason anymore: use
+  [`gherkin-node-test/vitest`](#and-under-vitest--via-the-adapter). Reach for
+  **vitest-cucumber** instead if you *want* its generated-spec workflow
+  (`.feature` → scaffolded `.spec.ts`) rather than step registries. On Jest →
+  **jest-cucumber** (jest's `test.todo` rejects a body, so `bindRunner` does
+  not fit it — see the adapter section).
 - You need the full Gherkin grammar (doc strings, `Rule:`, i18n) →
   **@cucumber/gherkin** is the real parser.
 
@@ -516,8 +595,9 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 | `lintFeature(text, filename?)` | **linter**: dialect gate + spec lints as `{ rule, severity, line, message }[]` — pure text-in/findings-out, for use under another runner |
 | `StepRegistry` | `.define(pattern, fn)` / `.find(text)` |
 | `executeSteps(steps, registry, world?)` | run a flat step list against a shared world (installs `world.defer`) |
-| `runFeature(parsed, registry)` | register one runner test per scenario (`@skip`/`@todo` mapped; `@only` → failing test; unbound → TODO) |
+| `runFeature(parsed, registry)` | register one runner test per scenario (`@skip`/`@todo` mapped; `@only` and duplicate titles → failing test; unbound → TODO) |
 | `runFeatureFile(file, registry)` | read + parse + run a single `.feature` file |
+| `bindRunner(testFn)` | rebind `runFeature`/`runFeatureFile`/`runFeatures` to a method-form `test` function (`.skip`/`.todo`) — how [`gherkin-node-test/vitest`](#and-under-vitest--via-the-adapter) is built |
 | `DataTable` | cucumber-compatible step table: `raw` / `rows` / `hashes` / `rowsHash` / `transpose` |
 | `buildSnippet(text)` | paste-ready step definition for an unbound step (body throws) |
 | `GherkinSyntaxError` | thrown on unsupported/malformed syntax; carries `.line` |

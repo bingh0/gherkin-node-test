@@ -302,3 +302,114 @@ test('lintFeature converts only dialect errors — anything else propagates', ()
   // bug as a spec problem.
   assert.throws(() => lintFeature(/** @type {any} */ (null)), TypeError);
 });
+
+// --- duplicate-title ---------------------------------------------------------------
+
+test('duplicate-title: a repeated Scenario title is an error naming both lines', () => {
+  const findings = lintFeature(feat(
+    'Scenario: twin\n  Given a\n  Then b\n'
+    + 'Scenario: twin\n  Given a\n  Then b\n'));
+  assert.deepStrictEqual(rules(findings), ['duplicate-title']);
+  assert.strictEqual(findings[0].severity, 'error');
+  assert.strictEqual(findings[0].line, 5);
+  assert.match(findings[0].message, /Scenario title "twin" repeats line 2's/);
+  assert.match(findings[0].message, /--test-name-pattern/);
+});
+
+test('duplicate-title: two outlines sharing a title are flagged pre-expansion', () => {
+  // Their expanded test names are byte-identical — the [n] suffix indexes rows
+  // within ONE outline, not across outlines — so the source titles are what
+  // must differ.
+  const findings = lintFeature(feat(
+    'Scenario Outline: adds <a>\n  When I add <a>\n  Then I see <a>\n'
+    + '  Examples:\n    | a |\n    | 1 |\n    | 2 |\n'
+    + 'Scenario Outline: adds <a>\n  When I add <a>\n  Then I see <a>\n'
+    + '  Examples:\n    | a |\n    | 1 |\n    | 2 |\n'));
+  assert.deepStrictEqual(rules(findings), ['duplicate-title']);
+  assert.match(findings[0].message, /Scenario Outline title "adds <a>" repeats line 2's/);
+});
+
+test('duplicate-title: a Scenario sharing an Outline title collides too', () => {
+  const findings = lintFeature(feat(
+    'Scenario Outline: adds\n  When I add <a>\n  Then I see <a>\n'
+    + '  Examples:\n    | a |\n    | 1 |\n    | 2 |\n'
+    + 'Scenario: adds\n  Given a\n  Then b\n'));
+  assert.deepStrictEqual(rules(findings), ['duplicate-title']);
+  assert.strictEqual(findings[0].line, 9);
+});
+
+test('duplicate-title: distinct titles stay quiet, and outline rows are not duplicates of each other', () => {
+  const findings = lintFeature(feat(
+    'Scenario: one\n  Given a\n  Then b\n'
+    + 'Scenario Outline: adds <a>\n  When I add <a>\n  Then I see <a>\n'
+    + '  Examples:\n    | a |\n    | 1 |\n    | 2 |\n    | 3 |\n'));
+  assert.deepStrictEqual(findings, []);
+});
+
+test('duplicate-title: three copies produce two findings, each pointing at the first', () => {
+  const findings = lintFeature(feat(
+    'Scenario: twin\n  Given a\n  Then b\n'
+    + 'Scenario: twin\n  Given a\n  Then b\n'
+    + 'Scenario: twin\n  Given a\n  Then b\n'));
+  assert.deepStrictEqual(rules(findings), ['duplicate-title', 'duplicate-title']);
+  assert.deepStrictEqual(findings.map((f) => f.line), [5, 8]);
+  for (const f of findings) assert.match(f.message, /repeats line 2's/);
+});
+
+// --- unused-column -----------------------------------------------------------------
+
+test('unused-column: an unreferenced Examples column warns at the header row', () => {
+  const findings = lintFeature(feat(
+    'Scenario Outline: adds <a>\n  When I add <a>\n  Then I see <a>\n'
+    + '  Examples:\n    | case | a |\n    | small | 1 |\n    | big | 9 |\n'));
+  assert.deepStrictEqual(rules(findings), ['unused-column']);
+  assert.strictEqual(findings[0].severity, 'warn');
+  assert.strictEqual(findings[0].line, 6);
+  assert.match(findings[0].message, /Examples column "case" is never referenced/);
+});
+
+test('unused-column: references in the title, steps, and step tables all count', () => {
+  const findings = lintFeature(feat(
+    'Scenario Outline: t <title>\n  When I add:\n    | v |\n    | <cell> |\n  Then ok <x>\n'
+    + '  Examples:\n    | title | cell | x |\n    | a | b | c |\n    | d | e | f |\n'));
+  assert.deepStrictEqual(findings, []);
+});
+
+test('unused-column: fires once per column, not once per expanded row', () => {
+  const findings = lintFeature(feat(
+    'Scenario Outline: adds <a>\n  When I add <a>\n  Then I see <a>\n'
+    + '  Examples:\n    | a | spare | extra |\n    | 1 | x | y |\n    | 2 | x | y |\n    | 3 | x | y |\n'));
+  assert.deepStrictEqual(rules(findings), ['unused-column', 'unused-column']);
+  assert.deepStrictEqual(findings.map((f) => f.line), [6, 6]);
+});
+
+// --- no-scenarios (a dialect error, not a separate rule) ---------------------------
+
+test('dialect: a Feature with no scenarios is an error finding at the Feature line', () => {
+  const findings = lintFeature('Feature: Charge voting\n  Ties break toward the lower charge.\n', 'v.feature');
+  assert.deepStrictEqual(rules(findings), ['dialect']);
+  assert.strictEqual(findings[0].severity, 'error');
+  assert.strictEqual(findings[0].line, 1);
+  assert.match(findings[0].message, /has no scenarios/);
+});
+
+test('duplicate-title: a plain scenario colliding with an outline row post-expansion is caught', () => {
+  // Source titles differ ("adds <a>" vs "adds 1 [1]") but the REGISTERED names
+  // are byte-identical — the backstop half of duplicateTitles.
+  const findings = lintFeature(feat(
+    'Scenario Outline: adds <a>\n  When I add <a>\n  Then I see <a>\n'
+    + '  Examples:\n    | a |\n    | 1 |\n    | 2 |\n'
+    + 'Scenario: adds 1 [1]\n  Given a\n  Then b\n'));
+  assert.deepStrictEqual(rules(findings), ['duplicate-title']);
+  assert.strictEqual(findings[0].line, 9);
+  assert.match(findings[0].message, /"adds 1 \[1\]" repeats line 2's/);
+});
+
+test('dialect: the no-scenarios error names a construct near miss when one emptied the file', () => {
+  // lintFeature returns early on a dialect error, so near-miss-keyword never
+  // runs for this file — the hint keeps 0.5.0's diagnostic from being masked.
+  const findings = lintFeature('Feature: F\nscenario: s\n  given a\n  then ok\n', 'x.feature');
+  assert.deepStrictEqual(rules(findings), ['dialect']);
+  assert.match(findings[0].message, /has no scenarios/);
+  assert.match(findings[0].message, /line 2 "scenario:" is not the exact construct keyword "Scenario:"/);
+});

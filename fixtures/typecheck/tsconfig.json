@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "skipLibCheck": false,
+    "types": ["node"],
+    "paths": {
+      "gherkin-node-test": ["../../index.d.ts"],
+      "gherkin-node-test/vitest": ["../../vitest.d.ts"]
+    }
+  },
+  "include": ["consumer.ts"]
+}

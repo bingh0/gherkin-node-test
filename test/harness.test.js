@@ -312,3 +312,108 @@ test('the generated snippet is valid JS, matches its own step, and throws pendin
   assert.ok(stub.re.test(text), 'snippet regex matches the original step text');
   assert.throws(() => stub.fn({}, '5', 'busy', '42'), /pending/, 'generated body must throw, never pass vacuously');
 });
+
+// --- Feature with no scenarios ---------------------------------------------------
+
+test('parseFeature rejects a Feature with no scenarios', () => {
+  // A header + narrative registers nothing: zero tests, zero assertions, and a
+  // green run — exactly how a spec that was MEANT to be written looks. Same
+  // hazard as a scenario with no steps, one level up.
+  assert.throws(
+    () => parseFeature('Feature: Charge voting\n  Ties break toward the lower charge.\n', 'v.feature'),
+    (/** @type {any} */ e) => e instanceof GherkinSyntaxError
+      && /v\.feature:1: Feature "Charge voting" has no scenarios/.test(e.message)
+      && e.line === 1,
+  );
+});
+
+test('a Feature whose only scenario is @skip still parses — skip is not absence', () => {
+  const parsed = parseFeature('Feature: F\n@skip\nScenario: s\n  Given a\n  Then b\n');
+  assert.strictEqual(parsed.scenarios.length, 1);
+});
+
+// --- OutlineMeta: header, headerLine, placeholders -------------------------------
+
+test('OutlineMeta records the Examples header, its line, and the referenced placeholders', () => {
+  const parsed = parseFeature(
+    'Feature: F\nScenario Outline: t <title>\n  When I add:\n    | v |\n    | <cell> |\n'
+    + '  Then ok <x>\n  Examples:\n    | title | cell | x | spare |\n    | a | b | c | d |\n    | e | f | g | h |\n');
+  assert.deepStrictEqual(parsed.outlines, [{
+    name: 't <title>', line: 2, rows: 2,
+    header: ['title', 'cell', 'x', 'spare'],
+    headerLine: 8,
+    // First-appearance order: title, then step text/tables in step order.
+    placeholders: ['title', 'cell', 'x'],
+  }]);
+});
+
+// --- bindRunner ------------------------------------------------------------------
+
+/** A method-form test stub that records registrations instead of running them.
+ * @returns {{ calls: [string, string][], stub: any }} */
+function testStub() {
+  /** @type {[string, string][]} */
+  const calls = [];
+  const stub = Object.assign(
+    (/** @type {string} */ t, /** @type {any} */ fn) => calls.push(['test', t]), {
+      skip: (/** @type {string} */ t, /** @type {any} */ fn) => calls.push(['skip', t]),
+      todo: (/** @type {string} */ t, /** @type {any} */ fn) => calls.push(['todo', t]),
+    });
+  return { calls, stub };
+}
+
+test('bindRunner registers scenarios on the injected test function, mapping tags to methods', () => {
+  const { bindRunner } = require('../index');
+  const { calls, stub } = testStub();
+  const reg = new StepRegistry().define(/^a$/, () => {}).define(/^b$/, () => {});
+  bindRunner(stub).runFeature(parseFeature(
+    'Feature: F\nScenario: plain\n  Given a\n  Then b\n'
+    + '@skip\nScenario: skipped\n  Given a\n  Then b\n'
+    + '@todo\nScenario: pending\n  Given a\n  Then b\n'
+    + 'Scenario: unbound\n  Given a\n  Then not defined\n', 'f.feature'), reg);
+  assert.deepStrictEqual(calls, [
+    ['test', 'F :: plain'],
+    ['skip', 'F :: skipped'],
+    ['todo', 'F :: pending'],
+    ['todo', 'F :: unbound'], // unbound steps register as todo on every runner
+  ]);
+});
+
+test('bindRunner refuses a test function without the method-form shape', () => {
+  const { bindRunner } = require('../index');
+  assert.throws(() => bindRunner(/** @type {any} */ (() => {})), /\.skip and \.todo methods/);
+  assert.throws(() => bindRunner(/** @type {any} */ (null)), /got object/);
+});
+
+test('bindRunner routes the @only and duplicate-title rejections through the bound runner', () => {
+  const { bindRunner } = require('../index');
+  const { calls, stub } = testStub();
+  const reg = new StepRegistry().define(/^a$/, () => {}).define(/^b$/, () => {});
+  bindRunner(stub).runFeature(parseFeature(
+    '@only\nScenario: twin\n  Given a\n  Then b\nScenario: twin\n  Given a\n  Then b\nFeature: F\n', 'f.feature'), reg);
+  assert.deepStrictEqual(calls.map(([kind]) => kind), ['test', 'test', 'test', 'test']);
+  assert.deepStrictEqual(calls[0], ['test', 'f :: @only is not supported']);
+  assert.deepStrictEqual(calls[1], ['test', 'f :: scenario titles must be unique']);
+});
+
+test('bindRunner.runFeatures bypasses the one-call-per-file guard (vitest watch re-runs)', () => {
+  const { bindRunner } = require('../index');
+  const path = require('node:path');
+  const { calls, stub } = testStub();
+  const bound = bindRunner(stub);
+  const definers = {
+    'counter': (/** @type {StepRegistry} */ reg) => {
+      reg.define(/^a counter at (\d+)$/, () => {});
+      reg.define(/^I add (\d+)$/, () => {});
+      reg.define(/^the counter is (\d+)$/, () => {});
+    },
+  };
+  const dir = path.join(__dirname, '..', 'fixtures', 'features-good');
+  bound.runFeatures(dir, definers);
+  const firstRun = calls.length;
+  bound.runFeatures(dir, definers); // watch-mode re-execution of the same call
+  assert.ok(firstRun > 0);
+  assert.strictEqual(calls.length, firstRun * 2, 'second run registers the same suite again');
+  assert.ok(!calls.some(([, title]) => /one call per test file/.test(title)),
+    'the native-runner refusal must not fire under an injected runner');
+});

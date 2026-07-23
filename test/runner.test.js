@@ -207,3 +207,27 @@ test('runFeatures: a non-function definer throws a TypeError at load', () => {
   // replaced by a refused-second-call failing test).
   assert.throws(boom, /definer for "counter" must be a function, got number/);
 });
+
+// Duplicate titles are rejected the @only way: a registered failing test,
+// additive — both copies still register and pass. The rejection exists because
+// the @only rejection's own prescription (--test-name-pattern) silently breaks
+// on a duplicated title: the pattern matches every copy.
+test('runFeatures: a duplicated scenario title is rejected loudly, both copies still run', () => {
+  const { status, out } = runFixture('duptitle.fixture.js');
+  assert.notStrictEqual(status, 0, 'a duplicated title must fail the run');
+  assert.match(out, /duplicate scenario title/, 'the rejection names the defect');
+  assert.match(out, /rename the copies apart/, 'and the fix');
+  const c = counts(out);
+  assert.strictEqual(c.fail, 1, out);
+  assert.strictEqual(c.pass, 4,
+    `orphan guard + binding guard + BOTH twin scenarios still run:\n${out}`);
+});
+
+// A Feature: header plus narrative and zero scenarios throws at LOAD — before
+// any registration, so it is loud on all three runtimes (Deno's swallow only
+// eats throws that come after an earlier registration).
+test('runFeatures: a feature file with no scenarios fails the run at load', () => {
+  const { status, out } = runFixture('noscenarios.fixture.js');
+  assert.notStrictEqual(status, 0, 'a zero-scenario feature file must fail the run');
+  assert.match(out, /Feature "Charge voting" has no scenarios/);
+});
