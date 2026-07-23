@@ -761,7 +761,7 @@ function lintFeature(text, filename = '<feature>') {
     // Identical (rule, line, message) triples collapse: expanded outline rows
     // share their source lines, so a row-independent finding lands once while
     // a substitution-dependent one (different message text) lands per row.
-    const key = `${rule} ${line} ${message}`;
+    const key = `${rule}\u0000${line}\u0000${message}`;
     if (seen.has(key)) return;
     seen.add(key);
     findings.push({ rule, severity, line, message });
