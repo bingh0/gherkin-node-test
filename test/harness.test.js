@@ -320,9 +320,9 @@ test('parseFeature rejects a Feature with no scenarios', () => {
   // green run — exactly how a spec that was MEANT to be written looks. Same
   // hazard as a scenario with no steps, one level up.
   assert.throws(
-    () => parseFeature('Feature: Charge voting\n  Ties break toward the lower charge.\n', 'v.feature'),
+    () => parseFeature('Feature: Overdraft alerts\n  Alerts go out before the close of day.\n', 'v.feature'),
     (/** @type {any} */ e) => e instanceof GherkinSyntaxError
-      && /v\.feature:1: Feature "Charge voting" has no scenarios/.test(e.message)
+      && /v\.feature:1: Feature "Overdraft alerts" has no scenarios/.test(e.message)
       && e.line === 1,
   );
 });

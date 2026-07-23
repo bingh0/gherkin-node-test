@@ -386,7 +386,7 @@ test('unused-column: fires once per column, not once per expanded row', () => {
 // --- no-scenarios (a dialect error, not a separate rule) ---------------------------
 
 test('dialect: a Feature with no scenarios is an error finding at the Feature line', () => {
-  const findings = lintFeature('Feature: Charge voting\n  Ties break toward the lower charge.\n', 'v.feature');
+  const findings = lintFeature('Feature: Overdraft alerts\n  Alerts go out before the close of day.\n', 'v.feature');
   assert.deepStrictEqual(rules(findings), ['dialect']);
   assert.strictEqual(findings[0].severity, 'error');
   assert.strictEqual(findings[0].line, 1);

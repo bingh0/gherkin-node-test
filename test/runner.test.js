@@ -229,5 +229,5 @@ test('runFeatures: a duplicated scenario title is rejected loudly, both copies s
 test('runFeatures: a feature file with no scenarios fails the run at load', () => {
   const { status, out } = runFixture('noscenarios.fixture.js');
   assert.notStrictEqual(status, 0, 'a zero-scenario feature file must fail the run');
-  assert.match(out, /Feature "Charge voting" has no scenarios/);
+  assert.match(out, /Feature "Overdraft alerts" has no scenarios/);
 });
