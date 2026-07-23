@@ -1,0 +1,10 @@
+{
+  "name": "scope",
+  "description": "Structured scoping interview: the user is the visionary, the interview stays in behavior space, and the output is lint-clean .feature files in the gherkin-node-test dialect plus an explicit out-of-scope list. The plugin version tracks the dialect version it is grounded against.",
+  "version": "0.6.0",
+  "author": {
+    "name": "Bing Ho"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/bingh0/gherkin-node-test"
+}

@@ -1,0 +1,17 @@
+{
+  "name": "gherkin-node-test",
+  "owner": {
+    "name": "Bing Ho",
+    "email": "reps-attic-riot@duck.com"
+  },
+  "plugins": [
+    {
+      "name": "scope",
+      "source": "./plugins/scope",
+      "description": "Structured scoping interview that turns a project idea into lint-clean Gherkin feature files in the gherkin-node-test dialect, plus an explicit out-of-scope fence.",
+      "version": "0.6.0",
+      "license": "MIT",
+      "homepage": "https://github.com/bingh0/gherkin-node-test"
+    }
+  ]
+}

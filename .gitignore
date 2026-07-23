@@ -2,3 +2,6 @@ node_modules/
 *.tgz
 bun.lock
 .playwright-cli/
+
+# scope plugin lab notebook — run entries name real projects; each install keeps its own
+plugins/scope/skills/scope/RUNS.md
