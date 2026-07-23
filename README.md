@@ -6,7 +6,7 @@ runner: [`node:test`](https://nodejs.org/api/test.html) under Node,
 [`bun:test`](https://bun.sh/docs/cli/test) natively under Bun, and `node:test`
 under [Deno](https://docs.deno.com/runtime/reference/cli/test/) (whose
 `node:test` bridges to the native `Deno.test` runner) — and it treats every
-silence as a bug. One file, ~850 lines, small enough to read in one sitting or
+silence as a bug. One file, ~1,200 lines, small enough to read in one sitting or
 to vendor outright. The same file doubles as a **feature-file linter** for
 projects whose runner is something else — see
 [the linter role](#the-linter-role--under-someone-elses-runner).
@@ -288,6 +288,7 @@ first-class adapter:
 
 ```ts
 // test/features.test.ts
+import { expect } from 'vitest';
 import { runFeatures } from 'gherkin-node-test/vitest';
 
 runFeatures('features', {
