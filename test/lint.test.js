@@ -313,7 +313,7 @@ test('duplicate-title: a repeated Scenario title is an error naming both lines',
   assert.strictEqual(findings[0].severity, 'error');
   assert.strictEqual(findings[0].line, 5);
   assert.match(findings[0].message, /Scenario title "twin" repeats line 2's/);
-  assert.match(findings[0].message, /--test-name-pattern/);
+  assert.match(findings[0].message, /name-filter selection/);
 });
 
 test('duplicate-title: two outlines sharing a title are flagged pre-expansion', () => {

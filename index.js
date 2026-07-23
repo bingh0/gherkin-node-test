@@ -820,9 +820,12 @@ function lintFeature(text, filename = '<feature>') {
   // duplicate-title: an error, not a warn — the runner refuses the file (a
   // registered failing test, the @only mechanism), because a duplicated title
   // breaks the focus workflow the @only rejection prescribes.
+  // Message is runner-neutral on purpose: lint finding text is part of the
+  // byte-for-byte parity contract with the cargo sibling, whose name filter
+  // is `cargo test -- '<substring>'`, not --test-name-pattern.
   for (const d of duplicateTitles(parsed)) {
     add('duplicate-title', 'error', d.line,
-      `${d.kind} title "${d.title}" repeats line ${d.firstLine}'s — the title is the runner's only handle on a scenario (--test-name-pattern, failure reports), and duplicates cannot be told apart`);
+      `${d.kind} title "${d.title}" repeats line ${d.firstLine}'s — the title is the runner's only handle on a scenario (name-filter selection, failure reports), and duplicates cannot be told apart`);
   }
 
   // near-miss-keyword. Walks the narrative lines the parser recorded as it
