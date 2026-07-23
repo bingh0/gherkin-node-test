@@ -147,15 +147,15 @@ previous revision of this script shipped — silently skips the first file, and
 with a single file lints nothing while still printing `scope-clean`.)
 
 The skill and the linter version together: this revision is grounded against
-**gherkin-node-test 0.6.0** (`duplicate-title`, `unused-column`, and the
-no-scenarios dialect error arrived in it — on 0.5.0 they silently do not run,
-so a clean report from an older linter has not checked what this contract
-requires). If `gherkin-node-test` is not installed where the interview runs,
-install the pinned dialect (`npm install --no-save gherkin-node-test@0.6.0`)
+**gherkin-node-test 0.7.0** (`duplicate-title`, `unused-column`, and the
+no-scenarios dialect error arrived in 0.6.0 — on 0.5.0 they silently do not
+run, so a clean report from an older linter has not checked what this
+contract requires). If `gherkin-node-test` is not installed where the interview runs,
+install the pinned dialect (`npm install --no-save gherkin-node-test@0.7.0`)
 or point `GNT` at a checkout's `index.js` — this plugin ships inside the
 gherkin-node-test repository, so the checkout that provided the plugin has
 `index.js` at its root. If neither resolves (or the registry does not have
-0.6.0 yet), say so explicitly in the handoff — never claim lint-clean without
+0.7.0 yet), say so explicitly in the handoff — never claim lint-clean without
 having run the linter, and never substitute an older linter silently.
 
 ## Handoff
