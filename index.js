@@ -172,7 +172,8 @@ function currentTestFile() {
 /** @typedef {{ keyword: string, text: string, line: number, table?: string[][] }} Step */
 /** @typedef {{ name: string, steps: Step[], line: number, tags: string[] }} Scenario */
 /** @typedef {{ name: string, line: number, rows: number }} OutlineMeta */
-/** @typedef {{ feature: string, background: Step[], scenarios: Scenario[], outlines: OutlineMeta[], file: string }} ParsedFeature */
+/** @typedef {{ line: number, text: string, inBody: boolean }} NarrativeLine */
+/** @typedef {{ feature: string, background: Step[], scenarios: Scenario[], outlines: OutlineMeta[], narrative: NarrativeLine[], file: string }} ParsedFeature */
 /** @typedef {(world: Record<string, any>, ...args: any[]) => (void | Promise<void>)} StepFn */
 
 /**
@@ -265,6 +266,8 @@ function parseFeature(text, filename = '<feature>') {
   const scenarios = [];
   /** @type {OutlineMeta[]} */
   const outlines = [];
+  /** @type {NarrativeLine[]} */
+  const narrative = [];
   /** @type {Step[] | null} */
   let cur = null;        // array currently collecting steps
   /** @type {{ name: string, steps: Step[], header: string[] | null, rows: string[][], examplesSeen: boolean, line: number, tags: string[] } | null} */
@@ -458,7 +461,13 @@ function parseFeature(text, filename = '<feature>') {
       }
       continue;
     }
-    // Anything else (Feature narrative: "As a…/I want…/So that…") is ignored.
+    // Anything else (Feature narrative: "As a…/I want…/So that…") is ignored —
+    // but recorded: these are exactly the lines the parser drops in silence,
+    // and the linter's near-miss-keyword rule reads them off the parse, so
+    // "dropped by the parser" and "checked by the lint" can never drift apart.
+    // `inBody` = inside a Scenario/Outline/Background body, the scope of the
+    // step-keyword half of that rule.
+    narrative.push({ line: lineNo, text: line, inBody: cur !== null });
   }
   flushOutline();
   if (pendingTags.length) fail(lineNo, `dangling tags (${pendingTags.join(' ')}) at end of file`);
@@ -469,7 +478,7 @@ function parseFeature(text, filename = '<feature>') {
   for (const sc of scenarios) {
     if (sc.steps.length === 0) fail(sc.line, `Scenario "${sc.name}" has no steps`);
   }
-  return { feature, background, scenarios, outlines, file: filename };
+  return { feature, background, scenarios, outlines, narrative, file: filename };
 }
 
 // --- Linter -------------------------------------------------------------------
@@ -487,6 +496,22 @@ const PRIMARY_KEYWORDS = new Set(['Given', 'When', 'Then']);
 // is excluded: it has no case variants, so it cannot be a near miss.
 const STEP_KEYWORD_BY_LOWER = new Map(
   ['Given', 'When', 'Then', 'And', 'But'].map((k) => [k.toLowerCase(), k]));
+
+// A line that is shaped like a construct header — a construct word (any case,
+// any spacing) followed by a colon — but is not the one exact form the parser
+// recognizes. Keyed by the construct word lowercased with whitespace removed,
+// so `SCENARIO OUTLINE:`, `Scenario outline:` and `ScenarioOutline:` all
+// resolve to the same correction. `Rule:` is deliberately absent: the exact
+// form is itself a dialect error, so a near miss is not a rescue — and
+// "rule: never deploy on Friday" is plausible prose.
+const CONSTRUCT_SHAPE = /^(feature|background|scenario\s*outline|scenario|examples)\s*:/i;
+const CONSTRUCT_BY_KEY = new Map([
+  ['feature', 'Feature:'],
+  ['background', 'Background:'],
+  ['scenario', 'Scenario:'],
+  ['scenariooutline', 'Scenario Outline:'],
+  ['examples', 'Examples:'],
+]);
 
 // Words that make a Then assert nothing checkable. Deliberately short — every
 // entry is a word whose presence in an outcome step is near-certainly vacuous
@@ -515,16 +540,28 @@ const VAGUE_THEN = /\b(works|correctly|properly|as expected|handles|appropriate)
  *    banned-vagueness list above.
  *  - `single-row-outline` (warn): a Scenario Outline with one Examples row —
  *    a scenario with extra ceremony, and usually a missing case.
- *  - `near-miss-keyword` (warn): a line inside a scenario or Background body
- *    whose first word matches a step keyword case-insensitively but not
- *    exactly (`when I add 5`, `GIVEN a counter`). Keywords are exact-case, so
- *    the line is not a step — it is narrative, and the parser drops it without
- *    a word. This is the same hazard as a near-miss semantic tag (`@Skip`),
- *    which the parser rejects outright; a near-miss STEP keyword still parses,
- *    so it surfaces here instead. The no-steps guard and `no-then` between them
- *    catch it only when the dropped line was a scenario's only step, or its
- *    only Then; a near miss in a scenario that keeps a Given and a Then is
- *    otherwise invisible, and its requirement is gone.
+ *  - `near-miss-keyword` (warn): a silently dropped line that was almost
+ *    certainly meant as syntax, read off the parser's own record of the lines
+ *    it ignored as narrative. Two shapes:
+ *      - inside a scenario or Background body, a line whose first word matches
+ *        a step keyword case-insensitively but not exactly (`when I add 5`,
+ *        `GIVEN a counter`) — the requirement it stated is gone;
+ *      - anywhere, a line shaped like a construct header but not in the one
+ *        exact form the parser recognizes (`scenario: b`, `Scenario : b`,
+ *        `SCENARIO OUTLINE: b`) — the construct never starts, and what follows
+ *        it silently belongs to whatever came before (a lowercase `scenario:`
+ *        merges its steps into the PREVIOUS scenario, unseeable by the
+ *        no-steps guard and `no-then` because the scenario never exists).
+ *    This is the same hazard as a near-miss semantic tag (`@Skip`), which the
+ *    parser rejects outright; a near-miss step or construct keyword still
+ *    parses, so it surfaces here instead. The step check is scoped to bodies
+ *    because the Feature narrative is prose by design and may open a sentence
+ *    with "when" or "and"; the construct check is not scoped, because the
+ *    trailing colon makes the line syntax-shaped wherever it appears. `Rule:`
+ *    is exempt from the construct check — see CONSTRUCT_BY_KEY. The no-steps
+ *    guard and `no-then` between them catch a dropped step only at the
+ *    extremes (a scenario's only step, or its only Then); a near miss in a
+ *    scenario that keeps a Given and a Then is otherwise invisible.
  *
  * Findings from a Scenario Outline are reported once per source construct,
  * not once per expanded row — except a vague-then introduced BY a placeholder
@@ -606,29 +643,30 @@ function lintFeature(text, filename = '<feature>') {
     }
   }
 
-  // near-miss-keyword. Re-walks the raw text rather than the parse, because by
-  // definition these lines are absent from the parse — that is the whole point.
-  // Scoped to scenario and Background bodies: the Feature narrative is prose by
-  // design and may legitimately open a sentence with "Given"/"When", while a
-  // correctly-cased step out there is already the dialect error "step before any
-  // Scenario or Background". Comment, tag and table lines are skipped for the
-  // same reason the parser skips them.
-  let inBody = false;
-  let ln = 0;
-  for (const raw of text.split(/\r?\n/)) {
-    ln += 1;
-    const line = raw.trim();
-    if (!line || line.startsWith('#') || line.startsWith('@') || line.startsWith('|')) continue;
-    if (/^Feature:/.test(line)) { inBody = false; continue; }
-    if (/^(Scenario:|Scenario Outline:|Background:)/.test(line)) { inBody = true; continue; }
-    if (!inBody) continue;
+  // near-miss-keyword. Walks the narrative lines the parser recorded as it
+  // dropped them — the parser's fall-through IS the definition of "silently
+  // dropped", so the rule cannot drift from the parse. A correctly cased step
+  // or an exact construct header never appears here: the parser consumed it.
+  for (const n of parsed.narrative) {
+    const c = n.text.match(CONSTRUCT_SHAPE);
+    if (c) {
+      const exact = CONSTRUCT_BY_KEY.get(c[1].toLowerCase().replace(/\s+/g, ''));
+      if (exact && c[0] !== exact) {
+        warn('near-miss-keyword', n.line,
+          `"${c[0]}" is not the construct keyword "${exact}" — constructs are recognized only in that exact form, so this line is parsed as narrative: the construct never starts, and what follows it belongs to whatever came before`);
+      }
+      continue;
+    }
+    // Step keywords are checked only inside a body: the Feature narrative is
+    // prose by design and may open a sentence with "when" or "and".
+    if (!n.inBody) continue;
     // Require a word followed by whitespace and something else: a bare "given"
     // could not have been a step at any casing, so it is ordinary narrative.
-    const m = line.match(/^(\S+)\s+\S/);
+    const m = n.text.match(/^(\S+)\s+\S/);
     if (!m) continue;
     const exact = STEP_KEYWORD_BY_LOWER.get(m[1].toLowerCase());
     if (exact && m[1] !== exact) {
-      warn('near-miss-keyword', ln,
+      warn('near-miss-keyword', n.line,
         `"${m[1]}" is not the step keyword "${exact}" — keywords are exact-case, so this line is parsed as narrative and its requirement is silently dropped`);
     }
   }

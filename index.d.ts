@@ -28,18 +28,25 @@ export type OutlineMeta = {
     line: number;
     rows: number;
 };
+export type NarrativeLine = {
+    line: number;
+    text: string;
+    inBody: boolean;
+};
 export type ParsedFeature = {
     feature: string;
     background: Step[];
     scenarios: Scenario[];
     outlines: OutlineMeta[];
+    narrative: NarrativeLine[];
     file: string;
 };
 export type StepFn = (world: Record<string, any>, ...args: any[]) => (void | Promise<void>);
 /** @typedef {{ keyword: string, text: string, line: number, table?: string[][] }} Step */
 /** @typedef {{ name: string, steps: Step[], line: number, tags: string[] }} Scenario */
 /** @typedef {{ name: string, line: number, rows: number }} OutlineMeta */
-/** @typedef {{ feature: string, background: Step[], scenarios: Scenario[], outlines: OutlineMeta[], file: string }} ParsedFeature */
+/** @typedef {{ line: number, text: string, inBody: boolean }} NarrativeLine */
+/** @typedef {{ feature: string, background: Step[], scenarios: Scenario[], outlines: OutlineMeta[], narrative: NarrativeLine[], file: string }} ParsedFeature */
 /** @typedef {(world: Record<string, any>, ...args: any[]) => (void | Promise<void>)} StepFn */
 /**
  * Thrown when a feature file uses syntax this parser does not support, or a
@@ -105,16 +112,28 @@ export type LintFinding = {
  *    banned-vagueness list above.
  *  - `single-row-outline` (warn): a Scenario Outline with one Examples row —
  *    a scenario with extra ceremony, and usually a missing case.
- *  - `near-miss-keyword` (warn): a line inside a scenario or Background body
- *    whose first word matches a step keyword case-insensitively but not
- *    exactly (`when I add 5`, `GIVEN a counter`). Keywords are exact-case, so
- *    the line is not a step — it is narrative, and the parser drops it without
- *    a word. This is the same hazard as a near-miss semantic tag (`@Skip`),
- *    which the parser rejects outright; a near-miss STEP keyword still parses,
- *    so it surfaces here instead. The no-steps guard and `no-then` between them
- *    catch it only when the dropped line was a scenario's only step, or its
- *    only Then; a near miss in a scenario that keeps a Given and a Then is
- *    otherwise invisible, and its requirement is gone.
+ *  - `near-miss-keyword` (warn): a silently dropped line that was almost
+ *    certainly meant as syntax, read off the parser's own record of the lines
+ *    it ignored as narrative. Two shapes:
+ *      - inside a scenario or Background body, a line whose first word matches
+ *        a step keyword case-insensitively but not exactly (`when I add 5`,
+ *        `GIVEN a counter`) — the requirement it stated is gone;
+ *      - anywhere, a line shaped like a construct header but not in the one
+ *        exact form the parser recognizes (`scenario: b`, `Scenario : b`,
+ *        `SCENARIO OUTLINE: b`) — the construct never starts, and what follows
+ *        it silently belongs to whatever came before (a lowercase `scenario:`
+ *        merges its steps into the PREVIOUS scenario, unseeable by the
+ *        no-steps guard and `no-then` because the scenario never exists).
+ *    This is the same hazard as a near-miss semantic tag (`@Skip`), which the
+ *    parser rejects outright; a near-miss step or construct keyword still
+ *    parses, so it surfaces here instead. The step check is scoped to bodies
+ *    because the Feature narrative is prose by design and may open a sentence
+ *    with "when" or "and"; the construct check is not scoped, because the
+ *    trailing colon makes the line syntax-shaped wherever it appears. `Rule:`
+ *    is exempt from the construct check — see CONSTRUCT_BY_KEY. The no-steps
+ *    guard and `no-then` between them catch a dropped step only at the
+ *    extremes (a scenario's only step, or its only Then); a near miss in a
+ *    scenario that keeps a Given and a Then is otherwise invisible.
  *
  * Findings from a Scenario Outline are reported once per source construct,
  * not once per expanded row — except a vague-then introduced BY a placeholder

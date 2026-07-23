@@ -223,6 +223,65 @@ test('near-miss-keyword: comment, tag and table lines are not mistaken for steps
   assert.deepStrictEqual(findings, []);
 });
 
+test('near-miss-keyword: a lowercase scenario: silently merges into the previous scenario', () => {
+  // Without the construct half of this rule the file is finding-free: scenario
+  // "b" never exists, so the no-steps guard cannot fire, and its Then merges
+  // into "a", so no-then cannot fire either. The scenario does not weaken — it
+  // vanishes.
+  const findings = lintFeature(feat(
+    'Scenario: a\n  Given x\n  Then y\nscenario: b\n  Given p\n  Then q\n'));
+  assert.deepStrictEqual(rules(findings), ['near-miss-keyword']);
+  assert.strictEqual(findings[0].line, 5);
+  assert.match(findings[0].message, /"scenario:" is not the construct keyword "Scenario:"/);
+});
+
+test('near-miss-keyword: construct headers are exact-form, not merely exact-case', () => {
+  // Wrong spacing is dropped exactly as silently as wrong case.
+  for (const [bad, shown] of [['Scenario : b', 'Scenario :'], ['SCENARIO: b', 'SCENARIO:'],
+                              ['ScenarioOutline: b', 'ScenarioOutline:'], ['scenario:b', 'scenario:']]) {
+    const findings = lintFeature(feat(
+      `Scenario: a\n  Given x\n  Then y\n${bad}\n  Given p\n  Then q\n`));
+    assert.deepStrictEqual(rules(findings), ['near-miss-keyword'], `${bad} should be flagged`);
+    assert.match(findings[0].message, new RegExp(`^"${shown}" is not the construct keyword`));
+  }
+});
+
+test('near-miss-keyword: an outline typo and its lowercase examples: are both flagged', () => {
+  // "Scenario outline:" is narrative, so its steps merge into scenario "a";
+  // "examples:" is narrative too, so the table under it glues itself to the
+  // last merged step as a data table. The file parses — two findings.
+  const findings = lintFeature(feat(
+    'Scenario: a\n  Given x\n  Then y\n'
+    + 'Scenario outline: add <n>\n  Given a counter\n  When I add <n>\n  Then I get <n>\n'
+    + '  examples:\n    | n |\n    | 1 |\n'));
+  assert.deepStrictEqual(rules(findings), ['near-miss-keyword', 'near-miss-keyword']);
+  assert.deepStrictEqual(findings.map((f) => f.line), [5, 9]);
+  assert.match(findings[0].message, /"Scenario outline:" is not the construct keyword "Scenario Outline:"/);
+  assert.match(findings[1].message, /"examples:" is not the construct keyword "Examples:"/);
+});
+
+test('near-miss-keyword: construct near misses are flagged outside bodies too', () => {
+  // The step check is body-scoped, but constructs are recognized anywhere, so
+  // their near misses matter anywhere — including the Feature narrative.
+  const findings = lintFeature(
+    'Feature: F\n  As a user\n  background: a seeded store\n\n'
+    + 'Scenario: S\n  Given a counter at 0\n  Then the counter is 0\n');
+  assert.deepStrictEqual(rules(findings), ['near-miss-keyword']);
+  assert.strictEqual(findings[0].line, 3);
+});
+
+test('near-miss-keyword: construct-like prose without the colon shape stays quiet', () => {
+  // Plural or unlisted words do not form a construct header; `rule:` is exempt
+  // because the exact `Rule:` is itself a dialect error, so a near miss is not
+  // a rescue — and "rule: …" is plausible prose.
+  const findings = lintFeature(
+    'Feature: F\n  scenarios: covered in the payments epic\n'
+    + '  features: split per team\n  example: the happy path\n\n'
+    + 'Scenario: S\n  Given a counter at 0\n  rule: refunds beat store credit\n'
+    + '  Then the counter is 0\n');
+  assert.deepStrictEqual(findings, []);
+});
+
 // --- ordering & composition -------------------------------------------------------
 
 test('findings are sorted by line across rules', () => {
