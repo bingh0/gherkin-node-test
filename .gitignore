@@ -5,3 +5,6 @@ bun.lock
 
 # scope plugin lab notebook — run entries name real projects; each install keeps its own
 plugins/scope/skills/scope/RUNS.md
+
+# local thinking notes — not part of the published repo
+docs/notes/

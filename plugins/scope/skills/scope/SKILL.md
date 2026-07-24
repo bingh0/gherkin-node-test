@@ -163,14 +163,37 @@ having run the linter, and never substitute an older linter silently.
 Present the feature files and the fence to the visionary as **the contract**,
 and remind them of their one job: read every scenario and challenge anything
 that doesn't match the vision. Their corrections are Phase-2/3 material —
-apply them and re-lint. Count the corrections; that number is the experiment's
-primary metric.
+apply them and re-lint. Record each correction and **where in the review
+order it occurred** — that record goes to `RUNS.md` (below), and it earns its
+keep: corrections that trail off late in a long review usually mean the
+corpus outgrew one sitting, not that the late files were right — a signal to
+split the review or shrink the reviewed set next time.
 
-## Lab notebook
+**The design tier is not your output.** The reviewed contract covers intent
+only. At build time the builder agent may write platform-specific design
+acceptance criteria (serialization, parsing, library behavior) as feature
+files under `features/design/` — run by a *second* `runFeatures` call with
+its own `wip` register, never mixed into `features/`, and outside the review
+contract. State this boundary in the handoff explicitly: the visionary
+reviews `features/` and only `features/`; the reviewed set stays small and
+intent-complete, and anything platform-specific the interview surfaced is
+delegated to the design tier via the out-of-scope list, not smuggled into a
+reviewed file.
 
-This skill is an experiment in interview-driven scoping. After each run,
-append one dated entry to `RUNS.md` in this skill's directory: project
-scoped, question count, correction count at review, and any protocol change
-the run motivated. (`RUNS.md` is deliberately untracked in the public repo —
+## Run statistics — `RUNS.md`
+
+`RUNS.md` in this skill's directory is this installation's running record of
+how the skill is working on *your* projects — statistics kept locally for
+your own perusal, nothing more. After each run, append one dated entry:
+project scoped, question count, reviewed-corpus size (files/scenarios),
+corrections with their review-order positions, and any protocol change the
+run motivated. For projects that reach build, a follow-up line: whether a
+`features/design/` tier was created, its size, and any **drift sighting** —
+a design-tier scenario contradicting a reviewed one. Each entry is there to
+answer a question you'll eventually ask: is the interview getting cheaper
+(question count), is the reviewed set staying reviewable (corpus size and
+where corrections land), and has the unreviewed tier started to wander
+(drift sightings — the signal that a machine-checked traceability rule has
+become worth building). (`RUNS.md` is deliberately untracked in the public repo —
 run entries name real projects; each installation accumulates its own.)
 Propose protocol changes to the visionary before editing this file.
