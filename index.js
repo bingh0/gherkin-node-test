@@ -9,14 +9,17 @@
 // data tables, and @skip/@todo/@only tags — and turns each scenario into one
 // runner test(). Scenario Outlines are expanded once per Examples row.
 //
-// The high-level entry point is runFeatures(dir, definers, { wip }): it
-// discovers every *.feature in dir, runs each against its OWN scoped registry
-// (step patterns never leak between features), and registers guard tests that
-// fail on ambiguous steps, on unbound steps (which would otherwise register as
-// TODO — reported as PASSING by node:test), and on definer keys that match no
-// feature file. A feature still being bootstrapped opts out of the unbound-step
-// ratchet by name via `wip`. ONE runFeatures call per test file — a second
-// call in the same file is refused as a registered failing test (see below).
+// The high-level entry point is runFeatures(dir, definers, { wip, manifest }):
+// it discovers every *.feature in dir, runs each against its OWN scoped
+// registry (step patterns never leak between features), and registers guard
+// tests that fail on ambiguous steps, on unbound steps (which would otherwise
+// register as TODO — reported as PASSING by node:test), and on definer keys
+// that match no feature file. A feature still being bootstrapped opts out of
+// the unbound-step ratchet by name via `wip`. `manifest` opts into the run
+// manifest — a committed record of what ran, one sorted {file, title, status}
+// row per scenario (see createManifestWriter). ONE runFeatures call per test
+// file — a second call in the same file is refused as a registered failing
+// test (see below).
 //
 // SUPPORTED grammar (the practical core, guarded loudly):
 //   Feature:            one per file, required
@@ -143,7 +146,7 @@ function methodRegister(t, title, opts, fn) {
  * @param {any} testFn a `test` function with `.skip` and `.todo` methods
  * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry) => void,
  *             runFeatureFile: (file: string, registry: StepRegistry) => void,
- *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<WipEntry> }) => void }}
+ *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<WipEntry>, manifest?: string }) => void }}
  */
 function bindRunner(testFn) {
   if (typeof testFn !== 'function' || typeof testFn.skip !== 'function' || typeof testFn.todo !== 'function') {
@@ -982,8 +985,10 @@ async function executeSteps(steps, registry, world = {}) {
  * @param {StepRegistry} registry
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
+ * @param {ManifestRecorder | null} [recorder] run-manifest recorder; supplied
+ *   by runFeatures when its `manifest` option is set
  */
-function runFeature(parsed, registry, register = registerTest) {
+function runFeature(parsed, registry, register = registerTest, recorder = null) {
   const base = featureBase(parsed.file);
   if (parsed.scenarios.some((sc) => sc.tags.includes('@only'))) {
     const msg = `${parsed.file}: @only is not supported; run one scenario with `
@@ -1015,6 +1020,7 @@ function runFeature(parsed, registry, register = registerTest) {
       // vacuously under modes that execute todo bodies — `bun test --todo`
       // even FAILS a todo that passes. A throwing todo gates nothing on
       // either runner and keeps the reason visible wherever bodies run.
+      recorder?.static(parsed.file, sc.name, 'unbound');
       register(title, { todo: reason }, () => { throw new Error(reason); });
       continue;
     }
@@ -1023,7 +1029,16 @@ function runFeature(parsed, registry, register = registerTest) {
     const opts = {};
     if (tags.has('@skip')) opts.skip = true;
     if (tags.has('@todo')) opts.todo = true;
-    register(title, opts, async () => { await executeSteps(steps, registry); });
+    const body = async () => { await executeSteps(steps, registry); };
+    if (recorder && !opts.skip && !opts.todo) {
+      register(title, opts, recorder.wrap(parsed.file, sc.name, body));
+      continue;
+    }
+    // A tagged scenario's status comes from its TAG, never its body: skip
+    // bodies run nowhere, and todo bodies run on some runtimes and not others
+    // — see createManifestWriter's determinism rules.
+    recorder?.static(parsed.file, sc.name, opts.skip ? 'skipped' : 'todo');
+    register(title, opts, body);
   }
 }
 
@@ -1036,6 +1051,181 @@ function runFeature(parsed, registry, register = registerTest) {
 function runFeatureFile(file, registry, register = registerTest) {
   runFeature(parseFeature(fs.readFileSync(file, 'utf8'), file), registry, register);
 }
+
+// --- Run manifest -------------------------------------------------------------
+
+/** @typedef {'passed' | 'failed' | 'skipped' | 'todo' | 'unbound'} ManifestStatus */
+
+/**
+ * Compare two strings by Unicode CODE POINT — the manifest's sort order. JS
+ * string comparison is UTF-16 code-unit order, which disagrees with
+ * code-point order for astral characters (an emoji sorts before U+FF3A by
+ * code unit, after it by code point). Rust's str ordering IS code-point
+ * order, so the byte-parity contract with the cargo sibling pins code
+ * points. Lone surrogates (not producible from a UTF-8 feature file) still
+ * compare deterministically.
+ * @param {string} a @param {string} b @returns {number}
+ */
+function compareCodePoints(a, b) {
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    const ca = /** @type {number} */ (a.codePointAt(i));
+    const cb = /** @type {number} */ (b.codePointAt(j));
+    if (ca !== cb) return ca - cb;
+    i += ca > 0xffff ? 2 : 1;
+    j += cb > 0xffff ? 2 : 1;
+  }
+  return (a.length - i) - (b.length - j);
+}
+
+/**
+ * The recorder behind runFeatures' `manifest` option: a written account of
+ * what ran — every registered scenario as one `{file, title, status}` row —
+ * so a downstream reader can notice what DIDN'T run. A feature file absent
+ * from the runner is absent from every manifest, and that absence is
+ * detectable by joining manifests against the feature-file tree; test results
+ * alone can never show it. Rows are scenarios only (path + title is the whole
+ * identity scheme — rename resolution is a reader's competence, not this
+ * file's); guard tests have no feature-file identity and fail the run
+ * loudly on their own channel, so they are not rows.
+ *
+ * Reporter-shaped, deliberately: it observes outcomes and writes bytes; it
+ * never gates a test, never reads a previous manifest, never alters what
+ * registers — the runner stays stateless.
+ *
+ * Determinism rules, so a committed manifest's bytes change only when results
+ * change:
+ *  - No timestamps, no durations — volatile fields churn git for nothing;
+ *    dating comes from the commit that touches the file.
+ *  - Rows sort by file, then title, then status (code-point order) and
+ *    serialize as NDJSON with fixed key order; `\` in paths normalizes to `/`
+ *    so the same run writes the same bytes on every platform.
+ *  - @skip / @todo / unbound are recorded at REGISTRATION, never from body
+ *    execution: the runtimes disagree about whether those bodies run (node
+ *    always executes todo bodies, bun only under --todo, Deno never), and a
+ *    status that varied by runtime would break the rule above. Only a plain
+ *    bound scenario records from execution: passed or failed.
+ *  - The file is written exactly ONCE, when every expected outcome has been
+ *    recorded. A filtered (--test-name-pattern / -t / --filter), bailed, or
+ *    crashed run never writes — a partial account must not overwrite a full
+ *    one. A write failure (missing directory, missing Deno --allow-write) is
+ *    loud: it throws from the last scenario's body — unless that scenario
+ *    itself failed, in which case its own failure outranks the write failure
+ *    (executeSteps' cleanup precedence), and the next full run stays loud.
+ *  - Zero registered scenarios write a ZERO-BYTE file: visibly empty is an
+ *    account; an absent file would read as "never ran".
+ *  - A RE-INVOKED scenario body is refused loudly, the @only doctrine one
+ *    level up. vitest's retry and repeats both re-run the same registered
+ *    body, and they assign OPPOSITE verdicts to the same observed sequence
+ *    (fail-then-pass is a pass under retry, a fail under repeats) — from
+ *    inside the body the two modes are indistinguishable, so no recording
+ *    rule can be honest in both. The second invocation throws a named error
+ *    (failing the run on every runtime) and poisons the recorder: nothing
+ *    further is written. A run without failures never triggers retry, so
+ *    deterministic suites never see the refusal; bun's --rerun-each re-runs
+ *    whole files (fresh recorder per run) and is naturally immune.
+ * @param {string} manifestPath
+ */
+function createManifestWriter(manifestPath) {
+  /** @type {{ file: string, title: string, status: ManifestStatus }[]} */
+  const rows = [];
+  let pending = 0;        // wrapped scenario bodies not yet resolved
+  let registered = false; // set by done() once every row source is known
+  let poisoned = false;   // a body was re-invoked; the account is unreliable
+  /** @param {string} f */
+  const norm = (f) => f.split(path.sep).join('/');
+  const maybeWrite = () => {
+    if (poisoned || !registered || pending > 0) return;
+    // Zero rows write a ZERO-BYTE file: a directory that registers nothing
+    // still gets a visibly empty account (absence of the file would read as
+    // "never ran"), and zero rows of NDJSON is an empty file, not a lone
+    // newline.
+    const text = rows.length === 0 ? '' : [...rows]
+      .sort((a, b) => compareCodePoints(a.file, b.file)
+        || compareCodePoints(a.title, b.title)
+        || compareCodePoints(a.status, b.status))
+      .map((r) => JSON.stringify({ file: r.file, title: r.title, status: r.status }))
+      .join('\n') + '\n';
+    fs.writeFileSync(manifestPath, text);
+  };
+  return {
+    /**
+     * Record a status known at registration time (@skip / @todo / unbound).
+     * @param {string} file @param {string} title @param {ManifestStatus} status
+     */
+    static(file, title, status) {
+      rows.push({ file: norm(file), title, status });
+    },
+    /**
+     * Wrap a plain bound scenario body: its resolution records passed/failed
+     * (the failure still propagates — recording never swallows it).
+     * @param {string} file @param {string} title
+     * @param {() => Promise<void>} fn
+     * @returns {() => Promise<void>}
+     */
+    wrap(file, title, fn) {
+      pending += 1;
+      let invoked = false;
+      return async () => {
+        if (invoked) {
+          // Poison FIRST: this throw fails the run, but the runner may have
+          // already observed every first invocation and written — later
+          // completions must not write again on top of a refused run.
+          poisoned = true;
+          throw new Error(
+            `run manifest: scenario "${title}" was invoked again after its outcome was recorded — `
+            + 'this runner re-runs test bodies (vitest retry/repeats?). Retry and repeats assign '
+            + 'opposite verdicts to the same rerun sequence, so no manifest row can be honest about '
+            + 'one; the manifest is refused instead. Disable retry/repeats for this suite, or drop '
+            + 'the manifest option.');
+        }
+        invoked = true;
+        /** @type {ManifestStatus} */
+        let status = 'passed';
+        try {
+          await fn();
+        } catch (e) {
+          status = 'failed';
+          throw e;
+        } finally {
+          rows.push({ file: norm(file), title, status });
+          pending -= 1;
+          try {
+            maybeWrite();
+          } catch (e) {
+            // The scenario's own failure outranks a write failure — the same
+            // precedence executeSteps gives step failures over cleanup
+            // errors. A green last scenario still surfaces the write failure
+            // loudly, and the next full run stays loud either way.
+            if (status !== 'failed') throw e;
+          }
+        }
+      };
+    },
+    /** Every registration has happened; write now if nothing is pending. */
+    done() {
+      registered = true;
+      maybeWrite();
+    },
+  };
+}
+
+/** @typedef {ReturnType<typeof createManifestWriter>} ManifestRecorder */
+
+// One live claim per manifest path per process: two runFeatures calls whose
+// manifests share one path would silently overwrite each other's account —
+// last writer wins, and each write is "complete" for only its own directory.
+// The claim is keyed by the CALL's identity (test file + feature dir), not
+// counted, so a watch-mode re-execution of the same call re-claims its own
+// path freely — the same reason the one-call-per-file rule keys on identity.
+// The refusal is a registered failing test, never a throw (the one-call
+// rule's Deno-swallow reasoning applies unchanged), and it is additive: the
+// call's scenarios still register and run; only its manifest is withheld.
+// Two calls in PARALLEL processes (node's per-file isolation) are out of any
+// in-process guard's sight — keep one path per feature directory.
+/** @type {Map<string, { identity: string, dir: string }>} */
+const manifestClaims = new Map();
 
 // --- High-level runner --------------------------------------------------------
 
@@ -1082,9 +1272,21 @@ function runFeatureFile(file, registry, register = registerTest) {
  * is exactly where a bad definer or an unparseable feature would vanish).
  * Give each feature directory its own test file.
  *
+ * `manifest` (opt-in) names a file to receive the run manifest: one sorted
+ * `{file, title, status}` NDJSON row per registered scenario (post-expansion —
+ * outline rows land individually, exactly as they registered), written only
+ * when the full run has been observed. See createManifestWriter for the
+ * format and determinism rules. One manifest per runFeatures call — and since
+ * the rule above is one call per test file, per feature directory. A second
+ * call claiming a path this process already claimed is refused as a
+ * registered failing test (see manifestClaims); calls in parallel processes
+ * are out of any guard's sight — keep one path per feature directory.
+ * Under Deno the write needs `--allow-write=<its directory>`.
+ *
  * @param {string} dir directory containing .feature files
  * @param {Record<string, (reg: StepRegistry) => any>} definers feature basename → step definer
- * @param {{ wip?: Iterable<WipEntry> }} [opts] features (or scenarios) still bootstrapping (TODO allowed)
+ * @param {{ wip?: Iterable<WipEntry>, manifest?: string }} [opts] features (or
+ *   scenarios) still bootstrapping (TODO allowed); run-manifest output path
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  */
@@ -1138,6 +1340,14 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     }
   }
 
+  // A malformed manifest option throws at load, like a bad definer or a bad
+  // wip entry: '' or a non-string must not silently become "no manifest" —
+  // that would be coverage accounting that silently doesn't run, the exact
+  // class the manifest exists to expose.
+  if (opts.manifest !== undefined && (typeof opts.manifest !== 'string' || opts.manifest === '')) {
+    throw new TypeError(`manifest must be a non-empty file path, got ${JSON.stringify(opts.manifest)}`);
+  }
+
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.feature')).sort();
   const bases = files.map(featureBase);
 
@@ -1162,6 +1372,31 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   // *registering* call. Registrations start below, so from this point the
   // call is the one the rule permits.
   if (native) filesWithRunFeatures.add(testFile.key);
+
+  // Created after validation, alongside the one-call slot: a call that threw
+  // its load-time error never observed a full run, so it must not write.
+  // A path another call already claimed is refused (see manifestClaims):
+  // the refusal registers a failing test and withholds only the manifest —
+  // every scenario below still registers and runs.
+  /** @type {ManifestRecorder | null} */
+  let recorder = null;
+  if (opts.manifest) {
+    const manifest = opts.manifest;
+    const identity = `${testFile.key}\u0000${dir}`;
+    const claim = manifestClaims.get(manifest);
+    if (claim && claim.identity !== identity) {
+      register('run manifest: one path per runFeatures call', {}, () => {
+        throw new Error(
+          `${JSON.stringify(manifest)} is already the manifest of the runFeatures call for `
+          + `${JSON.stringify(claim.dir)} — two accounts sharing one path silently overwrite each `
+          + 'other (last writer wins, each complete for only its own directory); give each feature '
+          + 'directory its own manifest path');
+      });
+    } else {
+      manifestClaims.set(manifest, { identity, dir });
+      recorder = createManifestWriter(manifest);
+    }
+  }
 
   register('step definers and wip entries map only to existing feature files', {}, () => {
     const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));
@@ -1227,8 +1462,11 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
         + stale.map((t) => `'${t}'`).join(', '));
     });
 
-    runFeature(parsed, registry, register);
+    runFeature(parsed, registry, register, recorder);
   }
+  // Every row source is now known. If nothing is left pending (every scenario
+  // was @skip/@todo/unbound), this is also the write.
+  recorder?.done();
 }
 
 module.exports = {

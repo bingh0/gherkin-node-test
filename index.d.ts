@@ -42,13 +42,14 @@ declare function registerTest(title: string, opts: {
  * @param {any} testFn a `test` function with `.skip` and `.todo` methods
  * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry) => void,
  *             runFeatureFile: (file: string, registry: StepRegistry) => void,
- *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<WipEntry> }) => void }}
+ *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<WipEntry>, manifest?: string }) => void }}
  */
 declare function bindRunner(testFn: any): {
     runFeature: (parsed: ParsedFeature, registry: StepRegistry) => void;
     runFeatureFile: (file: string, registry: StepRegistry) => void;
     runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: {
         wip?: Iterable<WipEntry>;
+        manifest?: string;
     }) => void;
 };
 export type Step = {
@@ -275,8 +276,10 @@ declare function executeSteps(steps: Step[], registry: StepRegistry, world?: Rec
  * @param {StepRegistry} registry
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
+ * @param {ManifestRecorder | null} [recorder] run-manifest recorder; supplied
+ *   by runFeatures when its `manifest` option is set
  */
-declare function runFeature(parsed: ParsedFeature, registry: StepRegistry, register?: typeof registerTest): void;
+declare function runFeature(parsed: ParsedFeature, registry: StepRegistry, register?: typeof registerTest, recorder?: ManifestRecorder | null): void;
 /**
  * @param {string} file
  * @param {StepRegistry} registry
@@ -284,6 +287,73 @@ declare function runFeature(parsed: ParsedFeature, registry: StepRegistry, regis
  *   bindRunner, defaults to the runtime's native runner
  */
 declare function runFeatureFile(file: string, registry: StepRegistry, register?: typeof registerTest): void;
+export type ManifestStatus = 'passed' | 'failed' | 'skipped' | 'todo' | 'unbound';
+/**
+ * The recorder behind runFeatures' `manifest` option: a written account of
+ * what ran — every registered scenario as one `{file, title, status}` row —
+ * so a downstream reader can notice what DIDN'T run. A feature file absent
+ * from the runner is absent from every manifest, and that absence is
+ * detectable by joining manifests against the feature-file tree; test results
+ * alone can never show it. Rows are scenarios only (path + title is the whole
+ * identity scheme — rename resolution is a reader's competence, not this
+ * file's); guard tests have no feature-file identity and fail the run
+ * loudly on their own channel, so they are not rows.
+ *
+ * Reporter-shaped, deliberately: it observes outcomes and writes bytes; it
+ * never gates a test, never reads a previous manifest, never alters what
+ * registers — the runner stays stateless.
+ *
+ * Determinism rules, so a committed manifest's bytes change only when results
+ * change:
+ *  - No timestamps, no durations — volatile fields churn git for nothing;
+ *    dating comes from the commit that touches the file.
+ *  - Rows sort by file, then title, then status (code-point order) and
+ *    serialize as NDJSON with fixed key order; `\` in paths normalizes to `/`
+ *    so the same run writes the same bytes on every platform.
+ *  - @skip / @todo / unbound are recorded at REGISTRATION, never from body
+ *    execution: the runtimes disagree about whether those bodies run (node
+ *    always executes todo bodies, bun only under --todo, Deno never), and a
+ *    status that varied by runtime would break the rule above. Only a plain
+ *    bound scenario records from execution: passed or failed.
+ *  - The file is written exactly ONCE, when every expected outcome has been
+ *    recorded. A filtered (--test-name-pattern / -t / --filter), bailed, or
+ *    crashed run never writes — a partial account must not overwrite a full
+ *    one. A write failure (missing directory, missing Deno --allow-write) is
+ *    loud: it throws from the last scenario's body — unless that scenario
+ *    itself failed, in which case its own failure outranks the write failure
+ *    (executeSteps' cleanup precedence), and the next full run stays loud.
+ *  - Zero registered scenarios write a ZERO-BYTE file: visibly empty is an
+ *    account; an absent file would read as "never ran".
+ *  - A RE-INVOKED scenario body is refused loudly, the @only doctrine one
+ *    level up. vitest's retry and repeats both re-run the same registered
+ *    body, and they assign OPPOSITE verdicts to the same observed sequence
+ *    (fail-then-pass is a pass under retry, a fail under repeats) — from
+ *    inside the body the two modes are indistinguishable, so no recording
+ *    rule can be honest in both. The second invocation throws a named error
+ *    (failing the run on every runtime) and poisons the recorder: nothing
+ *    further is written. A run without failures never triggers retry, so
+ *    deterministic suites never see the refusal; bun's --rerun-each re-runs
+ *    whole files (fresh recorder per run) and is naturally immune.
+ * @param {string} manifestPath
+ */
+declare function createManifestWriter(manifestPath: string): {
+    /**
+     * Record a status known at registration time (@skip / @todo / unbound).
+     * @param {string} file @param {string} title @param {ManifestStatus} status
+     */
+    static(file: string, title: string, status: ManifestStatus): void;
+    /**
+     * Wrap a plain bound scenario body: its resolution records passed/failed
+     * (the failure still propagates — recording never swallows it).
+     * @param {string} file @param {string} title
+     * @param {() => Promise<void>} fn
+     * @returns {() => Promise<void>}
+     */
+    wrap(file: string, title: string, fn: () => Promise<void>): () => Promise<void>;
+    /** Every registration has happened; write now if nothing is pending. */
+    done(): void;
+};
+export type ManifestRecorder = ReturnType<typeof createManifestWriter>;
 export type WipEntry = string | {
     feature: string;
     scenarios: string[];
@@ -330,12 +400,25 @@ export type WipEntry = string | {
  * is exactly where a bad definer or an unparseable feature would vanish).
  * Give each feature directory its own test file.
  *
+ * `manifest` (opt-in) names a file to receive the run manifest: one sorted
+ * `{file, title, status}` NDJSON row per registered scenario (post-expansion —
+ * outline rows land individually, exactly as they registered), written only
+ * when the full run has been observed. See createManifestWriter for the
+ * format and determinism rules. One manifest per runFeatures call — and since
+ * the rule above is one call per test file, per feature directory. A second
+ * call claiming a path this process already claimed is refused as a
+ * registered failing test (see manifestClaims); calls in parallel processes
+ * are out of any guard's sight — keep one path per feature directory.
+ * Under Deno the write needs `--allow-write=<its directory>`.
+ *
  * @param {string} dir directory containing .feature files
  * @param {Record<string, (reg: StepRegistry) => any>} definers feature basename → step definer
- * @param {{ wip?: Iterable<WipEntry> }} [opts] features (or scenarios) still bootstrapping (TODO allowed)
+ * @param {{ wip?: Iterable<WipEntry>, manifest?: string }} [opts] features (or
+ *   scenarios) still bootstrapping (TODO allowed); run-manifest output path
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  */
 declare function runFeatures(dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: {
     wip?: Iterable<WipEntry>;
+    manifest?: string;
 }, register?: typeof registerTest): void;

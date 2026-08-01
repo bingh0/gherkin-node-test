@@ -3,6 +3,9 @@ node_modules/
 bun.lock
 .playwright-cli/
 
+# run-manifest output from the test suite's own fixtures
+fixtures/.manifest-out/
+
 # scope plugin lab notebook — run entries name real projects; each install keeps its own
 plugins/scope/skills/scope/RUNS.md
 

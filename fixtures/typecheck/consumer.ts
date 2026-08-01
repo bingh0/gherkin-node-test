@@ -25,6 +25,8 @@ export function typecheckMainEntry(): void {
   reg.define(/^a$/, (w) => { void w; });
   const bound = bindRunner((() => {}) as any);
   bound.runFeature(parsed, reg);
+  // 0.8.0 run manifest through the bound surface (never executed — types only).
+  bound.runFeatures('features', {}, { manifest: 'features/run-manifest.ndjson' });
 }
 
 export function typecheckVitestEntry(): void {
@@ -34,7 +36,8 @@ export function typecheckVitestEntry(): void {
   const definer: vitestEntry.Definer = (r: vitestEntry.Registry) => r.define(/^a$/, () => {});
   // 0.7.0 WipEntry union: basenames and scenario-scoped entries mix freely.
   const wip: vitestEntry.WipEntry[] = ['backlog', { feature: 'partial', scenarios: ['pending thing'] }];
-  vitestEntry.runFeatures('features', { counter: definer }, { wip });
+  // 0.8.0 run manifest: the opt-in path types on both entry points.
+  vitestEntry.runFeatures('features', { counter: definer }, { wip, manifest: 'features/run-manifest.ndjson' });
   vitestEntry.runFeature(vitestEntry.parseFeature('Feature: F\nScenario: s\n  Given a\n  Then b\n'), reg);
   void vitestEntry.lintFeature('Feature: F\n');
 }

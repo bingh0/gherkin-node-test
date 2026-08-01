@@ -12,6 +12,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
+const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const { StepRegistry, runFeatureFile } = require('../index');
 
@@ -35,10 +36,13 @@ const isDeno = !!(/** @type {any} */ (globalThis).Deno?.version?.deno);
  * Spawn one or more fixtures under the runtime running this suite.
  * `runTodo` = bun's --todo, which executes todo bodies (node always executes
  * them; Deno never does — it ignores todo bodies). `nodeFlags` = extra
- * node-only runner flags (e.g. isolation modes). There is no focus mode: this
- * library never emits only:/test.only, on any runtime.
+ * node-only runner flags (e.g. isolation modes). `write` = the fixture opts
+ * into the run manifest, so the Deno child also gets --allow-write scoped to
+ * fixtures/.manifest-out — the documented minimum for that opt-in, and only
+ * for it. There is no focus mode: this library never emits only:/test.only,
+ * on any runtime.
  * @param {string | string[]} fixture
- * @param {{ runTodo?: boolean, nodeFlags?: string[] }} [mode]
+ * @param {{ runTodo?: boolean, nodeFlags?: string[], write?: boolean }} [mode]
  * @returns {{ status: number | null, out: string }}
  */
 function runFixture(fixture, mode = {}) {
@@ -56,7 +60,9 @@ function runFixture(fixture, mode = {}) {
   // run re-proves that the library needs no other permission. (NO_COLOR is
   // honored by the Deno runtime itself, outside the permission sandbox.)
   const args = isDeno
-    ? ['test', '--no-check', '--allow-read', ...files]
+    ? ['test', '--no-check', '--allow-read',
+      ...(mode.write ? [`--allow-write=${path.join(__dirname, '..', 'fixtures', '.manifest-out')}`] : []),
+      ...files]
     : isBun
       ? ['test', ...(mode.runTodo ? ['--todo'] : []), ...files]
       : ['--test', ...(mode.nodeFlags || []), ...files];
@@ -295,4 +301,64 @@ test('runFeatures: a feature file with no scenarios fails the run at load', () =
   const { status, out } = runFixture('noscenarios.fixture.js');
   assert.notStrictEqual(status, 0, 'a zero-scenario feature file must fail the run');
   assert.match(out, /Feature "Overdraft alerts" has no scenarios/);
+});
+
+// --- The run manifest ---------------------------------------------------------
+// runFeatures({ manifest }) writes one sorted {file, title, status} NDJSON row
+// per registered scenario, byte-identical across runtimes and platforms, and
+// ONLY when the full run was observed. See createManifestWriter in index.js.
+
+/** The manifest path a fixture writes to, and its expected-row builder. */
+const manifestOut = (/** @type {string} */ name) =>
+  path.join(__dirname, '..', 'fixtures', '.manifest-out', name);
+const manifestRow = (/** @type {string} */ dir, /** @type {string} */ feature) => {
+  const file = path.join(__dirname, '..', 'fixtures', dir, feature).split(path.sep).join('/');
+  return (/** @type {string} */ title, /** @type {string} */ status) =>
+    JSON.stringify({ file, title, status });
+};
+
+test('runFeatures: the manifest records every scenario as a sorted row, statuses from tags never bodies', () => {
+  const outFile = manifestOut('mixed.ndjson');
+  fs.rmSync(outFile, { force: true });
+  const { status, out } = runFixture('manifest.fixture.js', { write: true });
+  assert.strictEqual(status, 0, out);
+  const row = manifestRow('features-manifest', 'mixed.feature');
+  // Sorted by title (one file); expanded outline rows land individually;
+  // @skip/@todo/unbound come from registration, so these bytes are identical
+  // on node, bun, and Deno even though they disagree about running todo bodies.
+  assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
+    row('passes', 'passed'),
+    row('pending thing', 'unbound'),
+    row('skipped one', 'skipped'),
+    row('sweep 1 [1]', 'passed'),
+    row('sweep 2 [2]', 'passed'),
+    row('todo one', 'todo'),
+  ].join('\n') + '\n');
+});
+
+test('runFeatures: a red run still writes its manifest, recording the failure honestly', () => {
+  const outFile = manifestOut('red.ndjson');
+  fs.rmSync(outFile, { force: true });
+  const { status, out } = runFixture('manifestfail.fixture.js', { write: true });
+  assert.notStrictEqual(status, 0, 'the failing scenario must still fail the run');
+  const row = manifestRow('features-manifestfail', 'red.feature');
+  assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
+    row('fails', 'failed'),
+    row('passes', 'passed'),
+  ].join('\n') + '\n', out);
+});
+
+// A name-filtered run leaves scenario bodies unexecuted, so the manifest must
+// NOT be written: a partial account overwriting a full one would be exactly
+// the silent-coverage lie the manifest exists to expose. Node-only spawn (the
+// filter flag differs per runtime); the write-on-complete rule it pins is
+// runtime-independent and covered in-process by test/manifest.test.js.
+test('runFeatures: a name-filtered run never writes the manifest', () => {
+  if (isBun || isDeno) return;
+  const outFile = manifestOut('mixed.ndjson');
+  fs.rmSync(outFile, { force: true });
+  const { out } = runFixture('manifest.fixture.js',
+    { nodeFlags: ['--test-name-pattern', 'passes'] });
+  assert.strictEqual(fs.existsSync(outFile), false,
+    `a filtered run observed only part of the suite and must not write:\n${out}`);
 });

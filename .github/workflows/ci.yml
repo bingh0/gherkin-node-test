@@ -42,7 +42,9 @@ jobs:
 
   # The same suite again under Deno, which runs it via its native node:test
   # bridge (Deno.test under the hood). --allow-read for the .feature files,
-  # --allow-run for the subprocess proofs in test/runner.test.js. This lane
+  # --allow-run for the subprocess proofs in test/runner.test.js,
+  # --allow-write scoped to fixtures/.manifest-out for the run-manifest tests
+  # (the manifest opt-in's documented minimum — nothing wider). This lane
   # keeps the README's "runs on Deno" claim continuously true.
   deno:
     name: deno / ${{ matrix.os }}
@@ -56,7 +58,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - run: deno test --allow-read --allow-env --allow-run --no-check
+      - run: deno test --allow-read --allow-env --allow-run --allow-write=fixtures/.manifest-out --no-check
 
   # The vitest adapter (`gherkin-node-test/vitest`) smoke suite: the bound
   # counter feature must register and pass on a real vitest, guards included.

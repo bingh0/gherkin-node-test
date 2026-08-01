@@ -6,7 +6,7 @@ runner: [`node:test`](https://nodejs.org/api/test.html) under Node,
 [`bun:test`](https://bun.sh/docs/cli/test) natively under Bun, and `node:test`
 under [Deno](https://docs.deno.com/runtime/reference/cli/test/) (whose
 `node:test` bridges to the native `Deno.test` runner) — and it treats every
-silence as a bug. One file, ~1,200 lines, small enough to read in one sitting or
+silence as a bug. One file, ~1,400 lines, small enough to read in one sitting or
 to vendor outright. The same file doubles as a **feature-file linter** for
 projects whose runner is something else — see
 [the linter role](#the-linter-role--under-someone-elses-runner).
@@ -47,6 +47,7 @@ False greens have specific, boring causes. Each one is a design decision here:
 | A failing assertion leaks the temp dir / process it was about to clean up | `world.defer(fn)` runs cleanup LIFO **even when a step fails**. |
 | A typo'd `@skip` tag is silently inert | Misplaced tags, dangling tags, and near-miss tags (`@Skip`, `@ONLY`) are **loud errors** — `@Skip` would run a scenario meant to be skipped, `@Only` would dodge the loud `@only` rejection. |
 | A committed `@only` silently narrows what CI runs | `@only` **never focuses anything — it's rejected as a failing test** on every runtime. Focus is a per-run CLI flag (`--test-name-pattern` / `-t` / `--filter`), which can't be committed into the suite. |
+| A feature directory nobody points the runner at is green by absence | The opt-in [**run manifest**](#the-run-manifest) writes down what ran — one sorted `{file, title, status}` row per scenario, only on a full run — so joining it against the feature-file tree exposes coverage that silently isn't running. |
 
 The same properties turn out to be exactly what a coding agent needs, because
 agents act on error output. A located `file:line` error, a failure message
@@ -201,6 +202,76 @@ guard (renaming a `.feature` file can't silently strand its steps), and
 skip-still-binds (`@skip` means "don't run", never "don't bind" — otherwise
 a tag would be a hole in the ratchet).
 
+## The run manifest
+
+Everything above makes a run that *happens* honest. It cannot make a run
+happen: a feature directory nobody points `runFeatures` at is green by
+absence — spec present, enforcement quietly missing, invisible in any diff of
+the feature files. Results can't expose that class, because the lie is that
+no result exists. The fix is one written sentence per run: **the runner
+writes down what ran, so a reader can notice what didn't.**
+
+```js
+runFeatures('features', definers, {
+  manifest: 'features/run-manifest.ndjson',   // opt-in, one per feature dir
+});
+```
+
+Every registered scenario becomes one NDJSON row — sorted, fixed key order:
+
+```json
+{"file":"features/counter.feature","title":"increment once","status":"passed"}
+{"file":"features/counter.feature","title":"resumes after a gap","status":"unbound"}
+{"file":"features/counter.feature","title":"streams the tail live [1]","status":"skipped"}
+```
+
+Commit the manifest. A tool (or a reviewer) joining it against the `.feature`
+files in the tree sees the silent class structurally: a feature file with no
+rows in any manifest is coverage that isn't running.
+
+The format is a contract, held deliberately small:
+
+- **Rows are `{file, title, status}` and nothing else.** No timestamps, no
+  durations — volatile fields would churn git for nothing. The manifest's
+  bytes change **only when results change**; *when* comes from the commit
+  that touched it. Identity is path + title exactly as registered (outline
+  rows land individually, `title [n]`); there is no invented ID scheme.
+- **Statuses are runtime-independent.** `passed` and `failed` come from
+  execution; `skipped` (@skip), `todo` (@todo), and `unbound` (the wip
+  register's grain) come from *registration* — the runtimes disagree about
+  whether skip/todo bodies run, and a status that varied by runtime would
+  break bytes-follow-results. The same run writes the same bytes on Node,
+  Bun, Deno, vitest, and every OS (`\` normalizes to `/`).
+- **A partial run never writes.** The file is written exactly once, when
+  every registered scenario's outcome has been observed. A name-filtered
+  (`--test-name-pattern` / `-t` / `--filter`), bailed, or crashed run leaves
+  the previous manifest untouched rather than overwriting a full account
+  with a partial one.
+- **A re-run body is refused loudly.** vitest's `retry` and `repeats` re-run
+  the same test body — and assign *opposite* verdicts to the same rerun
+  sequence (fail-then-pass passes under retry, fails under repeats), which
+  is indistinguishable from inside the body. Rather than silently pick one
+  meaning, the second invocation fails the run with an error naming the fix
+  (same doctrine as the `@only` rejection), and the manifest is not written.
+  Deterministic suites never see this: retry only re-runs failures. Bun's
+  `--rerun-each` re-runs whole files and is naturally immune.
+- **The runner stays stateless.** The manifest is a reporter, not a memory:
+  nothing is ever read back, nothing gates on it, registration is unchanged.
+  Failure history, flakiness, change dating — all derivable by downstream
+  tooling from the committed manifest's git history, none of it this
+  library's business.
+
+One manifest per `runFeatures` call — which the one-call rule makes one per
+feature directory, and enforced in-process: a second call claiming an
+already-claimed path is refused loudly (a registered failing test — its
+scenarios still run; only its manifest is withheld), since two accounts
+sharing one path would silently overwrite each other. A directory that
+registers zero scenarios writes a zero-byte file — visibly empty is an
+account; an absent file would read as "never ran". Point the path anywhere;
+the directory must exist (the writer never `mkdir`s — a write failure is
+loud, though a scenario's own failure outranks it). Under Deno, opting in
+needs `--allow-write=<that directory>` on top of the usual `--allow-read`.
+
 ## Runs on Bun and Deno — natively
 
 **Bun.** Under Bun this runner registers scenarios directly on
@@ -217,9 +288,13 @@ faithful polyfill that bridges registrations to the built-in `Deno.test`
 runner. So there is no Deno-specific registration path to maintain —
 `deno test --allow-read` runs the same feature files and guards. (Deno needs
 read permission for the `.feature` files, and nothing else: the library reads
-no env vars and spawns nothing. Add `--allow-run --allow-env` only when
+no env vars and spawns nothing. Opting into the [run
+manifest](#the-run-manifest) adds `--allow-write=<its directory>` — the one
+write the library ever performs. Add
+`--allow-run --allow-env --allow-write=fixtures/.manifest-out` only when
 running this repo's *own* suite, whose `test/runner.test.js` spawns
-subprocesses.) Verified against Deno 2.9.2; a CI deno lane keeps this true.
+subprocesses and whose manifest tests write.) Verified against Deno 2.9.2; a
+CI deno lane keeps this true.
 
 ### One behavior on all three runtimes
 
@@ -648,7 +723,7 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 
 | Export | Purpose |
 |---|---|
-| `runFeatures(dir, definers, { wip }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; `wip` takes basenames or `{ feature, scenarios }`; **one call per test file** (a second call is refused loudly) |
+| `runFeatures(dir, definers, { wip, manifest }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; `wip` takes basenames or `{ feature, scenarios }`; `manifest` opts into the [run manifest](#the-run-manifest); **one call per test file** (a second call is refused loudly) |
 | `parseFeature(text, filename?)` | parse → `{ feature, background, scenarios, outlines }`; throws `GherkinSyntaxError` |
 | `lintFeature(text, filename?)` | **linter**: dialect gate + spec lints as `{ rule, severity, line, message }[]` — pure text-in/findings-out, for use under another runner |
 | `StepRegistry` | `.define(pattern, fn)` / `.find(text)` |
