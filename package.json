@@ -1,6 +1,6 @@
 {
   "name": "gherkin-node-test",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "The smallest honest Gherkin runner and feature-file linter — zero dependencies, native on node:test, bun:test, and Deno, with a vitest adapter, built for agent-driven BDD.",
   "license": "MIT",
   "author": "Bing Ho <reps-attic-riot@duck.com>",
