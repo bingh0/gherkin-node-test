@@ -1,0 +1,51 @@
+{"file":"features/binding-ratchet.feature","title":"a declaration naming nothing is red","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"a declared scenario's ambiguous step is still red","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"a skipped scenario's steps must still bind","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"a stale declaration is red","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"debt is cleared explicitly","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"declared debt keeps the run green and visible","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"undeclared debt is red","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"a construct outside the dialect refuses the whole file","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"a feature file with no scenarios is an error","status":"unbound"}
+{"file":"features/dialect-gate.feature","title":"a near-miss construct header is flagged where it hides","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"a near-miss step keyword is flagged","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"a scenario without an outcome is flagged","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"a strict-clean file is clean in default mode","status":"unbound"}
+{"file":"features/dialect-gate.feature","title":"a vague outcome is flagged","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"an examples column nothing references is flagged","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"an outline with a single example row is flagged","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"no line vanishes without a finding","status":"unbound"}
+{"file":"features/dialect-gate.feature","title":"prose inside a scenario body is a finding","status":"unbound"}
+{"file":"features/dialect-gate.feature","title":"strict mode flags tags that have no place in reviewed output","status":"unbound"}
+{"file":"features/dialect-gate.feature","title":"strict mode promotes every warning to an error","status":"unbound"}
+{"file":"features/dialect-gate.feature","title":"two scenarios sharing a title are an error","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"zero findings means full membership","status":"passed"}
+{"file":"features/honest-run.feature","title":"a binding aimed at a missing feature file is loud","status":"passed"}
+{"file":"features/honest-run.feature","title":"a missing feature directory is refused by name","status":"unbound"}
+{"file":"features/honest-run.feature","title":"a skipped scenario is visible, never absent","status":"passed"}
+{"file":"features/honest-run.feature","title":"a step matching two bindings fails naming both","status":"unbound"}
+{"file":"features/honest-run.feature","title":"a step with no binding fails by name","status":"passed"}
+{"file":"features/honest-run.feature","title":"a todo scenario runs, fails visibly, and gates nothing — until it passes","status":"unbound"}
+{"file":"features/honest-run.feature","title":"an empty feature directory is refused","status":"unbound"}
+{"file":"features/honest-run.feature","title":"an outline row is a verdict of its own","status":"passed"}
+{"file":"features/honest-run.feature","title":"cleanup always runs and never outranks the step","status":"passed"}
+{"file":"features/honest-run.feature","title":"focusing the suite is refused","status":"passed"}
+{"file":"features/honest-run.feature","title":"green means everything was enforced","status":"passed"}
+{"file":"features/honest-run.feature","title":"no scenario sees another's world","status":"passed"}
+{"file":"features/honest-run.feature","title":"one runner call per test file","status":"passed"}
+{"file":"features/honest-run.feature","title":"the Background runs before every scenario","status":"passed"}
+{"file":"features/honest-run.feature","title":"the verdict does not depend on the runtime","status":"unbound"}
+{"file":"features/parse-surface.feature","title":"a dialect file yields one complete representation","status":"passed"}
+{"file":"features/parse-surface.feature","title":"a file outside the dialect is refused whole","status":"passed"}
+{"file":"features/parse-surface.feature","title":"parsing is inert","status":"passed"}
+{"file":"features/run-manifest.feature","title":"a doctored account changes nothing","status":"passed"}
+{"file":"features/run-manifest.feature","title":"a full run writes one account of every scenario","status":"passed"}
+{"file":"features/run-manifest.feature","title":"a partial run never writes","status":"passed"}
+{"file":"features/run-manifest.feature","title":"a re-run body poisons the account","status":"passed"}
+{"file":"features/run-manifest.feature","title":"a write failure is loud","status":"passed"}
+{"file":"features/run-manifest.feature","title":"failure is recorded, not hidden","status":"passed"}
+{"file":"features/run-manifest.feature","title":"identical results write identical bytes","status":"passed"}
+{"file":"features/run-manifest.feature","title":"one account per path","status":"passed"}
+{"file":"features/run-manifest.feature","title":"opting out writes nothing","status":"passed"}
+{"file":"features/run-manifest.feature","title":"the account speaks for itself","status":"unbound"}
+{"file":"features/run-manifest.feature","title":"the bytes do not depend on the runtime","status":"unbound"}

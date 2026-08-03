@@ -25,6 +25,12 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: node --test
+      # The committed account must match what the run just wrote — a stale
+      # run-manifest.ndjson is coverage accounting that silently lies in git
+      # history, the exact class the manifest exists to expose. (ubuntu only:
+      # byte determinism across OS is its own scenario, wip until 0.9.0.)
+      - run: git diff --exit-code run-manifest.ndjson
+        if: matrix.os == 'ubuntu-latest'
 
   # The same suite, subprocess proofs included, under Bun's native bun:test —
   # this lane is what keeps the README's "runs on Bun" claim continuously true.
@@ -44,8 +50,10 @@ jobs:
   # bridge (Deno.test under the hood). --allow-read for the .feature files,
   # --allow-run for the subprocess proofs in test/runner.test.js,
   # --allow-write scoped to fixtures/.manifest-out for the run-manifest tests
-  # (the manifest opt-in's documented minimum — nothing wider). This lane
-  # keeps the README's "runs on Deno" claim continuously true.
+  # plus run-manifest.ndjson for the intent tier's own committed account
+  # (test/features.test.js) — the manifest opt-in's documented minimum,
+  # nothing wider. This lane keeps the README's "runs on Deno" claim
+  # continuously true.
   deno:
     name: deno / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -58,7 +66,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - run: deno test --allow-read --allow-env --allow-run --allow-write=fixtures/.manifest-out --no-check
+      - run: deno test --allow-read --allow-env --allow-run --allow-write=fixtures/.manifest-out,run-manifest.ndjson --no-check
 
   # The vitest adapter (`gherkin-node-test/vitest`) smoke suite: the bound
   # counter feature must register and pass on a real vitest, guards included.
