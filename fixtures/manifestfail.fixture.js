@@ -10,7 +10,7 @@ const { runFeatures } = require('../index');
 const out = path.join(__dirname, '.manifest-out');
 fs.mkdirSync(out, { recursive: true });
 
-runFeatures(path.join(__dirname, 'features-manifestfail'), {
+runFeatures(path.join(__dirname, '..', 'features', 'manifestfail'), {
   'red': (reg) => {
     reg.define('a failing step', () => { throw new Error('red'); });
     reg.define('a passing step', () => {});

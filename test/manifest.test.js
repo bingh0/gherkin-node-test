@@ -51,8 +51,12 @@ async function execute(bodies) {
   return failures;
 }
 
+// Expected rows are LITERAL relative paths — `file` is recorded relative to
+// the manifest's own directory (fixtures/.manifest-out here), and pinning the
+// exact bytes is the point: an absolute path leaking into a row is the defect
+// this format rule exists to prevent.
 const row = (/** @type {string} */ dir, /** @type {string} */ feature) => {
-  const file = path.join(__dirname, '..', 'fixtures', dir, feature).split(path.sep).join('/');
+  const file = ['..', '..', 'features', dir, feature].join('/');
   return (/** @type {string} */ title, /** @type {string} */ status) =>
     JSON.stringify({ file, title, status });
 };
@@ -61,7 +65,7 @@ test('manifest: a full run writes sorted rows, fixed key order, trailing newline
   const outFile = path.join(OUT_DIR, 'inproc-full.ndjson');
   fs.rmSync(outFile, { force: true });
   const { t, bodies } = stubTest();
-  bindRunner(t).runFeatures(path.join(__dirname, '..', 'fixtures', 'features-manifest'), {
+  bindRunner(t).runFeatures(path.join(__dirname, '..', 'features', 'manifest'), {
     'mixed': (reg) => reg.define('a bound step', () => {}),
   }, {
     wip: [{ feature: 'mixed', scenarios: ['pending thing'] }],
@@ -71,7 +75,7 @@ test('manifest: a full run writes sorted rows, fixed key order, trailing newline
     'nothing may be written at registration time — outcomes have not run yet');
   const failures = await execute(bodies);
   assert.deepStrictEqual(failures, [], 'guards and scenarios all pass');
-  const r = row('features-manifest', 'mixed.feature');
+  const r = row('manifest', 'mixed.feature');
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
     r('passes', 'passed'),
     r('pending thing', 'unbound'),
@@ -86,7 +90,7 @@ test('manifest: a failing scenario is recorded as failed AND still propagates', 
   const outFile = path.join(OUT_DIR, 'inproc-fail.ndjson');
   fs.rmSync(outFile, { force: true });
   const { t, bodies } = stubTest();
-  bindRunner(t).runFeatures(path.join(__dirname, '..', 'fixtures', 'features-manifestfail'), {
+  bindRunner(t).runFeatures(path.join(__dirname, '..', 'features', 'manifestfail'), {
     'red': (reg) => {
       reg.define('a failing step', () => { throw new Error('red'); });
       reg.define('a passing step', () => {});
@@ -95,7 +99,7 @@ test('manifest: a failing scenario is recorded as failed AND still propagates', 
   const failures = await execute(bodies);
   assert.strictEqual(failures.length, 1, 'recording must never swallow the failure');
   assert.match(String(/** @type {Error} */ (failures[0].error).message), /red/);
-  const r = row('features-manifestfail', 'red.feature');
+  const r = row('manifestfail', 'red.feature');
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
     r('fails', 'failed'),
     r('passes', 'passed'),
@@ -106,7 +110,7 @@ test('manifest: an incomplete run never writes', async () => {
   const outFile = path.join(OUT_DIR, 'inproc-partial.ndjson');
   fs.rmSync(outFile, { force: true });
   const { t, bodies } = stubTest();
-  bindRunner(t).runFeatures(path.join(__dirname, '..', 'fixtures', 'features-manifest'), {
+  bindRunner(t).runFeatures(path.join(__dirname, '..', 'features', 'manifest'), {
     'mixed': (reg) => reg.define('a bound step', () => {}),
   }, {
     wip: [{ feature: 'mixed', scenarios: ['pending thing'] }],
@@ -127,7 +131,7 @@ test('manifest: a re-invoked scenario body is refused loudly and the manifest is
   const outFile = path.join(OUT_DIR, 'inproc-reinvoke.ndjson');
   fs.rmSync(outFile, { force: true });
   const { t, bodies } = stubTest();
-  bindRunner(t).runFeatures(path.join(__dirname, '..', 'fixtures', 'features-manifestfail'), {
+  bindRunner(t).runFeatures(path.join(__dirname, '..', 'features', 'manifestfail'), {
     'red': (reg) => {
       reg.define('a failing step', () => { throw new Error('red'); });
       reg.define('a passing step', () => {});
@@ -168,7 +172,7 @@ test('manifest: a scenario failure outranks the write failure it triggers', asyn
       reg.define('a passing step', () => {});
     },
   };
-  const dir = path.join(__dirname, '..', 'fixtures', 'features-manifestfail');
+  const dir = path.join(__dirname, '..', 'features', 'manifestfail');
   const badPath = (/** @type {string} */ name) =>
     path.join(OUT_DIR, 'no-such-dir', name); // parent never exists → write throws
 
@@ -197,12 +201,12 @@ test('manifest: a second call claiming the same path is refused; the first accou
   const REFUSAL = 'run manifest: one path per runFeatures call';
   const mixedDefiners = { 'mixed': (/** @type {any} */ reg) => reg.define('a bound step', () => {}) };
   const mixedOpts = { wip: [{ feature: 'mixed', scenarios: ['pending thing'] }], manifest: outFile };
-  const mixedDir = path.join(__dirname, '..', 'fixtures', 'features-manifest');
+  const mixedDir = path.join(__dirname, '..', 'features', 'manifest');
 
   const a = stubTest();
   bindRunner(a.t).runFeatures(mixedDir, mixedDefiners, mixedOpts);
   const b = stubTest();
-  bindRunner(b.t).runFeatures(path.join(__dirname, '..', 'fixtures', 'features-manifestfail'), {
+  bindRunner(b.t).runFeatures(path.join(__dirname, '..', 'features', 'manifestfail'), {
     'red': (reg) => {
       reg.define('a failing step', () => { throw new Error('red'); });
       reg.define('a passing step', () => {});
@@ -222,7 +226,7 @@ test('manifest: a second call claiming the same path is refused; the first accou
   // additive, they still execute); only a's account may land in the file.
   await execute(a.bodies);
   await execute(b.bodies.filter((x) => x !== refusal));
-  const r = row('features-manifest', 'mixed.feature');
+  const r = row('manifest', 'mixed.feature');
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
     r('passes', 'passed'),
     r('pending thing', 'unbound'),
@@ -252,7 +256,9 @@ test('manifest: rows sort by code point, not UTF-16 code unit', async () => {
   }, { manifest: outFile });
   const failures = await execute(bodies);
   assert.deepStrictEqual(failures, []);
-  const file = path.join(dir, 'astral.feature').split(path.sep).join('/');
+  // The feature dir sits INSIDE the manifest's directory, so the relative
+  // rule yields a bare subpath — no ../ prefix, unlike `row` above.
+  const file = 'features-astral/astral.feature';
   const rr = (/** @type {string} */ title, /** @type {string} */ status) =>
     JSON.stringify({ file, title, status });
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
@@ -262,7 +268,7 @@ test('manifest: rows sort by code point, not UTF-16 code unit', async () => {
 });
 
 test('manifest: a malformed manifest option throws a TypeError at load', () => {
-  const dir = path.join(__dirname, '..', 'fixtures', 'features-good');
+  const dir = path.join(__dirname, '..', 'features', 'good');
   const definers = { 'counter': () => {} };
   assert.throws(
     () => runFeatures(dir, definers, /** @type {any} */ ({ manifest: 42 })),

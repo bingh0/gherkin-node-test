@@ -408,7 +408,7 @@ test('bindRunner.runFeatures bypasses the one-call-per-file guard (vitest watch 
       reg.define(/^the counter is (\d+)$/, () => {});
     },
   };
-  const dir = path.join(__dirname, '..', 'fixtures', 'features-good');
+  const dir = path.join(__dirname, '..', 'features', 'good');
   bound.runFeatures(dir, definers);
   const firstRun = calls.length;
   bound.runFeatures(dir, definers); // watch-mode re-execution of the same call

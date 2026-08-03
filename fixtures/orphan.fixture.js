@@ -5,7 +5,7 @@
 const path = require('node:path');
 const { runFeatures } = require('../index');
 
-runFeatures(path.join(__dirname, 'features-good'), {
+runFeatures(path.join(__dirname, '..', 'features', 'good'), {
   'counter': (reg) => reg.define(/^.*$/, () => {}),
   'ghost': () => {},
 });

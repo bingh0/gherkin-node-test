@@ -29,7 +29,7 @@ const isDeno = !!(/** @type {any} */ (globalThis).Deno?.version?.deno);
   reg.define(/^a counter at (\d+)$/, (w, n) => { w.count = Number(n); });
   reg.define(/^I add (\d+)$/, (w, n) => { w.count += Number(n); });
   reg.define(/^the counter is (\d+)$/, (w, n) => assert.strictEqual(w.count, Number(n)));
-  runFeatureFile(path.join(__dirname, '..', 'fixtures', 'features-good', 'counter.feature'), reg);
+  runFeatureFile(path.join(__dirname, '..', 'features', 'good', 'counter.feature'), reg);
 }
 
 /**
@@ -173,7 +173,7 @@ test('runFeatures: a wip basename naming no feature file FAILS the run', () => {
 
 test('runFeatures: malformed and conflicting wip entries throw a TypeError at load', () => {
   const { runFeatures } = require('../index');
-  const dir = path.join(__dirname, '..', 'fixtures', 'features-partial');
+  const dir = path.join(__dirname, '..', 'features', 'partial');
   const definers = { 'partial': () => {} };
   assert.throws(
     () => runFeatures(dir, definers, /** @type {any} */ ({ wip: [{ feature: 'partial' }] })),
@@ -270,7 +270,7 @@ test('runFeatures: node isolation=none cannot falsely trip the one-call rule', (
 
 test('runFeatures: a non-function definer throws a TypeError at load', () => {
   const { runFeatures } = require('../index');
-  const boom = () => runFeatures(path.join(__dirname, '..', 'fixtures', 'features-good'),
+  const boom = () => runFeatures(path.join(__dirname, '..', 'features', 'good'),
     /** @type {any} */ ({ 'counter': 42 }));
   assert.throws(boom, /definer for "counter" must be a function, got number/);
   // A THROWING call must not consume the file's one-call slot — the documented
@@ -311,8 +311,11 @@ test('runFeatures: a feature file with no scenarios fails the run at load', () =
 /** The manifest path a fixture writes to, and its expected-row builder. */
 const manifestOut = (/** @type {string} */ name) =>
   path.join(__dirname, '..', 'fixtures', '.manifest-out', name);
+// Expected rows are LITERAL relative paths — `file` is recorded relative to
+// the manifest's own directory (fixtures/.manifest-out here); see
+// test/manifest.test.js for why the bytes are pinned.
 const manifestRow = (/** @type {string} */ dir, /** @type {string} */ feature) => {
-  const file = path.join(__dirname, '..', 'fixtures', dir, feature).split(path.sep).join('/');
+  const file = ['..', '..', 'features', dir, feature].join('/');
   return (/** @type {string} */ title, /** @type {string} */ status) =>
     JSON.stringify({ file, title, status });
 };
@@ -322,7 +325,7 @@ test('runFeatures: the manifest records every scenario as a sorted row, statuses
   fs.rmSync(outFile, { force: true });
   const { status, out } = runFixture('manifest.fixture.js', { write: true });
   assert.strictEqual(status, 0, out);
-  const row = manifestRow('features-manifest', 'mixed.feature');
+  const row = manifestRow('manifest', 'mixed.feature');
   // Sorted by title (one file); expanded outline rows land individually;
   // @skip/@todo/unbound come from registration, so these bytes are identical
   // on node, bun, and Deno even though they disagree about running todo bodies.
@@ -341,7 +344,7 @@ test('runFeatures: a red run still writes its manifest, recording the failure ho
   fs.rmSync(outFile, { force: true });
   const { status, out } = runFixture('manifestfail.fixture.js', { write: true });
   assert.notStrictEqual(status, 0, 'the failing scenario must still fail the run');
-  const row = manifestRow('features-manifestfail', 'red.feature');
+  const row = manifestRow('manifestfail', 'red.feature');
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
     row('fails', 'failed'),
     row('passes', 'passed'),

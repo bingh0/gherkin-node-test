@@ -5,6 +5,6 @@
 const path = require('node:path');
 const { runFeatures } = require('../index');
 
-runFeatures(path.join(__dirname, 'features-todotag'), {
+runFeatures(path.join(__dirname, '..', 'features', 'todotag'), {
   'flaky': (reg) => reg.define('boom', () => { throw new Error('todo failure'); }),
 });

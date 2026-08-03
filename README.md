@@ -220,9 +220,9 @@ runFeatures('features', definers, {
 Every registered scenario becomes one NDJSON row — sorted, fixed key order:
 
 ```json
-{"file":"features/counter.feature","title":"increment once","status":"passed"}
-{"file":"features/counter.feature","title":"resumes after a gap","status":"unbound"}
-{"file":"features/counter.feature","title":"streams the tail live [1]","status":"skipped"}
+{"file":"counter.feature","title":"increment once","status":"passed"}
+{"file":"counter.feature","title":"resumes after a gap","status":"unbound"}
+{"file":"counter.feature","title":"streams the tail live [1]","status":"skipped"}
 ```
 
 Commit the manifest. A tool (or a reviewer) joining it against the `.feature`
@@ -234,8 +234,12 @@ The format is a contract, held deliberately small:
 - **Rows are `{file, title, status}` and nothing else.** No timestamps, no
   durations — volatile fields would churn git for nothing. The manifest's
   bytes change **only when results change**; *when* comes from the commit
-  that touched it. Identity is path + title exactly as registered (outline
-  rows land individually, `title [n]`); there is no invented ID scheme.
+  that touched it. Identity is path + title (outline rows land individually,
+  `title [n]`); there is no invented ID scheme. `file` is recorded **relative
+  to the manifest file's own directory** — the account must not change with
+  the machine or checkout path that produced it, so an absolute `dir`
+  argument (the robust idiom under vitest) never leaks machine paths into
+  committed bytes, and downstream joins stay portable.
 - **Statuses are runtime-independent.** `passed` and `failed` come from
   execution; `skipped` (@skip), `todo` (@todo), and `unbound` (the wip
   register's grain) come from *registration* — the runtimes disagree about

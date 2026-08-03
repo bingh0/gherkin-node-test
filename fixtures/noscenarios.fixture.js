@@ -7,4 +7,4 @@
 const path = require('node:path');
 const { runFeatures } = require('../index');
 
-runFeatures(path.join(__dirname, 'features-noscenarios'), {});
+runFeatures(path.join(__dirname, '..', 'features', 'noscenarios'), {});

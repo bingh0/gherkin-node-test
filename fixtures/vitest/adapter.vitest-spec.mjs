@@ -12,7 +12,7 @@ import { lintFeature, runFeatures } from '../../vitest.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-runFeatures(path.join(here, '..', 'features-good'), {
+runFeatures(path.join(here, '..', '..', 'features', 'good'), {
   'counter': (reg) => {
     reg.define(/^a counter at (\d+)$/, (w, n) => { w.count = Number(n); });
     reg.define(/^I add (\d+)$/, (w, n) => { w.count += Number(n); });
@@ -29,7 +29,7 @@ runFeatures(path.join(here, '..', 'features-good'), {
 const manifestFile = path.join(here, '..', '.manifest-out', 'vitest-partial.ndjson');
 fs.mkdirSync(path.dirname(manifestFile), { recursive: true });
 fs.rmSync(manifestFile, { force: true });
-runFeatures(path.join(here, '..', 'features-partial'), {
+runFeatures(path.join(here, '..', '..', 'features', 'partial'), {
   'partial': (reg) => { reg.define(/^a bound step$/, () => {}); },
 }, {
   wip: [{ feature: 'partial', scenarios: ['pending thing', 'pending sweep <k>'] }],
@@ -40,8 +40,10 @@ runFeatures(path.join(here, '..', 'features-partial'), {
 // by then the one wrapped scenario ('ready') has resolved and the manifest
 // must exist, with wip'd constructs recorded as unbound at registration.
 test('the run manifest is written through the adapter', () => {
-  const file = path.join(here, '..', 'features-partial', 'partial.feature')
-    .split(path.sep).join('/');
+  // Literal relative path — rows are recorded relative to the manifest's own
+  // directory (fixtures/.manifest-out), even though runFeatures above was
+  // handed an absolute dir.
+  const file = '../../features/partial/partial.feature';
   const row = (title, status) => JSON.stringify({ file, title, status });
   expect(fs.readFileSync(manifestFile, 'utf8')).toBe([
     row('pending sweep 1 [1]', 'unbound'),

@@ -6,7 +6,7 @@ const path = require('node:path');
 const assert = require('node:assert');
 const { runFeatures } = require('../index');
 
-runFeatures(path.join(__dirname, 'features-good'), {
+runFeatures(path.join(__dirname, '..', 'features', 'good'), {
   'counter': (reg) => {
     reg.define(/^a counter at (\d+)$/, (w, n) => { w.count = Number(n); });
     reg.define(/^I add (\d+)$/, (w, n) => { w.count += Number(n); });

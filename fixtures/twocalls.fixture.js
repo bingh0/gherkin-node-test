@@ -10,7 +10,7 @@ const path = require('node:path');
 const assert = require('node:assert');
 const { runFeatures } = require('../index');
 
-runFeatures(path.join(__dirname, 'features-good'), {
+runFeatures(path.join(__dirname, '..', 'features', 'good'), {
   'counter': (reg) => {
     reg.define(/^a counter at (\d+)$/, (w, n) => { w.count = Number(n); });
     reg.define(/^I add (\d+)$/, (w, n) => { w.count += Number(n); });
@@ -20,6 +20,6 @@ runFeatures(path.join(__dirname, 'features-good'), {
 
 // Refused: a second call in the same test file. Deliberately called with NO
 // definers — refusal must happen before any validation, so if this run ever
-// surfaced an unbound-step failure for features-good instead of the one-call
+// surfaced an unbound-step failure for features/good instead of the one-call
 // refusal, refusal ordering has regressed.
-runFeatures(path.join(__dirname, 'features-good'), {});
+runFeatures(path.join(__dirname, '..', 'features', 'good'), {});

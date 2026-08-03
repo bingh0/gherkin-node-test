@@ -7,7 +7,7 @@ const path = require('node:path');
 const assert = require('node:assert');
 const { runFeatures } = require('../index');
 
-runFeatures(path.join(__dirname, 'features-duptitle'), {
+runFeatures(path.join(__dirname, '..', 'features', 'duptitle'), {
   'twins': (reg) => {
     reg.define(/^a bound step$/, (w) => { w.ran = true; });
     reg.define(/^it ran$/, (w) => assert.strictEqual(w.ran, true));

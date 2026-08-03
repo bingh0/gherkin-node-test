@@ -12,7 +12,7 @@ const { runFeatures } = require('../index');
 const out = path.join(__dirname, '.manifest-out');
 fs.mkdirSync(out, { recursive: true });
 
-runFeatures(path.join(__dirname, 'features-manifest'), {
+runFeatures(path.join(__dirname, '..', 'features', 'manifest'), {
   'mixed': (reg) => reg.define('a bound step', () => {}),
 }, {
   wip: [{ feature: 'mixed', scenarios: ['pending thing'] }],

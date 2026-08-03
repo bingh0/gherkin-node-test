@@ -5,6 +5,6 @@
 const path = require('node:path');
 const { runFeatures } = require('../index');
 
-runFeatures(path.join(__dirname, 'features-partial'), {
+runFeatures(path.join(__dirname, '..', 'features', 'partial'), {
   'partial': (reg) => { reg.define(/^a bound step$/, () => {}); },
 }, { wip: ['ghost', { feature: 'partial', scenarios: ['pending thing', 'pending sweep <k>'] }] });

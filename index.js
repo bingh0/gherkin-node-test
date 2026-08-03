@@ -1099,8 +1099,11 @@ function compareCodePoints(a, b) {
  *  - No timestamps, no durations — volatile fields churn git for nothing;
  *    dating comes from the commit that touches the file.
  *  - Rows sort by file, then title, then status (code-point order) and
- *    serialize as NDJSON with fixed key order; `\` in paths normalizes to `/`
- *    so the same run writes the same bytes on every platform.
+ *    serialize as NDJSON with fixed key order; `file` is recorded RELATIVE to
+ *    the manifest file's own directory and `\` normalizes to `/`, so the same
+ *    run writes the same bytes on every platform, at every checkout path, and
+ *    however the caller spelled the feature dir — an absolute `dir` argument
+ *    must not leak machine paths into committed bytes.
  *  - @skip / @todo / unbound are recorded at REGISTRATION, never from body
  *    execution: the runtimes disagree about whether those bodies run (node
  *    always executes todo bodies, bun only under --todo, Deno never), and a
@@ -1133,8 +1136,9 @@ function createManifestWriter(manifestPath) {
   let pending = 0;        // wrapped scenario bodies not yet resolved
   let registered = false; // set by done() once every row source is known
   let poisoned = false;   // a body was re-invoked; the account is unreliable
+  const base = path.dirname(path.resolve(manifestPath));
   /** @param {string} f */
-  const norm = (f) => f.split(path.sep).join('/');
+  const norm = (f) => path.relative(base, path.resolve(f)).split(path.sep).join('/');
   const maybeWrite = () => {
     if (poisoned || !registered || pending > 0) return;
     // Zero rows write a ZERO-BYTE file: a directory that registers nothing
