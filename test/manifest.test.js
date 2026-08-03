@@ -66,7 +66,8 @@ test('manifest: a full run writes sorted rows, fixed key order, trailing newline
   fs.rmSync(outFile, { force: true });
   const { t, bodies } = stubTest();
   bindRunner(t).runFeatures(path.join(__dirname, '..', 'features', 'manifest'), {
-    'mixed': (reg) => reg.define('a bound step', () => {}),
+    'mixed': (reg) => reg.define('a bound step', () => {})
+    .define('a bound step that still fails', () => { throw new Error('still fails, as declared'); }),
   }, {
     wip: [{ feature: 'mixed', scenarios: ['pending thing'] }],
     manifest: outFile,
@@ -77,6 +78,7 @@ test('manifest: a full run writes sorted rows, fixed key order, trailing newline
   assert.deepStrictEqual(failures, [], 'guards and scenarios all pass');
   const r = row('manifest', 'mixed.feature');
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
+    '{"run-manifest":1}',
     r('passes', 'passed'),
     r('pending thing', 'unbound'),
     r('skipped one', 'skipped'),
@@ -101,6 +103,7 @@ test('manifest: a failing scenario is recorded as failed AND still propagates', 
   assert.match(String(/** @type {Error} */ (failures[0].error).message), /red/);
   const r = row('manifestfail', 'red.feature');
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
+    '{"run-manifest":1}',
     r('fails', 'failed'),
     r('passes', 'passed'),
   ].join('\n') + '\n');
@@ -111,7 +114,8 @@ test('manifest: an incomplete run never writes', async () => {
   fs.rmSync(outFile, { force: true });
   const { t, bodies } = stubTest();
   bindRunner(t).runFeatures(path.join(__dirname, '..', 'features', 'manifest'), {
-    'mixed': (reg) => reg.define('a bound step', () => {}),
+    'mixed': (reg) => reg.define('a bound step', () => {})
+    .define('a bound step that still fails', () => { throw new Error('still fails, as declared'); }),
   }, {
     wip: [{ feature: 'mixed', scenarios: ['pending thing'] }],
     manifest: outFile,
@@ -149,17 +153,22 @@ test('manifest: a re-invoked scenario body is refused loudly and the manifest is
     'all outcomes were observed, but the poisoned account must never be written');
 });
 
-test('manifest: a directory with zero scenarios writes a zero-byte account', () => {
+test('manifest: an empty feature directory is refused before any account is claimed', async () => {
+  // 0.9.0: a directory with nothing to enforce is a registered refusal, not a
+  // zero-byte account — the empty-account rationale ("visibly empty is an
+  // account") lost to the honest-run contract's refusal ("nothing was
+  // enforced" must be loud, not a green file). No manifest may be written OR
+  // claimed: a refused call must not block a corrected retry's path.
   const emptyDir = path.join(OUT_DIR, 'features-empty');
   fs.mkdirSync(emptyDir, { recursive: true });
   const outFile = path.join(OUT_DIR, 'inproc-empty.ndjson');
   fs.rmSync(outFile, { force: true });
-  const { t } = stubTest();
+  const { t, bodies } = stubTest();
   bindRunner(t).runFeatures(emptyDir, {}, { manifest: outFile });
-  // Zero rows are all known at registration, so done() writes immediately —
-  // an EMPTY file (zero NDJSON rows), never a lone newline, and never absent
-  // (absence would read as "never ran"; visibly empty is an account).
-  assert.strictEqual(fs.readFileSync(outFile, 'utf8'), '');
+  const failures = await execute(bodies);
+  assert.strictEqual(failures.length, 1, 'the refusal is the one registered test');
+  assert.match(String(/** @type {any} */ (failures[0].error)?.message), /no \.feature files were found/);
+  assert.strictEqual(fs.existsSync(outFile), false, 'a refused run writes no account');
 });
 
 // The write happens in the last scenario's finally — the same precedence
@@ -199,7 +208,8 @@ test('manifest: a second call claiming the same path is refused; the first accou
   const outFile = path.join(OUT_DIR, 'inproc-clobber.ndjson');
   fs.rmSync(outFile, { force: true });
   const REFUSAL = 'run manifest: one path per runFeatures call';
-  const mixedDefiners = { 'mixed': (/** @type {any} */ reg) => reg.define('a bound step', () => {}) };
+  const mixedDefiners = { 'mixed': (/** @type {any} */ reg) => reg.define('a bound step', () => {})
+    .define('a bound step that still fails', () => { throw new Error('still fails, as declared'); }) };
   const mixedOpts = { wip: [{ feature: 'mixed', scenarios: ['pending thing'] }], manifest: outFile };
   const mixedDir = path.join(__dirname, '..', 'features', 'manifest');
 
@@ -228,6 +238,7 @@ test('manifest: a second call claiming the same path is refused; the first accou
   await execute(b.bodies.filter((x) => x !== refusal));
   const r = row('manifest', 'mixed.feature');
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
+    '{"run-manifest":1}',
     r('passes', 'passed'),
     r('pending thing', 'unbound'),
     r('skipped one', 'skipped'),
@@ -262,6 +273,7 @@ test('manifest: rows sort by code point, not UTF-16 code unit', async () => {
   const rr = (/** @type {string} */ title, /** @type {string} */ status) =>
     JSON.stringify({ file, title, status });
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
+    '{"run-manifest":1}',
     rr('Ｚ fullwidth title', 'passed'),
     rr('😀 emoji title', 'passed'),
   ].join('\n') + '\n');

@@ -13,7 +13,8 @@ const out = path.join(__dirname, '.manifest-out');
 fs.mkdirSync(out, { recursive: true });
 
 runFeatures(path.join(__dirname, '..', 'features', 'manifest'), {
-  'mixed': (reg) => reg.define('a bound step', () => {}),
+  'mixed': (reg) => reg.define('a bound step', () => {})
+    .define('a bound step that still fails', () => { throw new Error('still fails, as declared'); }),
 }, {
   wip: [{ feature: 'mixed', scenarios: ['pending thing'] }],
   manifest: path.join(out, 'mixed.ndjson'),

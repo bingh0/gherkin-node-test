@@ -46,6 +46,7 @@ test('the run manifest is written through the adapter', () => {
   const file = '../../features/partial/partial.feature';
   const row = (title, status) => JSON.stringify({ file, title, status });
   expect(fs.readFileSync(manifestFile, 'utf8')).toBe([
+    '{"run-manifest":1}',
     row('pending sweep 1 [1]', 'unbound'),
     row('pending sweep 2 [2]', 'unbound'),
     row('pending thing', 'unbound'),

@@ -2,11 +2,12 @@
 'use strict';
 // Steps for features/honest-run.feature — verdict semantics. Sub-runs go
 // through the stub runner (corpus dirs or inline text); the one-call rule is
-// native-only, so that scenario spawns the real fixture. The empty/missing
-// directory refusals, the @todo two-movement scenario, the ambiguity
-// double-naming, and the four-runtime verdict lead the code and stay wip.
+// native-only, so that scenario spawns the real fixture. The four-runtime
+// verdict is enforced by CI running this suite under every runtime and
+// stays declared.
 const assert = require('node:assert');
-const { SubRun, spawnFixture, spawnCounts } = require('./world');
+const fs = require('node:fs');
+const { SubRun, spawnFixture, spawnCounts, outPath } = require('./world');
 
 const counterDefs = (/** @type {import('../../index.js').StepRegistry} */ reg) => {
   reg.define(/^a counter at (\d+)$/, (/** @type {any} */ w, /** @type {string} */ n) => { w.count = Number(n); });
@@ -201,13 +202,87 @@ module.exports = (reg) => {
     w.fixture = 'twocalls.fixture.js';
   });
 
+  reg.define(/^a feature file containing the step "I add 3"$/, (w) => {
+    w.execLog = [];
+    w.inline = [
+      'Feature: Doubled',
+      '  Scenario: ambiguous',
+      '    Given a counter at 0',
+      '    When I add 3',
+      '    Then the counter is 3',
+    ].join('\n') + '\n';
+  });
+
+  reg.define(/^two bindings that each match that step$/, (w) => {
+    // Every binding logs execution: "does not execute" below means NO step
+    // ran — not the ambiguous one, and none before or after it either.
+    w.define = (/** @type {any} */ r) => {
+      r.define(/^a counter at (\d+)$/, () => { w.execLog.push('given'); });
+      r.define(/^I add (\d+)$/, () => { w.execLog.push('generic add'); });
+      r.define(/^I add 3$/, () => { w.execLog.push('literal add'); });
+      r.define(/^the counter is (\d+)$/, () => { w.execLog.push('then'); });
+    };
+  });
+
+  reg.define(/^a feature file whose scenario carries the tag "@todo"$/, (w) => {
+    w.errLines = [];
+    w.captureErr = true;
+    w.inline = [
+      'Feature: Aspirations',
+      '  @todo',
+      '  Scenario: not there yet',
+      '    Given an aspiration',
+    ].join('\n') + '\n';
+  });
+
+  reg.define(/^bindings that make that scenario fail$/, (w) => {
+    w.define = (/** @type {any} */ r) => {
+      r.define(/^an aspiration$/, () => { throw new Error('the aspiration is unmet'); });
+    };
+  });
+
+  reg.define(/^bindings that make that scenario pass$/, (w) => {
+    w.define = (/** @type {any} */ r) => {
+      r.define(/^an aspiration$/, () => {});
+    };
+  });
+
+  reg.define(/^an existing feature directory containing no feature files$/, (w) => {
+    const dir = outPath('empty-feature-dir');
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.mkdirSync(dir, { recursive: true });
+    assert.deepStrictEqual(fs.readdirSync(dir), [], 'the premise holds: the directory exists and is empty');
+    w.job = { dir, definers: {} };
+  });
+
+  reg.define(/^a runner pointed at a directory that does not exist$/, (w) => {
+    const dir = outPath('no-such-feature-dir');
+    fs.rmSync(dir, { recursive: true, force: true });
+    assert.ok(!fs.existsSync(dir), 'the premise holds: the directory is absent');
+    w.job = { dir, definers: {} };
+  });
+
   // --- Whens --------------------------------------------------------------
 
   reg.define(/^the suite runs$/, async (w) => {
     const sub = new SubRun();
     if (w.inline) sub.registerInline(w.inline, w.define);
     else sub.registerDir(w.job.dir, w.job.definers, w.job.opts || {});
-    w.res = await sub.run();
+    if (!w.captureErr) {
+      w.res = await sub.run();
+      return;
+    }
+    // The @todo contract says the expected failure is "visible in the
+    // output" — capture the runner's stderr channel for the Then to inspect.
+    // Reset per run: the two-movement scenario runs the suite twice.
+    w.errLines = [];
+    const orig = console.error;
+    console.error = (/** @type {any[]} */ ...args) => { w.errLines.push(args.join(' ')); };
+    try {
+      w.res = await sub.run();
+    } finally {
+      console.error = orig;
+    }
   });
 
   reg.define(/^the suite runs under a native runtime$/, (w) => {
@@ -336,6 +411,52 @@ module.exports = (reg) => {
   reg.define(/^the scenario is red with the cleanup's error$/, (w) => {
     assert.strictEqual(w.res.failures.length, 1, w.res.failureText());
     assert.strictEqual(String(w.res.failures[0].error.message), 'cleanup boom');
+  });
+
+  reg.define(/^the failure names the step and both matching bindings$/, (w) => {
+    const text = w.res.failureText();
+    assert.ok(text.includes('Ambiguous step: I add 3'), `the step is named: ${text}`);
+    assert.ok(text.includes('/^I add (\\d+)$/'), `the generic binding is named: ${text}`);
+    assert.ok(text.includes('/^I add 3$/'), `the literal binding is named: ${text}`);
+  });
+
+  reg.define(/^the scenario does not execute$/, (w) => {
+    assert.deepStrictEqual(w.execLog, [], 'no step ran — not even the ones before the ambiguity');
+  });
+
+  reg.define(/^the failure is visible in the output$/, (w) => {
+    assert.strictEqual(w.res.failures.length, 0, `visible must not mean gating: ${w.res.failureText()}`);
+    const line = w.errLines.find((/** @type {string} */ l) => l.includes('the aspiration is unmet'));
+    assert.ok(line, `the step's own failure is printed: ${JSON.stringify(w.errLines)}`);
+    assert.ok(line.includes('@todo'), `the printed line attributes the failure to the tag: ${line}`);
+  });
+
+  reg.define(/^the run is green$/, (w) => {
+    assert.deepStrictEqual(w.res.failures, [], `green: ${w.res.failureText()}`);
+  });
+
+  reg.define(/^the failure names the stale "@todo" tag$/, (w) => {
+    // Assert on the error MESSAGE, not failureText(): the latter prepends
+    // the test title, which names the scenario by accident (2026-08-03
+    // Phase B adversarial review — a message dropping the name survived).
+    assert.strictEqual(w.res.failures.length, 1, w.res.failureText());
+    const msg = String(w.res.failures[0].error?.message ?? w.res.failures[0].error);
+    assert.ok(msg.includes('@todo') && msg.includes('stale'),
+      `the refusal names the stale tag: ${msg}`);
+    assert.ok(msg.includes('not there yet'), `the refusal message itself names the scenario: ${msg}`);
+    assert.deepStrictEqual(w.errLines, [], 'nothing was printed as expected-failure on the passing run');
+  });
+
+  reg.define(/^the refusal states that no feature files were found there$/, (w) => {
+    const text = w.res.failureText();
+    assert.ok(text.includes('no .feature files were found'), text);
+    assert.ok(text.includes(w.job.dir), `the refusal names the directory: ${text}`);
+  });
+
+  reg.define(/^the refusal names the missing directory path$/, (w) => {
+    const text = w.res.failureText();
+    assert.ok(text.includes('does not exist'), text);
+    assert.ok(text.includes(w.job.dir), `the refusal names the path: ${text}`);
   });
 
   reg.define(/^the refusal states that one call per test file is the rule$/, (w) => {

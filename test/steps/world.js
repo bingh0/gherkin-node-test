@@ -58,13 +58,15 @@ class SubRun {
 
   /**
    * Register a runFeatures call over a corpus directory through the stub.
-   * @param {string} dir corpus dir name under features/
+   * @param {string} dir corpus dir name under features/, or an absolute path
+   *   (the directory-refusal scenarios point at paths outside the corpus)
    * @param {Record<string, (reg: StepRegistry) => any>} definers
    * @param {{ wip?: any[], manifest?: string }} [opts]
    */
   registerDir(dir, definers, opts = {}) {
     const { t, bodies, shelved } = stubTest();
-    bindRunner(t).runFeatures(path.join(ROOT, 'features', dir), definers, opts);
+    const abs = path.isAbsolute(dir) ? dir : path.join(ROOT, 'features', dir);
+    bindRunner(t).runFeatures(abs, definers, opts);
     this.bodies.push(...bodies);
     this.shelved.push(...shelved);
     return this;

@@ -1,8 +1,7 @@
 // @ts-check
 'use strict';
 // Steps for features/dialect-gate.feature — every bound scenario is one
-// lintFeature call over composed text. The strict-mode trio, the accounting
-// pair, and the no-scenarios rule lead the code (0.9.0) and stay wip.
+// lintFeature call over composed text.
 const assert = require('node:assert');
 const { lintFeature } = require('../../index.js');
 
@@ -137,7 +136,85 @@ module.exports = (reg) => {
     w.docLine = 4;
   });
 
+  reg.define(/^a scenario body containing the line "([^"]*)"$/, (w, dropped) => {
+    w.text = text([
+      'Feature: Accounting',
+      '  Scenario: audited',
+      '    Given a balance of 10',
+      `    ${dropped}`,             // 4 — the line the parser drops
+      '    Then the balance is 10',
+    ]);
+    w.bodyLine = 4;
+  });
+
+  reg.define(/^a feature file with a Feature header and narrative lines but no scenarios$/, (w) => {
+    w.text = text([
+      'Feature: Overdraft alerts',
+      '  Alerts go out before the close of day,',
+      '  and nothing below says how.',
+    ]);
+  });
+
+  reg.define(/^a feature file whose lint yields 2 warnings and 0 errors$/, (w) => {
+    w.text = text([
+      'Feature: Two warnings',
+      '  Scenario: trails off',     // 2 — no-then reports here
+      '    Given a counter at 0',
+      '    When I add 3',
+      '',
+      '  Scenario: waves hands',
+      '    Given a counter at 0',
+      '    Then the counter works', // 8 — vague-then reports here
+    ]);
+    w.defaultFindings = lintFeature(w.text, 'gate.feature');
+    assert.strictEqual(w.defaultFindings.length, 2,
+      `the premise holds: exactly 2 findings, got ${JSON.stringify(w.defaultFindings)}`);
+    assert.ok(w.defaultFindings.every((/** @type {any} */ f) => f.severity === 'warn'),
+      'the premise holds: both findings are warnings');
+  });
+
+  reg.define(/^a feature file that lints with zero findings in strict mode$/, (w) => {
+    w.text = text([
+      'Feature: Strict membership',
+      '  @AC1',
+      '  Scenario: tagged and checked',
+      '    Given a counter at 0',
+      '    When I add 5',
+      '    Then the counter is 5',
+    ]);
+    // The @AC1 tag is deliberate bait, and declaring it is this fixture's
+    // real teeth (2026-08-03 Phase A adversarial review): a strict mode that
+    // flagged EVERY tag — not just the semantic three — would fail this
+    // premise, which is what "strict-clean" has to mean for annotation tags.
+    assert.ok(w.text.includes('@AC1'), 'the premise holds: the fixture carries an ordinary annotation tag');
+    assert.deepStrictEqual(lintFeature(w.text, 'gate.feature', { strict: true }), [],
+      'the premise holds: the fixture really is strict-clean');
+  });
+
+  reg.define(/^a feature file whose scenario carries the tag "@skip"$/, (w) => {
+    w.text = text([
+      'Feature: Hidden debt',
+      '  @skip',
+      '  Scenario: hidden',
+      '    Given a counter at 0',
+      '    Then the counter is 0',
+    ]);
+  });
+
+  reg.define(/^the same file lints with zero findings in default mode$/, (w) => {
+    assert.deepStrictEqual(lintFeature(w.text, 'gate.feature'), [],
+      'the premise holds: default mode is quiet about the tag');
+  });
+
   reg.define(/^the file is linted$/, (w) => {
+    w.findings = lintFeature(w.text, 'gate.feature');
+  });
+
+  reg.define(/^the file is linted in strict mode$/, (w) => {
+    w.findings = lintFeature(w.text, 'gate.feature', { strict: true });
+  });
+
+  reg.define(/^the file is linted in default mode$/, (w) => {
     w.findings = lintFeature(w.text, 'gate.feature');
   });
 
@@ -197,5 +274,48 @@ module.exports = (reg) => {
     assert.strictEqual(f.rule, 'dialect');
     assert.strictEqual(f.severity, 'error');
     assert.strictEqual(f.line, w.docLine, 'the finding sits on the doc string');
+  });
+
+  reg.define(/^a finding flags that line as dropped prose$/, (w) => {
+    const hit = w.findings.find((/** @type {any} */ f) =>
+      f.rule === 'dropped-prose' && f.line === w.bodyLine);
+    assert.ok(hit, `expected dropped-prose at line ${w.bodyLine}, got ${JSON.stringify(w.findings)}`);
+    assert.match(String(hit.message), /is not a step/, 'the finding says what the line failed to be');
+  });
+
+  reg.define(/^a finding accounts for that line$/, (w) => {
+    assert.ok(w.findings.some((/** @type {any} */ f) => f.line === w.bodyLine),
+      `expected some finding on line ${w.bodyLine}, got ${JSON.stringify(w.findings)}`);
+  });
+
+  reg.define(/^an error finding cites the rule "no-scenarios"$/, (w) => {
+    const hit = w.findings.find((/** @type {any} */ f) => f.rule === 'no-scenarios');
+    assert.ok(hit, `expected a no-scenarios error, got ${JSON.stringify(w.findings)}`);
+    assert.strictEqual(hit.severity, 'error');
+    assert.strictEqual(hit.line, 1, 'the finding sits on the Feature line');
+    w.noScenarios = hit;
+  });
+
+  reg.define(/^the finding states that the file enforces nothing$/, (w) => {
+    assert.match(String(w.noScenarios.message), /enforces nothing/);
+  });
+
+  reg.define(/^the same 2 findings are reported as errors$/, (w) => {
+    assert.strictEqual(w.findings.length, 2, `two findings, got ${JSON.stringify(w.findings)}`);
+    assert.ok(w.findings.every((/** @type {any} */ f) => f.severity === 'error'),
+      `every finding is an error: ${JSON.stringify(w.findings)}`);
+  });
+
+  reg.define(/^no default-mode finding is removed or reworded by the promotion$/, (w) => {
+    /** @param {any[]} fs */
+    const shape = (fs) => fs.map(({ rule, line, message }) => ({ rule, line, message }));
+    assert.deepStrictEqual(shape(w.findings), shape(w.defaultFindings),
+      'promotion changes severity and nothing else');
+  });
+
+  reg.define(/^a finding flags the "@skip" tag$/, (w) => {
+    const hit = w.findings.find((/** @type {any} */ f) => f.rule === 'strict-tag');
+    assert.ok(hit, `expected a strict-tag finding, got ${JSON.stringify(w.findings)}`);
+    assert.match(String(hit.message), /"@skip"/, 'the finding names the tag');
   });
 };

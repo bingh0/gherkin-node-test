@@ -2,16 +2,20 @@
 'use strict';
 // Steps for features/run-manifest.feature — the account's contract, driven
 // through stub sub-runs writing under fixtures/.manifest-out/intent (the
-// Deno-writable directory). The schema-version first line and the
-// cross-runtime byte comparison lead the code and stay wip.
+// Deno-writable directory). The cross-runtime byte comparison is enforced
+// by CI (the committed root manifest + the stale-account diff guard) and
+// stays declared.
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { SubRun, outPath, OUT_DIR } = require('./world');
+const { SubRun, outPath, OUT_DIR, ROOT } = require('./world');
 
 const accountDefs = {
   mixed: (/** @type {any} */ r) => {
     r.define(/^a bound step$/, () => {});
+    // The @todo scenario's step: bound AND failing — declared debt that
+    // still fails is the tag's green state under the xfail inversion.
+    r.define(/^a bound step that still fails$/, () => { throw new Error('still fails, as declared'); });
     r.define(/^case (\d+) of two runs$/, () => {});
     r.define(/^the outcome is visible$/, () => {});
   },
@@ -25,8 +29,18 @@ const redDefs = {
   },
 };
 
-/** @param {string} file @returns {{file: string, title: string, status: string}[]} */
-const readRows = (file) => fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+/**
+ * Read an account's ROWS — asserting the schema-declaration first line on the
+ * way past, so every row-reading scenario also ratchets the header's
+ * presence. The version line is the file speaking for itself, not a row.
+ * @param {string} file @returns {{file: string, title: string, status: string}[]}
+ */
+const readRows = (file) => {
+  const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+  assert.deepStrictEqual(JSON.parse(lines[0]), { 'run-manifest': 1 },
+    `every account opens with its schema declaration, got: ${lines[0]}`);
+  return lines.slice(1).map((l) => JSON.parse(l));
+};
 
 /** @param {any} w run the account corpus fully against `w.manifest` */
 async function fullAccountRun(w) {
@@ -52,6 +66,18 @@ module.exports = (reg) => {
     w.manifest = outPath('account-red.ndjson');
     fs.rmSync(w.manifest, { force: true });
     w.redRun = true;
+  });
+
+  reg.define(/^an account file and nothing else$/, async (w) => {
+    w.manifest = outPath('account-selfdescribing.ndjson');
+    fs.rmSync(w.manifest, { force: true });
+    await fullAccountRun(w);
+    assert.ok(fs.existsSync(w.manifest), 'the premise holds: a full account exists');
+  });
+
+  reg.define(/^a reader opens it$/, (w) => {
+    // "Nothing else": the reader gets the bytes, not the run that wrote them.
+    w.readerLines = fs.readFileSync(w.manifest, 'utf8').split('\n').filter(Boolean);
   });
 
   reg.define(/^a previous account on disk edited by hand$/, (w) => {
@@ -222,6 +248,29 @@ module.exports = (reg) => {
     assert.ok(probeRows[0].file.endsWith('aa.feature') && probeRows[0].title === 'zz last title',
       `file outranks title in the sort: ${JSON.stringify(probeRows)}`);
     assert.ok(probeRows[1].file.endsWith('zz.feature') && probeRows[1].title === 'aaa first title');
+  });
+
+  reg.define(/^the first line declares the account's schema version$/, (w) => {
+    assert.deepStrictEqual(JSON.parse(w.readerLines[0]), { 'run-manifest': 1 },
+      `the first line is the schema declaration: ${w.readerLines[0]}`);
+  });
+
+  reg.define(/^every path in it is spelled relative to the account file's own location$/, (w) => {
+    const rows = w.readerLines.slice(1).map((/** @type {string} */ l) => JSON.parse(l));
+    assert.ok(rows.length > 0, 'the premise holds: the account has rows to check');
+    for (const r of rows) {
+      assert.ok(!path.isAbsolute(r.file), `spelled relative: ${r.file}`);
+      const resolved = path.resolve(path.dirname(w.manifest), r.file);
+      assert.ok(fs.existsSync(resolved),
+        `relative to the ACCOUNT's own location, not the writer's cwd — resolving finds the feature file: ${r.file}`);
+    }
+  });
+
+  reg.define(/^no line of the account contains an absolute path$/, (w) => {
+    for (const line of w.readerLines) {
+      assert.ok(!line.includes(ROOT), `no line leaks the checkout path: ${line}`);
+      assert.ok(!/"\//.test(line), `no field opens with a rooted path: ${line}`);
+    }
   });
 
   reg.define(/^the account records that scenario with status "failed"$/, (w) => {

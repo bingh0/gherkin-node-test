@@ -95,3 +95,59 @@ resource in the system and the entire trust model routes through it.
   and for /audit as checklist lines — each through its own repo's gate.
 - This doctrine binds gct identically; divergence between the siblings on
   an admission decision is itself a defect.
+
+## Admission records
+
+*One entry per rule shipped after ratification; the anchor scenarios live in
+`features/dialect-gate.feature`. Rules that predate the doctrine were reviewed
+at the 2026-08-03 visionary review.*
+
+### `dropped-prose` — 0.9.0, warn (error under strict)
+
+1. **Unique remedy**: the finding quotes the dropped line and names it; the
+   fix — make it a step, or a `#` comment if it is commentary — is stated in
+   the message.
+2. **Cheapest legal move**: prefix the line with `#`. That is desired: prose
+   that reads like a requirement becomes visibly non-enforcing, in a reviewed
+   diff. Deleting the line is the same diff, and converting it to a real step
+   is strictly better. No phrasing shuffle clears it.
+3. **Subset**: the parse is unchanged — mainstream Gherkin also treats these
+   lines as inert description; gnt only refuses to stay *silent* about the
+   ones inside a body. Nothing is reinterpreted.
+4. **Loudness**: warn by default (the `near-miss-keyword` precedent — adopting
+   the rule on an existing suite needs the consumer's own debt register);
+   strict promotes it. It fires only on in-body prose, which honest agent
+   output essentially never emits — the Feature narrative, the sanctioned home
+   of prose, stays exempt.
+
+### `no-scenarios` — 0.9.0 as its own rule name (error; refusal since 0.5.0)
+
+1. **Unique remedy**: names the Feature line; "the file enforces nothing" plus
+   the rule name derive the fix — add a scenario or delete the file. A
+   construct near miss that emptied the file is named in the hint.
+2. **Cheapest legal move**: write a scenario or delete the file — both diffs
+   in a reviewed artifact; there is no quieter appeasement.
+3. **Subset**: a refusal, not a reinterpretation — mainstream Gherkin parses
+   the file to an empty feature; gnt refuses it loudly.
+4. **Loudness**: an error, but structurally rare — it fires on a file that
+   enforces nothing at all, never on honest scenario-bearing output.
+
+### strict mode (`opts.strict` / `lint_feature_strict`) and `strict-tag` — 0.9.0
+
+The bit itself: promotion only (same rule, line, message), no relaxed mode,
+per the fence. `strict-tag` is the one strict-only rule, and it covers
+`@skip` and `@only` — **not `@todo`**, by visionary ruling (2026-08-03
+review, position 17): the stale-@todo run-time inversion supersedes any lint
+on the tag — a committed @todo that still fails is honest, visible,
+self-retiring debt, and one that passes is already red.
+
+1. **Unique remedy**: names the tag, at the header line of each construct the
+   tag reaches (a feature-level tag lands on every scenario it hides); each
+   message states the tag's own fix (@skip: make it pass or delete it;
+   @only: use the per-run focus flag).
+2. **Cheapest legal move**: delete the tag — the scenario then runs and gates
+   honestly (or fails visibly), and the deletion is a reviewed diff.
+3. **Subset**: tags carry no standard Gherkin semantics to diverge from; the
+   default mode is unchanged, and strict refuses rather than reinterprets.
+4. **Loudness**: strict-only by construction — the reviewer-facing default
+   stays quiet; a repo opts its builder surfaces into the red.

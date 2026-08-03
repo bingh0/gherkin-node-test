@@ -374,9 +374,27 @@ test('bindRunner registers scenarios on the injected test function, mapping tags
   assert.deepStrictEqual(calls, [
     ['test', 'F :: plain'],
     ['skip', 'F :: skipped'],
-    ['todo', 'F :: pending'],
+    // @todo registers PLAIN since 0.9.0 — the xfail inversion in the body is
+    // the tag's semantics; the runtimes' todo modes are never involved.
+    ['test', 'F :: pending'],
     ['todo', 'F :: unbound'], // unbound steps register as todo on every runner
   ]);
+});
+
+test('runFeature: ambiguity outranks @todo — a binding defect is never worn as declared debt', async () => {
+  // 0.9.0 Phase B review follow-up: without registration-time detection, the
+  // xfail inversion would catch the ambiguity preflight throw and print a
+  // binding defect as an expected failure (green). The refusal must register
+  // as a plain failing body instead.
+  const { bindRunner, runFeature, parseFeature, StepRegistry } = require('../index');
+  const parsed = parseFeature('Feature: F\n@todo\nScenario: s\n  Given doubled\n', 'f.feature');
+  const reg = new StepRegistry().define(/^doubled$/, () => {}).define(/doub/, () => {});
+  /** @type {{ title: string, fn: () => any }[]} */
+  const bodies = [];
+  runFeature(parsed, reg, /** @type {any} */ ((title, opts, fn) => bodies.push({ title, fn })));
+  assert.strictEqual(bodies.length, 1);
+  await assert.rejects(async () => bodies[0].fn(), /Ambiguous step: doubled/,
+    'the refusal is the body — not tolerated, not printed as @todo debt');
 });
 
 test('bindRunner refuses a test function without the method-form shape', () => {

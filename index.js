@@ -238,11 +238,18 @@ function currentTestFile() {
  * `file:line:` and `.line` carries the 1-based line number.
  */
 class GherkinSyntaxError extends Error {
-  /** @param {string} message @param {number} line */
-  constructor(message, line) {
+  /**
+   * @param {string} message @param {number} line
+   * @param {'dialect' | 'no-scenarios'} [rule] which lint rule this refusal
+   *   surfaces as — the parser's refusals are the error tier of the lint, and
+   *   lintFeature must not have to re-derive which rule fired from message
+   *   text. 'dialect' unless the refusal has its own ratified rule name.
+   */
+  constructor(message, line, rule = 'dialect') {
     super(message);
     this.name = 'GherkinSyntaxError';
     this.line = line;
+    this.rule = rule;
   }
 }
 
@@ -338,10 +345,11 @@ function parseFeature(text, filename = '<feature>') {
   /**
    * @param {number} line
    * @param {string} msg
+   * @param {'dialect' | 'no-scenarios'} [rule]
    * @returns {never}
    */
-  const fail = (line, msg) => {
-    throw new GherkinSyntaxError(`${filename}:${line}: ${msg}`, line);
+  const fail = (line, msg, rule) => {
+    throw new GherkinSyntaxError(`${filename}:${line}: ${msg}`, line, rule);
   };
 
   /** Consume pending tags (for a construct that accepts them). */
@@ -575,7 +583,7 @@ function parseFeature(text, filename = '<feature>') {
         break;
       }
     }
-    fail(featureLine, `Feature "${feature}" has no scenarios — the file registers nothing and would read as passing${hint}`);
+    fail(featureLine, `Feature "${feature}" has no scenarios — the file enforces nothing and would read as passing${hint}`, 'no-scenarios');
   }
   return { feature, background, scenarios, outlines, narrative, file: filename };
 }
@@ -584,8 +592,9 @@ function parseFeature(text, filename = '<feature>') {
 
 /**
  * @typedef {'error' | 'warn'} LintSeverity
- * @typedef {{ rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline' | 'near-miss-keyword'
- *                   | 'duplicate-title' | 'unused-column',
+ * @typedef {{ rule: 'dialect' | 'no-scenarios' | 'no-then' | 'vague-then' | 'single-row-outline'
+ *                   | 'near-miss-keyword' | 'dropped-prose' | 'duplicate-title' | 'unused-column'
+ *                   | 'strict-tag',
  *             severity: LintSeverity, line: number, message: string }} LintFinding
  */
 
@@ -680,6 +689,11 @@ const VAGUE_THEN = /\b(works|correctly|properly|as expected|handles|appropriate)
  *  - `dialect` (error): the text is outside the supported subset — the exact
  *    GherkinSyntaxError the runner would throw, as a finding. The parser stops
  *    at the first violation, so a dialect finding is always alone.
+ *  - `no-scenarios` (error): a Feature header with no scenarios under it — the
+ *    file enforces nothing and reads as passing to the runner, the linter, and
+ *    a human scanning green output. Surfaced by the same parser refusal as
+ *    `dialect` (and so also always alone), but under its own rule name: "add a
+ *    scenario or delete the file" is a different remedy than "fix this line".
  *  - `no-then` (warn): a scenario whose own steps never resolve to Then — it
  *    runs code but asserts nothing. And/But/* inherit the preceding primary
  *    keyword (a Background is walked first, so a scenario continuing the
@@ -725,6 +739,22 @@ const VAGUE_THEN = /\b(works|correctly|properly|as expected|handles|appropriate)
  *    guard and `no-then` between them catch a dropped step only at the
  *    extremes (a scenario's only step, or its only Then); a near miss in a
  *    scenario that keeps a Given and a Then is otherwise invisible.
+ *  - `dropped-prose` (warn): any OTHER line inside a scenario, Scenario
+ *    Outline, or Background body that the parser dropped as narrative — the
+ *    floor under `near-miss-keyword`, so that no in-body line vanishes without
+ *    a finding. Prose in a body reads like a requirement and enforces nothing
+ *    ("the balance must never go negative"); the remedy is to make it a step
+ *    or mark it a `#` comment, which is visibly non-enforcing. A line already
+ *    claimed by a near-miss finding is not double-reported: near miss is the
+ *    sharper diagnosis. The Feature narrative stays exempt — prose is its job.
+ *  - `strict-tag` (error, strict mode only): a `@skip` or `@only` tag.
+ *    Reviewed output carries no silent debt or focus: a skip hides a
+ *    scenario from every run with no ledger entry, and focus is a per-run
+ *    CLI flag by the @only doctrine. `@todo` is deliberately exempt
+ *    (visionary ruling, 2026-08-03): the stale-@todo inversion polices it at
+ *    run time, so a committed @todo is honest, visible, self-retiring debt.
+ *    Reported at the header line of each construct the tag reaches — a
+ *    feature-level tag lands on every scenario it hides.
  *
  * Findings from a Scenario Outline are reported once per source construct,
  * not once per expanded row — except a vague-then introduced BY a placeholder
@@ -740,12 +770,20 @@ const VAGUE_THEN = /\b(works|correctly|properly|as expected|handles|appropriate)
  * New rules must pass the four admission tests in docs/lint-admission.md
  * before they appear here — and every rule admitted here must be pinned by a
  * scenario in features/dialect-gate.feature, or it is untested contract.
+ * Admission records for shipped rules live in that document's appendix.
+ *
+ * Strict mode (`opts.strict`) is one bit: every warning above is promoted to
+ * an error — same rule, same line, same message — and the strict-only rules
+ * (`strict-tag`) join in. Nothing is ever removed or reworded by promotion,
+ * so a strict-clean file is clean in default mode by construction. There is
+ * no relaxed mode, per the fence: `--strict` promotes, nothing demotes.
  *
  * @param {string} text     raw .feature file contents
  * @param {string} [filename] used only to prefix the dialect finding's message
+ * @param {{ strict?: boolean }} [opts]
  * @returns {LintFinding[]} sorted by line, then declaration order
  */
-function lintFeature(text, filename = '<feature>') {
+function lintFeature(text, filename = '<feature>', opts = {}) {
   /** @type {ParsedFeature} */
   let parsed;
   try {
@@ -757,7 +795,7 @@ function lintFeature(text, filename = '<feature>') {
     // finding don't print it twice.
     const prefix = `${filename}:${e.line}: `;
     const message = e.message.startsWith(prefix) ? e.message.slice(prefix.length) : e.message;
-    return [{ rule: 'dialect', severity: 'error', line: e.line, message }];
+    return [{ rule: e.rule, severity: 'error', line: e.line, message }];
   }
 
   /** @type {LintFinding[]} */
@@ -839,11 +877,14 @@ function lintFeature(text, filename = '<feature>') {
   // dropped them — the parser's fall-through IS the definition of "silently
   // dropped", so the rule cannot drift from the parse. A correctly cased step
   // or an exact construct header never appears here: the parser consumed it.
+  /** @type {Set<number>} lines a near-miss finding already accounts for */
+  const nearMissed = new Set();
   for (const n of parsed.narrative) {
     const c = n.text.match(CONSTRUCT_SHAPE);
     if (c) {
       const exact = CONSTRUCT_BY_KEY.get(c[1].toLowerCase().replace(/\s+/g, ''));
       if (exact && c[0] !== exact) {
+        nearMissed.add(n.line);
         warn('near-miss-keyword', n.line,
           `"${c[0]}" is not the construct keyword "${exact}" — constructs are recognized only in that exact form, so this line is parsed as narrative: the construct never starts, and what follows it belongs to whatever came before`);
       }
@@ -858,13 +899,57 @@ function lintFeature(text, filename = '<feature>') {
     if (!m) continue;
     const exact = STEP_KEYWORD_BY_LOWER.get(m[1].toLowerCase());
     if (exact && m[1] !== exact) {
+      nearMissed.add(n.line);
       warn('near-miss-keyword', n.line,
         `"${m[1]}" is not the step keyword "${exact}" — keywords are exact-case, so this line is parsed as narrative and its requirement is silently dropped`);
     }
   }
 
+  // dropped-prose: the floor under near-miss-keyword — every in-body narrative
+  // line the walk above did not claim gets a finding, so no line inside a body
+  // vanishes in silence. Near miss keeps its lines: it is the sharper
+  // diagnosis, and one finding per dropped line is the accounting contract.
+  for (const n of parsed.narrative) {
+    if (!n.inBody || nearMissed.has(n.line)) continue;
+    warn('dropped-prose', n.line,
+      `"${n.text}" is not a step — the parser drops this line silently and it enforces nothing; make it a Given/When/Then step, or a # comment if it is commentary`);
+  }
+
+  if (opts.strict) {
+    // strict-tag: reviewed output carries no committed debt or focus (see the
+    // rule's entry in the doc comment). Reported at the tagged construct's
+    // header line — the parser does not record tag lines, and the tag sits
+    // immediately above the header it modifies. Expanded outline rows share
+    // their source line and tags, so add()'s dedup collapses them to one
+    // finding per construct; a feature-level tag lands on every scenario it
+    // reaches, which is exactly how many scenarios it hides.
+    // @todo is deliberately NOT here (visionary ruling, 2026-08-03 review,
+    // position 17): the stale-@todo inversion polices the tag at run time —
+    // a @todo that still fails is honest declared debt reviewed output may
+    // carry, and one that passes is already red. Lint has nothing to add.
+    for (const sc of parsed.scenarios) {
+      for (const tag of ['@skip', '@only']) {
+        if (!sc.tags.includes(tag)) continue;
+        add('strict-tag', 'error', sc.line, STRICT_TAG_MESSAGE[tag]);
+      }
+    }
+    // Promotion is one bit, applied last: same rule, same line, same message.
+    // Strict may add findings and raise severity — never remove or reword —
+    // so a strict-clean file is clean in default mode by construction.
+    for (const f of findings) if (f.severity === 'warn') f.severity = 'error';
+  }
+
   return findings.sort((a, b) => a.line - b.line);
 }
+
+// What strict mode says about each semantic tag. Every message derives its fix
+// from the finding alone (admission test 1), and every fix is a diff in the
+// reviewed file (admission test 2).
+/** @type {Record<string, string>} */
+const STRICT_TAG_MESSAGE = {
+  '@skip': 'tag "@skip" has no place in reviewed output — a committed skip hides this scenario from every run, debt with no ledger entry; make the scenario pass or delete it',
+  '@only': 'tag "@only" has no place in reviewed output — focus is a per-run flag (--test-name-pattern / -t / --filter), never a committed edit; remove the tag',
+};
 
 // --- Step registry ----------------------------------------------------------
 
@@ -933,9 +1018,32 @@ function buildSnippet(text) {
 // --- Execution --------------------------------------------------------------
 
 /**
- * Run a flat list of steps against a shared world. Throws on an undefined step
- * or a failing assertion. Exposed so the harness self-test can drive it without
- * going through node:test.
+ * The ambiguity refusal for a list of steps, or null: the first step
+ * matching more than one binding, named together with every matching
+ * pattern, so the fix (tighten one pattern until exactly one matches) is
+ * derivable from the failure alone. One definition shared by the
+ * executeSteps preflight and runFeature's registration-time check, so the
+ * two can never drift.
+ * @param {Step[]} steps @param {StepRegistry} registry
+ * @returns {Error | null}
+ */
+function ambiguityError(steps, registry) {
+  for (const step of steps) {
+    const matches = registry.steps.filter((s) => step.text.match(s.re));
+    if (matches.length > 1) {
+      return new Error(`Ambiguous step: ${step.text}\nmatches ${matches.length} definitions:\n`
+        + matches.map((m) => `  ${m.re}`).join('\n')
+        + '\ntighten the patterns until exactly one matches — the scenario did not execute');
+    }
+  }
+  return null;
+}
+
+/**
+ * Run a flat list of steps against a shared world. Throws on an ambiguous
+ * step (before any step runs), an undefined step, or a failing assertion.
+ * Exposed so the harness self-test can drive it without going through
+ * node:test.
  *
  * `world.defer(fn)` registers scenario-scoped cleanup: deferred functions run
  * in reverse (LIFO) order after the steps, INCLUDING when a step failed — so a
@@ -948,10 +1056,22 @@ function buildSnippet(text) {
  * @returns {Promise<Record<string, any>>}
  */
 async function executeSteps(steps, registry, world = {}) {
+  // Ambiguity preflight, before ANY step runs: a step matching two bindings
+  // must fail the scenario without executing it — which binding would have
+  // run is silent information, and running "up to the ambiguous step" would
+  // leak a partial execution into the world.
+  const amb = ambiguityError(steps, registry);
+  if (amb) throw amb;
   /** @type {Array<(w: Record<string, any>) => any>} */
   const deferred = [];
   world.defer = (/** @type {(w: Record<string, any>) => any} */ fn) => { deferred.push(fn); };
-  let failure = null;
+  // Failure is a FLAG, not a truthy value: `throw undefined` must still fail
+  // the scenario — a falsy throw read through truthiness would report a
+  // failing step as passing (and, under the @todo inversion, as a false
+  // "stale tag" red telling the author to remove a tag that is not stale).
+  let failed = false;
+  /** @type {unknown} */
+  let failure;
   try {
     for (const step of steps) {
       const found = registry.find(step.text);
@@ -962,20 +1082,25 @@ async function executeSteps(steps, registry, world = {}) {
       await found.fn(world, ...args);
     }
   } catch (e) {
+    failed = true;
     failure = e;
   }
   for (let i = deferred.length - 1; i >= 0; i--) {
-    try { await deferred[i](world); } catch (e) { failure = failure ?? e; }
+    try { await deferred[i](world); } catch (e) {
+      if (!failed) { failed = true; failure = e; }
+    }
   }
-  if (failure) throw failure;
+  if (failed) throw failure;
   return world;
 }
 
 /**
  * Register one runner test per scenario. Scenarios whose steps aren't all
  * defined register as TODO (see runFeatures for the guard that keeps TODO from
- * silently swallowing a bound feature). Tag mapping: @skip → skipped, @todo →
- * doesn't gate the suite. @only maps to NOTHING — it registers a failing test
+ * silently swallowing a bound feature). Tag mapping: @skip → skipped; @todo →
+ * inverted (xfail) as a plain test: the body runs on every runtime, an
+ * expected failure is printed and gates nothing, and a @todo that PASSES is
+ * red naming the stale tag. @only maps to NOTHING — it registers a failing test
  * instead, because the runners' focus semantics are irreconcilable: Node keeps
  * only: inert without --test-only; Bun and Deno focus the file on every run
  * with no flag, and Deno exits 0 doing it, so a committed @only would silently
@@ -1028,21 +1153,57 @@ function runFeature(parsed, registry, register = registerTest, recorder = null) 
       register(title, { todo: reason }, () => { throw new Error(reason); });
       continue;
     }
-    const tags = new Set(sc.tags);
-    /** @type {{ skip?: boolean, todo?: boolean }} */
-    const opts = {};
-    if (tags.has('@skip')) opts.skip = true;
-    if (tags.has('@todo')) opts.todo = true;
-    const body = async () => { await executeSteps(steps, registry); };
-    if (recorder && !opts.skip && !opts.todo) {
-      register(title, opts, recorder.wrap(parsed.file, sc.name, body));
+    // Ambiguity is a BINDING defect, so it is detected at registration and
+    // outranks the tags below: @skip must not park it (skip means "don't
+    // run", never "don't bind" — the same precedence the unbound check above
+    // applies), and @todo must not wear it as declared debt (the inversion
+    // would print a binding defect as an expected failure). The refusal
+    // registers as a plain failing test either way.
+    const amb = ambiguityError(steps, registry);
+    if (amb) {
+      const refuse = async () => { throw amb; };
+      register(title, {}, recorder ? recorder.wrap(parsed.file, sc.name, refuse) : refuse);
       continue;
     }
-    // A tagged scenario's status comes from its TAG, never its body: skip
-    // bodies run nowhere, and todo bodies run on some runtimes and not others
-    // — see createManifestWriter's determinism rules.
-    recorder?.static(parsed.file, sc.name, opts.skip ? 'skipped' : 'todo');
-    register(title, opts, body);
+    const tags = new Set(sc.tags);
+    const body = async () => { await executeSteps(steps, registry); };
+    // @todo is inverted (xfail), and registered as a PLAIN test so the
+    // inversion is the verdict on every runtime — the runtimes' own todo
+    // modes disagree about whether todo bodies even run (node always, bun
+    // only under --todo, Deno never), and node reports a failing todo as
+    // passing, which would let a stale tag hide. Inverted, the declared debt
+    // runs everywhere: while the scenario still fails, the failure is
+    // printed and gates nothing; the run that would first turn it green
+    // goes red instead, naming the stale tag — the same one-way ratchet the
+    // wip register applies to unbound scenarios.
+    if (tags.has('@todo')) {
+      recorder?.static(parsed.file, sc.name, 'todo');
+      register(title, {}, async () => {
+        try {
+          await body();
+        } catch (e) {
+          const first = String(/** @type {any} */ (e)?.message ?? e).split('\n')[0];
+          console.error(`@todo "${title}" fails as declared — gating nothing until it passes: ${first}`);
+          return;
+        }
+        throw new Error(
+          `${parsed.file}: @todo scenario "${sc.name}" now passes — the tag is stale; remove @todo so the scenario gates the run`);
+      });
+      continue;
+    }
+    if (tags.has('@skip')) {
+      // A skipped scenario's status comes from its TAG: skip bodies run
+      // nowhere, so 'skipped' is recorded at registration — see
+      // createManifestWriter's determinism rules.
+      recorder?.static(parsed.file, sc.name, 'skipped');
+      register(title, { skip: true }, body);
+      continue;
+    }
+    if (recorder) {
+      register(title, {}, recorder.wrap(parsed.file, sc.name, body));
+      continue;
+    }
+    register(title, {}, body);
   }
 }
 
@@ -1059,6 +1220,13 @@ function runFeatureFile(file, registry, register = registerTest) {
 // --- Run manifest -------------------------------------------------------------
 
 /** @typedef {'passed' | 'failed' | 'skipped' | 'todo' | 'unbound'} ManifestStatus */
+
+// The account's first line: an in-band schema-version declaration, so the
+// file explains itself on any machine with no other context. Version bumps
+// ONLY on a change that would mislead a version-1 reader (a new status value
+// is not one; a changed row shape or sort order is). Format-named, not
+// tool-named — gherkin-cargo-test writes byte-identical accounts.
+const MANIFEST_VERSION_LINE = JSON.stringify({ 'run-manifest': 1 });
 
 /**
  * Compare two strings by Unicode CODE POINT — the manifest's sort order. JS
@@ -1109,9 +1277,12 @@ function compareCodePoints(a, b) {
  *    however the caller spelled the feature dir — an absolute `dir` argument
  *    must not leak machine paths into committed bytes.
  *  - @skip / @todo / unbound are recorded at REGISTRATION, never from body
- *    execution: the runtimes disagree about whether those bodies run (node
- *    always executes todo bodies, bun only under --todo, Deno never), and a
- *    status that varied by runtime would break the rule above. Only a plain
+ *    execution: skip and unbound bodies run nowhere or inconsistently (the
+ *    runtimes disagree about todo-mode bodies — node always executes them,
+ *    bun only under --todo, Deno never), and a @todo body, though it now
+ *    runs everywhere (inverted, registered plain — see runFeature), has a
+ *    row that means "declared expected-fail", which is true whether the
+ *    debt currently fails (green) or has gone stale (red). Only a plain
  *    bound scenario records from execution: passed or failed.
  *  - The file is written exactly ONCE, when every expected outcome has been
  *    recorded. A filtered (--test-name-pattern / -t / --filter), bailed, or
@@ -1120,8 +1291,11 @@ function compareCodePoints(a, b) {
  *    loud: it throws from the last scenario's body — unless that scenario
  *    itself failed, in which case its own failure outranks the write failure
  *    (executeSteps' cleanup precedence), and the next full run stays loud.
- *  - Zero registered scenarios write a ZERO-BYTE file: visibly empty is an
- *    account; an absent file would read as "never ran".
+ *  - The FIRST LINE is the in-band schema declaration (`{"run-manifest":1}`)
+ *    — see MANIFEST_VERSION_LINE for the versioning rule. Zero rows write
+ *    the declaration line alone (unreachable from the public path: an empty
+ *    feature directory is refused before a recorder exists, and every
+ *    parsed file carries at least one scenario).
  *  - A RE-INVOKED scenario body is refused loudly, the @only doctrine one
  *    level up. vitest's retry and repeats both re-run the same registered
  *    body, and they assign OPPOSITE verdicts to the same observed sequence
@@ -1145,16 +1319,18 @@ function createManifestWriter(manifestPath) {
   const norm = (f) => path.relative(base, path.resolve(f)).split(path.sep).join('/');
   const maybeWrite = () => {
     if (poisoned || !registered || pending > 0) return;
-    // Zero rows write a ZERO-BYTE file: a directory that registers nothing
-    // still gets a visibly empty account (absence of the file would read as
-    // "never ran"), and zero rows of NDJSON is an empty file, not a lone
-    // newline.
-    const text = rows.length === 0 ? '' : [...rows]
+    // Every account begins with the in-band schema declaration — the file
+    // must explain itself to whoever holds it, with no other context. The
+    // key names the FORMAT, not the tool: the cargo sibling writes these
+    // exact bytes too. Zero rows (unreachable from the public path — an
+    // empty directory is refused before a recorder exists) still write the
+    // declaration line: whatever this writer writes is an account.
+    const text = MANIFEST_VERSION_LINE + '\n' + [...rows]
       .sort((a, b) => compareCodePoints(a.file, b.file)
         || compareCodePoints(a.title, b.title)
         || compareCodePoints(a.status, b.status))
-      .map((r) => JSON.stringify({ file: r.file, title: r.title, status: r.status }))
-      .join('\n') + '\n';
+      .map((r) => JSON.stringify({ file: r.file, title: r.title, status: r.status }) + '\n')
+      .join('');
     fs.writeFileSync(manifestPath, text);
   };
   return {
@@ -1356,7 +1532,45 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     throw new TypeError(`manifest must be a non-empty file path, got ${JSON.stringify(opts.manifest)}`);
   }
 
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.feature')).sort();
+  // Directory refusals are REGISTERED failing tests, not throws, for the
+  // Deno-swallow reason the one-call rule documents — and they consume the
+  // one-call slot, because they DID register. A missing directory would
+  // otherwise surface as a raw ENOENT stack, and an empty one as a silently
+  // green zero-scenario run: coverage accounting that quietly enforces
+  // nothing, the exact class this runner exists to refuse.
+  /** @type {string[]} */
+  let files;
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.endsWith('.feature')).sort();
+  } catch (e) {
+    // Total: every readdir failure is a registered refusal naming the path —
+    // ENOENT and ENOTDIR are the fix-your-call cases with their own words; a
+    // permission error keeps the OS detail. A raw stack here would be the
+    // exact loudness-without-remedy this refusal exists to replace.
+    const code = /** @type {any} */ (e)?.code;
+    const [title, msg] = code === 'ENOENT'
+      ? ['runFeatures: the feature directory is missing',
+        `runFeatures: feature directory ${JSON.stringify(dir)} does not exist — nothing was enforced; `
+        + 'point the runner at the directory holding the .feature files']
+      : code === 'ENOTDIR'
+        ? ['runFeatures: the feature path is not a directory',
+          `runFeatures: ${JSON.stringify(dir)} is not a directory — nothing was enforced; `
+          + 'point the runner at the directory holding the .feature files, not at a file']
+        : ['runFeatures: the feature directory is unreadable',
+          `runFeatures: cannot read feature directory ${JSON.stringify(dir)} — nothing was enforced: ${e}`];
+    if (native) filesWithRunFeatures.add(testFile.key);
+    register(title, {}, () => { throw new Error(msg); });
+    return;
+  }
+  if (files.length === 0) {
+    if (native) filesWithRunFeatures.add(testFile.key);
+    register('runFeatures: the feature directory is empty', {}, () => {
+      throw new Error(
+        `runFeatures: no .feature files were found in ${JSON.stringify(dir)} — nothing was enforced; `
+        + 'add the feature files there, or point the runner at the directory holding them');
+    });
+    return;
+  }
   const bases = files.map(featureBase);
 
   // Validate and parse EVERYTHING before registering any test: a bad definer

@@ -99,8 +99,15 @@ export type StepFn = (world: Record<string, any>, ...args: any[]) => (void | Pro
  */
 declare class GherkinSyntaxError extends Error {
     line: number;
-    /** @param {string} message @param {number} line */
-    constructor(message: string, line: number);
+    rule: "dialect" | "no-scenarios";
+    /**
+     * @param {string} message @param {number} line
+     * @param {'dialect' | 'no-scenarios'} [rule] which lint rule this refusal
+     *   surfaces as — the parser's refusals are the error tier of the lint, and
+     *   lintFeature must not have to re-derive which rule fired from message
+     *   text. 'dialect' unless the refusal has its own ratified rule name.
+     */
+    constructor(message: string, line: number, rule?: 'dialect' | 'no-scenarios');
 }
 /**
  * A step's data table, API-compatible with cucumber-js's DataTable so step code
@@ -130,7 +137,7 @@ declare class DataTable {
 declare function parseFeature(text: string, filename?: string): ParsedFeature;
 export type LintSeverity = 'error' | 'warn';
 export type LintFinding = {
-    rule: 'dialect' | 'no-then' | 'vague-then' | 'single-row-outline' | 'near-miss-keyword' | 'duplicate-title' | 'unused-column';
+    rule: 'dialect' | 'no-scenarios' | 'no-then' | 'vague-then' | 'single-row-outline' | 'near-miss-keyword' | 'dropped-prose' | 'duplicate-title' | 'unused-column' | 'strict-tag';
     severity: LintSeverity;
     line: number;
     message: string;
@@ -148,6 +155,11 @@ export type LintFinding = {
  *  - `dialect` (error): the text is outside the supported subset — the exact
  *    GherkinSyntaxError the runner would throw, as a finding. The parser stops
  *    at the first violation, so a dialect finding is always alone.
+ *  - `no-scenarios` (error): a Feature header with no scenarios under it — the
+ *    file enforces nothing and reads as passing to the runner, the linter, and
+ *    a human scanning green output. Surfaced by the same parser refusal as
+ *    `dialect` (and so also always alone), but under its own rule name: "add a
+ *    scenario or delete the file" is a different remedy than "fix this line".
  *  - `no-then` (warn): a scenario whose own steps never resolve to Then — it
  *    runs code but asserts nothing. And/But/* inherit the preceding primary
  *    keyword (a Background is walked first, so a scenario continuing the
@@ -193,6 +205,22 @@ export type LintFinding = {
  *    guard and `no-then` between them catch a dropped step only at the
  *    extremes (a scenario's only step, or its only Then); a near miss in a
  *    scenario that keeps a Given and a Then is otherwise invisible.
+ *  - `dropped-prose` (warn): any OTHER line inside a scenario, Scenario
+ *    Outline, or Background body that the parser dropped as narrative — the
+ *    floor under `near-miss-keyword`, so that no in-body line vanishes without
+ *    a finding. Prose in a body reads like a requirement and enforces nothing
+ *    ("the balance must never go negative"); the remedy is to make it a step
+ *    or mark it a `#` comment, which is visibly non-enforcing. A line already
+ *    claimed by a near-miss finding is not double-reported: near miss is the
+ *    sharper diagnosis. The Feature narrative stays exempt — prose is its job.
+ *  - `strict-tag` (error, strict mode only): a `@skip` or `@only` tag.
+ *    Reviewed output carries no silent debt or focus: a skip hides a
+ *    scenario from every run with no ledger entry, and focus is a per-run
+ *    CLI flag by the @only doctrine. `@todo` is deliberately exempt
+ *    (visionary ruling, 2026-08-03): the stale-@todo inversion polices it at
+ *    run time, so a committed @todo is honest, visible, self-retiring debt.
+ *    Reported at the header line of each construct the tag reaches — a
+ *    feature-level tag lands on every scenario it hides.
  *
  * Findings from a Scenario Outline are reported once per source construct,
  * not once per expanded row — except a vague-then introduced BY a placeholder
@@ -205,11 +233,25 @@ export type LintFinding = {
  * debt register, and that register (a wip-style allowlist, filtering by rule)
  * belongs to the consumer.
  *
+ * New rules must pass the four admission tests in docs/lint-admission.md
+ * before they appear here — and every rule admitted here must be pinned by a
+ * scenario in features/dialect-gate.feature, or it is untested contract.
+ * Admission records for shipped rules live in that document's appendix.
+ *
+ * Strict mode (`opts.strict`) is one bit: every warning above is promoted to
+ * an error — same rule, same line, same message — and the strict-only rules
+ * (`strict-tag`) join in. Nothing is ever removed or reworded by promotion,
+ * so a strict-clean file is clean in default mode by construction. There is
+ * no relaxed mode, per the fence: `--strict` promotes, nothing demotes.
+ *
  * @param {string} text     raw .feature file contents
  * @param {string} [filename] used only to prefix the dialect finding's message
+ * @param {{ strict?: boolean }} [opts]
  * @returns {LintFinding[]} sorted by line, then declaration order
  */
-declare function lintFeature(text: string, filename?: string): LintFinding[];
+declare function lintFeature(text: string, filename?: string, opts?: {
+    strict?: boolean;
+}): LintFinding[];
 declare class StepRegistry {
     /** @type {{ re: RegExp, fn: StepFn }[]} */
     steps: {
@@ -243,9 +285,10 @@ declare class StepRegistry {
  */
 declare function buildSnippet(text: string): string;
 /**
- * Run a flat list of steps against a shared world. Throws on an undefined step
- * or a failing assertion. Exposed so the harness self-test can drive it without
- * going through node:test.
+ * Run a flat list of steps against a shared world. Throws on an ambiguous
+ * step (before any step runs), an undefined step, or a failing assertion.
+ * Exposed so the harness self-test can drive it without going through
+ * node:test.
  *
  * `world.defer(fn)` registers scenario-scoped cleanup: deferred functions run
  * in reverse (LIFO) order after the steps, INCLUDING when a step failed — so a
@@ -261,8 +304,10 @@ declare function executeSteps(steps: Step[], registry: StepRegistry, world?: Rec
 /**
  * Register one runner test per scenario. Scenarios whose steps aren't all
  * defined register as TODO (see runFeatures for the guard that keeps TODO from
- * silently swallowing a bound feature). Tag mapping: @skip → skipped, @todo →
- * doesn't gate the suite. @only maps to NOTHING — it registers a failing test
+ * silently swallowing a bound feature). Tag mapping: @skip → skipped; @todo →
+ * inverted (xfail) as a plain test: the body runs on every runtime, an
+ * expected failure is printed and gates nothing, and a @todo that PASSES is
+ * red naming the stale tag. @only maps to NOTHING — it registers a failing test
  * instead, because the runners' focus semantics are irreconcilable: Node keeps
  * only: inert without --test-only; Bun and Deno focus the file on every run
  * with no flag, and Deno exits 0 doing it, so a committed @only would silently
@@ -314,9 +359,12 @@ export type ManifestStatus = 'passed' | 'failed' | 'skipped' | 'todo' | 'unbound
  *    however the caller spelled the feature dir — an absolute `dir` argument
  *    must not leak machine paths into committed bytes.
  *  - @skip / @todo / unbound are recorded at REGISTRATION, never from body
- *    execution: the runtimes disagree about whether those bodies run (node
- *    always executes todo bodies, bun only under --todo, Deno never), and a
- *    status that varied by runtime would break the rule above. Only a plain
+ *    execution: skip and unbound bodies run nowhere or inconsistently (the
+ *    runtimes disagree about todo-mode bodies — node always executes them,
+ *    bun only under --todo, Deno never), and a @todo body, though it now
+ *    runs everywhere (inverted, registered plain — see runFeature), has a
+ *    row that means "declared expected-fail", which is true whether the
+ *    debt currently fails (green) or has gone stale (red). Only a plain
  *    bound scenario records from execution: passed or failed.
  *  - The file is written exactly ONCE, when every expected outcome has been
  *    recorded. A filtered (--test-name-pattern / -t / --filter), bailed, or
@@ -325,8 +373,11 @@ export type ManifestStatus = 'passed' | 'failed' | 'skipped' | 'todo' | 'unbound
  *    loud: it throws from the last scenario's body — unless that scenario
  *    itself failed, in which case its own failure outranks the write failure
  *    (executeSteps' cleanup precedence), and the next full run stays loud.
- *  - Zero registered scenarios write a ZERO-BYTE file: visibly empty is an
- *    account; an absent file would read as "never ran".
+ *  - The FIRST LINE is the in-band schema declaration (`{"run-manifest":1}`)
+ *    — see MANIFEST_VERSION_LINE for the versioning rule. Zero rows write
+ *    the declaration line alone (unreachable from the public path: an empty
+ *    feature directory is refused before a recorder exists, and every
+ *    parsed file carries at least one scenario).
  *  - A RE-INVOKED scenario body is refused loudly, the @only doctrine one
  *    level up. vitest's retry and repeats both re-run the same registered
  *    body, and they assign OPPOSITE verdicts to the same observed sequence

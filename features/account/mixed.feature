@@ -18,7 +18,7 @@ Feature: Accounted
 
   @todo
   Scenario: aspirational one
-    Given a bound step
+    Given a bound step that still fails
     Then the outcome is visible
 
   Scenario Outline: sweep <k>

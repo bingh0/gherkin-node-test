@@ -194,16 +194,26 @@ test('runFeatures: a definer key naming no feature file FAILS the run', () => {
   assert.match(out, /ghost/);
 });
 
-// Node executes @todo bodies on every run; Bun only under `bun test --todo`
-// (where a throwing todo is EXPECTED and a passing one fails); Deno NEVER
-// executes them (todo → ignored). Spawning with runTodo exercises the strictest
-// mode node/bun offer; under Deno the body never runs, so there is no failure
-// text to see — the contract is only that todo doesn't gate the run.
-test('runFeatures: @todo failures are reported but do not fail the run', () => {
-  const { status, out } = runFixture('todotag.fixture.js', { runTodo: true });
+// @todo is inverted (xfail) and registered PLAIN since 0.9.0 — the runtimes'
+// own todo modes are irreconcilable (node reports a failing todo as passing,
+// bun runs bodies only under --todo, Deno never runs them), so the tag's
+// semantics live in the body: the declared failure is printed and gates
+// nothing, on EVERY runtime including Deno; the run that would first turn
+// the scenario green goes red instead, naming the stale tag.
+test('runFeatures: @todo failures are printed but do not fail the run', () => {
+  const { status, out } = runFixture('todotag.fixture.js');
   assert.strictEqual(status, 0, out);
-  if (!isDeno) assert.match(out, /todo failure/, 'the failure is visible in the output');
-  assert.strictEqual(counts(out).todo, 1, '…but only as TODO/ignored, which does not gate');
+  assert.match(out, /todo failure/, 'the failure is visible in the output on every runtime');
+  assert.match(out, /@todo/, 'the printed line attributes the failure to the tag');
+  assert.strictEqual(counts(out).todo, 0, 'no runtime todo-mode involved — the inversion is the verdict');
+});
+
+test('runFeatures: a passing @todo scenario fails the run naming the stale tag', () => {
+  const { status, out } = runFixture('todotag-stale.fixture.js');
+  assert.notStrictEqual(status, 0, `a stale @todo must gate:\n${out}`);
+  assert.match(out, /@todo/, out);
+  assert.match(out, /stale/, 'the failure names the staleness');
+  assert.match(out, /known failing/, 'the failure names the scenario');
 });
 
 // @only is rejected identically on EVERY runtime — the runners' focus
@@ -330,6 +340,7 @@ test('runFeatures: the manifest records every scenario as a sorted row, statuses
   // @skip/@todo/unbound come from registration, so these bytes are identical
   // on node, bun, and Deno even though they disagree about running todo bodies.
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
+    '{"run-manifest":1}',
     row('passes', 'passed'),
     row('pending thing', 'unbound'),
     row('skipped one', 'skipped'),
@@ -346,6 +357,7 @@ test('runFeatures: a red run still writes its manifest, recording the failure ho
   assert.notStrictEqual(status, 0, 'the failing scenario must still fail the run');
   const row = manifestRow('manifestfail', 'red.feature');
   assert.strictEqual(fs.readFileSync(outFile, 'utf8'), [
+    '{"run-manifest":1}',
     row('fails', 'failed'),
     row('passes', 'passed'),
   ].join('\n') + '\n', out);

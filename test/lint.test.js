@@ -196,17 +196,20 @@ test('near-miss-keyword: Background bodies are checked too', () => {
 });
 
 test('near-miss-keyword: stays quiet on words that merely begin with a keyword', () => {
+  // dropped-prose accounts for the line instead (0.9.0): near-miss must not
+  // claim it, because "Givens…" was never a step at any casing.
   const findings = lintFeature(feat(
     'Scenario: S\n  Given a counter at 0\n  Givens are not keywords\n  Then the counter is 0\n'));
-  assert.deepStrictEqual(findings, []);
+  assert.deepStrictEqual(rules(findings), ['dropped-prose']);
 });
 
 test('near-miss-keyword: a bare keyword with no step text is ordinary narrative', () => {
-  // "given" alone could not have been a step at any casing, so flagging it
-  // would be a false positive rather than a rescued requirement.
+  // "given" alone could not have been a step at any casing, so flagging it as
+  // a near miss would be a false positive rather than a rescued requirement —
+  // but it is still a dropped in-body line, so dropped-prose accounts for it.
   const findings = lintFeature(feat(
     'Scenario: S\n  Given a counter at 0\n  given\n  Then the counter is 0\n'));
-  assert.deepStrictEqual(findings, []);
+  assert.deepStrictEqual(rules(findings), ['dropped-prose']);
 });
 
 test('near-miss-keyword: a tab between keyword and text is a real step, not a near miss', () => {
@@ -273,13 +276,16 @@ test('near-miss-keyword: construct near misses are flagged outside bodies too', 
 test('near-miss-keyword: construct-like prose without the colon shape stays quiet', () => {
   // Plural or unlisted words do not form a construct header; `rule:` is exempt
   // because the exact `Rule:` is itself a dialect error, so a near miss is not
-  // a rescue — and "rule: …" is plausible prose.
+  // a rescue — and "rule: …" is plausible prose. The Feature-narrative lines
+  // stay finding-free; the one IN-BODY prose line falls to dropped-prose,
+  // which is the accounting rule, not a keyword diagnosis.
   const findings = lintFeature(
     'Feature: F\n  scenarios: covered in the payments epic\n'
     + '  features: split per team\n  example: the happy path\n\n'
     + 'Scenario: S\n  Given a counter at 0\n  rule: refunds beat store credit\n'
     + '  Then the counter is 0\n');
-  assert.deepStrictEqual(findings, []);
+  assert.deepStrictEqual(rules(findings), ['dropped-prose']);
+  assert.strictEqual(findings[0].line, 8);
 });
 
 // --- ordering & composition -------------------------------------------------------
@@ -383,14 +389,111 @@ test('unused-column: fires once per column, not once per expanded row', () => {
   assert.deepStrictEqual(findings.map((f) => f.line), [6, 6]);
 });
 
-// --- no-scenarios (a dialect error, not a separate rule) ---------------------------
+// --- no-scenarios ------------------------------------------------------------------
+// Its own rule name since 0.9.0 (the intent tier ratified it as one): the
+// refusal still comes from the parser, but "add a scenario or delete the
+// file" is a different remedy than "fix this line", so it is not `dialect`.
 
-test('dialect: a Feature with no scenarios is an error finding at the Feature line', () => {
+test('no-scenarios: a Feature with no scenarios is an error finding at the Feature line', () => {
   const findings = lintFeature('Feature: Overdraft alerts\n  Alerts go out before the close of day.\n', 'v.feature');
-  assert.deepStrictEqual(rules(findings), ['dialect']);
+  assert.deepStrictEqual(rules(findings), ['no-scenarios']);
   assert.strictEqual(findings[0].severity, 'error');
   assert.strictEqual(findings[0].line, 1);
   assert.match(findings[0].message, /has no scenarios/);
+  assert.match(findings[0].message, /enforces nothing/);
+});
+
+// --- dropped-prose -----------------------------------------------------------------
+
+test('dropped-prose: an in-body prose line warns with the line text in the message', () => {
+  const findings = lintFeature(feat(
+    'Scenario: stays positive\n  Given a balance of 10\n'
+    + '  the balance must never go negative\n  Then the balance is 10\n'));
+  assert.deepStrictEqual(rules(findings), ['dropped-prose']);
+  assert.strictEqual(findings[0].severity, 'warn');
+  assert.strictEqual(findings[0].line, 4);
+  assert.match(findings[0].message, /"the balance must never go negative" is not a step/);
+  assert.match(findings[0].message, /# comment/);
+});
+
+test('dropped-prose: never doubles up on a line near-miss-keyword already claims', () => {
+  const findings = lintFeature(feat(
+    'Scenario: S\n  Given a counter at 0\n  when I add 5\n  Then the counter is 5\n'));
+  assert.deepStrictEqual(rules(findings), ['near-miss-keyword']);
+});
+
+test('dropped-prose: the Feature narrative and comments stay exempt', () => {
+  const findings = lintFeature(
+    'Feature: F\n  As a user\n  I want prose up here\n\n'
+    + 'Scenario: S\n  # commentary is visibly non-enforcing\n'
+    + '  Given a counter at 0\n  Then the counter is 0\n');
+  assert.deepStrictEqual(findings, []);
+});
+
+test('dropped-prose: Background bodies are covered too', () => {
+  const findings = lintFeature(feat(
+    'Background:\n  the store is seeded overnight\n  Given a counter at 0\n'
+    + 'Scenario: S\n  Then the counter is 0\n'));
+  assert.deepStrictEqual(rules(findings), ['dropped-prose']);
+  assert.strictEqual(findings[0].line, 3);
+});
+
+// --- strict mode -------------------------------------------------------------------
+
+test('strict: every warning is promoted to an error, nothing reworded or dropped', () => {
+  const text = feat('Scenario: poke\n  Given a thing\n  When I poke it\n'
+    + 'Scenario: waves\n  When I wave\n  Then it works\n');
+  const dflt = lintFeature(text);
+  assert.deepStrictEqual(rules(dflt), ['no-then', 'vague-then']);
+  assert.ok(dflt.every((f) => f.severity === 'warn'));
+  const strict = lintFeature(text, 'x.feature', { strict: true });
+  assert.deepStrictEqual(strict, dflt.map((f) => ({ ...f, severity: 'error' })));
+});
+
+test('strict: a default-clean file with no tags is strict-clean', () => {
+  const text = feat('Scenario: S\n  Given a counter at 0\n  Then the counter is 0\n');
+  assert.deepStrictEqual(lintFeature(text, 'x.feature', { strict: true }), []);
+});
+
+test('strict-tag: @skip and @only are errors naming the tag, only in strict mode', () => {
+  for (const tag of ['@skip', '@only']) {
+    const text = feat(`${tag}\nScenario: S\n  Given a counter at 0\n  Then the counter is 0\n`);
+    assert.deepStrictEqual(lintFeature(text), [], `${tag} lints clean in default mode`);
+    const strict = lintFeature(text, 'x.feature', { strict: true });
+    assert.deepStrictEqual(rules(strict), ['strict-tag'], `${tag} is flagged in strict mode`);
+    assert.strictEqual(strict[0].severity, 'error');
+    assert.strictEqual(strict[0].line, 3, 'reported at the tagged construct header');
+    assert.match(strict[0].message, new RegExp(`tag "${tag}" has no place in reviewed output`));
+  }
+});
+
+test('strict-tag: @todo is exempt — the stale-@todo inversion polices it at run time', () => {
+  // Visionary ruling (2026-08-03 review, position 17): a committed @todo
+  // that still fails is honest, self-retiring debt; one that passes is
+  // already red. Strict lint has nothing to add.
+  const text = feat('@todo\nScenario: S\n  Given a counter at 0\n  Then the counter is 0\n');
+  assert.deepStrictEqual(lintFeature(text, 'x.feature', { strict: true }), []);
+});
+
+test('strict-tag: an ordinary annotation tag is not flagged', () => {
+  const text = feat('@AC7\nScenario: S\n  Given a counter at 0\n  Then the counter is 0\n');
+  assert.deepStrictEqual(lintFeature(text, 'x.feature', { strict: true }), []);
+});
+
+test('strict-tag: a tagged outline fires once, not once per expanded row', () => {
+  const text = feat('@skip\nScenario Outline: add <n>\n  When I add <n>\n  Then the counter is <n>\n'
+    + '  Examples:\n    | n |\n    | 1 |\n    | 2 |\n    | 3 |\n');
+  const strict = lintFeature(text, 'x.feature', { strict: true });
+  assert.deepStrictEqual(rules(strict), ['strict-tag']);
+});
+
+test('strict-tag: a feature-level tag lands on every scenario it hides', () => {
+  const text = '@skip\nFeature: F\n'
+    + 'Scenario: one\n  Given a\n  Then b\n'
+    + 'Scenario: two\n  Given a\n  Then b\n';
+  const strict = lintFeature(text, 'x.feature', { strict: true });
+  assert.deepStrictEqual(rules(strict), ['strict-tag', 'strict-tag']);
+  assert.deepStrictEqual(strict.map((f) => f.line), [3, 6]);
 });
 
 test('duplicate-title: a plain scenario colliding with an outline row post-expansion is caught', () => {
@@ -405,11 +508,11 @@ test('duplicate-title: a plain scenario colliding with an outline row post-expan
   assert.match(findings[0].message, /"adds 1 \[1\]" repeats line 2's/);
 });
 
-test('dialect: the no-scenarios error names a construct near miss when one emptied the file', () => {
-  // lintFeature returns early on a dialect error, so near-miss-keyword never
+test('no-scenarios: the finding names a construct near miss when one emptied the file', () => {
+  // lintFeature returns early on a parser refusal, so near-miss-keyword never
   // runs for this file — the hint keeps 0.5.0's diagnostic from being masked.
   const findings = lintFeature('Feature: F\nscenario: s\n  given a\n  then ok\n', 'x.feature');
-  assert.deepStrictEqual(rules(findings), ['dialect']);
+  assert.deepStrictEqual(rules(findings), ['no-scenarios']);
   assert.match(findings[0].message, /has no scenarios/);
   assert.match(findings[0].message, /line 2 "scenario:" is not the exact construct keyword "Scenario:"/);
 });
