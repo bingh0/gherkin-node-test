@@ -1,7 +1,11 @@
 Feature: The binding ratchet
   Every scenario is enforced, declared, or red — there is no fourth state.
-  Debt is written down by name, stays visible on every run, and is cleared
-  only by hand. The ratchet turns one way: what has been enforced can never
+  Declaration has two ratcheted inks — the wip register for bindings not
+  yet written, the @todo tag for behavior not yet true — and one
+  unratcheted ink, @skip, which no machine can age and which pays for it
+  in visibility: strict lint flags it, the manifest counts it. Debt is
+  written down by name, stays visible on every run, and is cleared only
+  by hand. The ratchet turns one way: what has been enforced can never
   quietly return to pending. Green means the ledger balances.
 
   Scenario: declared debt keeps the run green and visible
@@ -10,7 +14,7 @@ Feature: The binding ratchet
     And the other 2 declared as work in progress by name
     When the suite runs
     Then the 3 bound scenarios are enforced and pass
-    And the 2 declared scenarios are reported as TODO by name
+    And the 2 declared scenarios are reported as unbound by name
     And the run is green
 
   Scenario: undeclared debt is red

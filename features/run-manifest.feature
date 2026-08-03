@@ -7,9 +7,11 @@ Feature: The run manifest
 
   Scenario: a full run writes one account of every scenario
     Given a suite of 5 scenarios where 2 pass, 1 is declared work in progress, 1 is tagged "@skip", and 1 is tagged "@todo"
+    And a scenario outline with a two-row examples table, both rows passing
     When the full run completes
     Then one account file exists
-    And it records 5 rows: 2 passed, 1 unbound, 1 skipped, 1 todo
+    And it records 7 rows: 4 passed, 1 unbound, 1 skipped, 1 todo
+    And each outline row is its own row, named for its row
     And the rows are sorted by file, then title
 
   Scenario: failure is recorded, not hidden

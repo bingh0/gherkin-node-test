@@ -5,9 +5,10 @@ Feature: The parse surface
   none of them get a different parse.
 
   Scenario: a dialect file yields one complete representation
-    Given a feature file inside the dialect with 3 scenarios, one carrying the tag "@AC3", and a narrative block
+    Given a feature file inside the dialect with a Background, two scenarios — one tagged "@AC3", one whose step carries a data table — a scenario outline with a two-row examples table, and a narrative block
     When the file is parsed
-    Then the parse yields all 3 scenarios with their steps and tags
+    Then the parse yields both scenarios and the outline with their steps and tags
+    And the Background steps, the table cells, and both examples rows are in the representation
     And the narrative lines are recorded as ignored text, not lost
 
   Scenario: a file outside the dialect is refused whole

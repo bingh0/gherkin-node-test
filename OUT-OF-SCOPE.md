@@ -50,6 +50,11 @@ the visionary's terms, with the one-line why. The reviewed contract is
     fails); lives on as an /audit checklist line.
 16. **The abdd philosophy** — named, and deliberately absent: gnt enables
     the practice and is not its arbiter; this contract never mentions it.
+17. **Tag-conflict rejection mechanics** (@skip with @todo on one scenario,
+    a feature tag conflicting with a scenario tag) — design tier: the
+    reviewed tier pins each tag's verdict semantics; the parse-time
+    rejection shape joins the rejection matrix (see 13). *(Added at the
+    2026-08-03 file-by-file review, visionary sanction.)*
 
 Implementation decisions deferred throughout: languages, frameworks,
 runtimes' internals, storage, and everything else stack-shaped raised in

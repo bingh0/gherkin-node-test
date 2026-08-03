@@ -2,10 +2,13 @@ Feature: The dialect gate
   A dogmatic, minimal Gherkin that brooks no ambiguity. Zero findings means
   full membership in the dialect — every line understood, nothing silently
   dropped, nothing quietly reinterpreted. Every finding names its line and
-  its rule, so the author can fix the file from the findings alone.
+  its rule, so the author can fix the file from the findings alone. A new
+  rule enters this gate only through the four admission tests of
+  docs/lint-admission.md; a rule that cannot pass them belongs to the
+  readers, not the gate.
 
   Scenario: zero findings means full membership
-    Given a feature file with a Background, a tagged scenario, and a scenario outline with a two-row examples table
+    Given a feature file with a Background, a tagged scenario whose step carries a data table, and a scenario outline with a two-row examples table
     When the file is linted
     Then the lint reports zero findings
 
@@ -59,6 +62,12 @@ Feature: The dialect gate
     Given a scenario body containing the line "Give a counter at 0"
     When the file is linted
     Then a finding accounts for that line
+
+  Scenario: a feature file with no scenarios is an error
+    Given a feature file with a Feature header and narrative lines but no scenarios
+    When the file is linted
+    Then an error finding cites the rule "no-scenarios"
+    And the finding states that the file enforces nothing
 
   Scenario: strict mode promotes every warning to an error
     Given a feature file whose lint yields 2 warnings and 0 errors

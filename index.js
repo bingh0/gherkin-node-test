@@ -737,6 +737,10 @@ const VAGUE_THEN = /\b(works|correctly|properly|as expected|handles|appropriate)
  * debt register, and that register (a wip-style allowlist, filtering by rule)
  * belongs to the consumer.
  *
+ * New rules must pass the four admission tests in docs/lint-admission.md
+ * before they appear here — and every rule admitted here must be pinned by a
+ * scenario in features/dialect-gate.feature, or it is untested contract.
+ *
  * @param {string} text     raw .feature file contents
  * @param {string} [filename] used only to prefix the dialect finding's message
  * @returns {LintFinding[]} sorted by line, then declaration order
