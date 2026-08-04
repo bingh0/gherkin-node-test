@@ -63,6 +63,11 @@ Feature: The dialect gate
     When the file is linted
     Then a finding accounts for that line
 
+  Scenario: prose above the Feature line is a finding
+    Given a file opening with the line "billing rules, per compliance" above its Feature line
+    When the file is linted
+    Then a finding flags that line as prose preceding the Feature line
+
   Scenario: a feature file with no scenarios is an error
     Given a feature file with a Feature header and narrative lines but no scenarios
     When the file is linted
@@ -85,3 +90,9 @@ Feature: The dialect gate
     And the same file lints with zero findings in default mode
     When the file is linted in strict mode
     Then a finding flags the "@skip" tag
+
+  Scenario: strict mode flags a committed focus tag
+    Given a feature file whose scenario carries the tag "@only"
+    And the same file lints with zero findings in default mode
+    When the file is linted in strict mode
+    Then a finding flags the "@only" tag

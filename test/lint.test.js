@@ -422,6 +422,23 @@ test('dropped-prose: never doubles up on a line near-miss-keyword already claims
   assert.deepStrictEqual(rules(findings), ['near-miss-keyword']);
 });
 
+test('dropped-prose: prose above the Feature line is flagged with its own remedy', () => {
+  const findings = lintFeature(
+    'billing rules, per compliance\nFeature: F\nScenario: S\n  Given a\n  Then b\n');
+  assert.deepStrictEqual(rules(findings), ['dropped-prose']);
+  assert.strictEqual(findings[0].line, 1);
+  assert.match(findings[0].message, /precedes the Feature: line/);
+  assert.match(findings[0].message, /# comment/);
+});
+
+test('dropped-prose: a construct near miss above the Feature line stays claimed by near-miss', () => {
+  // The claim check precedes the pre-Feature branch — one finding per line,
+  // with the sharper diagnosis winning (increment review F2, 2026-08-03).
+  const findings = lintFeature('Feature : almost\nFeature: F\nScenario: S\n  Given a\n  Then b\n');
+  assert.deepStrictEqual(rules(findings), ['near-miss-keyword']);
+  assert.strictEqual(findings[0].line, 1);
+});
+
 test('dropped-prose: the Feature narrative and comments stay exempt', () => {
   const findings = lintFeature(
     'Feature: F\n  As a user\n  I want prose up here\n\n'

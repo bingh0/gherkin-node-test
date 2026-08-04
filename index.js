@@ -229,7 +229,7 @@ function currentTestFile() {
 /** @typedef {{ name: string, steps: Step[], line: number, tags: string[] }} Scenario */
 /** @typedef {{ name: string, line: number, rows: number, header: string[], headerLine: number, placeholders: string[] }} OutlineMeta */
 /** @typedef {{ line: number, text: string, inBody: boolean }} NarrativeLine */
-/** @typedef {{ feature: string, background: Step[], scenarios: Scenario[], outlines: OutlineMeta[], narrative: NarrativeLine[], file: string }} ParsedFeature */
+/** @typedef {{ feature: string, featureLine: number, background: Step[], scenarios: Scenario[], outlines: OutlineMeta[], narrative: NarrativeLine[], file: string }} ParsedFeature */
 /** @typedef {(world: Record<string, any>, ...args: any[]) => (void | Promise<void>)} StepFn */
 
 /**
@@ -585,7 +585,7 @@ function parseFeature(text, filename = '<feature>') {
     }
     fail(featureLine, `Feature "${feature}" has no scenarios — the file enforces nothing and would read as passing${hint}`, 'no-scenarios');
   }
-  return { feature, background, scenarios, outlines, narrative, file: filename };
+  return { feature, featureLine, background, scenarios, outlines, narrative, file: filename };
 }
 
 // --- Linter -------------------------------------------------------------------
@@ -909,8 +909,17 @@ function lintFeature(text, filename = '<feature>', opts = {}) {
   // line the walk above did not claim gets a finding, so no line inside a body
   // vanishes in silence. Near miss keeps its lines: it is the sharper
   // diagnosis, and one finding per dropped line is the accounting contract.
+  // Lines ABOVE the Feature: header are covered too (ratified 2026-08-03,
+  // owner queue): they are under no Feature, so the narrative exemption does
+  // not apply — only tags and # comments live up there.
   for (const n of parsed.narrative) {
-    if (!n.inBody || nearMissed.has(n.line)) continue;
+    if (nearMissed.has(n.line)) continue;
+    if (n.line < parsed.featureLine) {
+      warn('dropped-prose', n.line,
+        `"${n.text}" precedes the Feature: line — the parser drops it silently and it enforces nothing; move it below the Feature: header, or make it a # comment`);
+      continue;
+    }
+    if (!n.inBody) continue;
     warn('dropped-prose', n.line,
       `"${n.text}" is not a step — the parser drops this line silently and it enforces nothing; make it a Given/When/Then step, or a # comment if it is commentary`);
   }
@@ -1100,7 +1109,11 @@ async function executeSteps(steps, registry, world = {}) {
  * silently swallowing a bound feature). Tag mapping: @skip → skipped; @todo →
  * inverted (xfail) as a plain test: the body runs on every runtime, an
  * expected failure is printed and gates nothing, and a @todo that PASSES is
- * red naming the stale tag. @only maps to NOTHING — it registers a failing test
+ * red naming the stale tag. (Plain registration means the JS runtimes show
+ * no todo marker for these — todo-ness lives in the printed line, the
+ * feature file, and the manifest row; the cargo sibling's harness supports
+ * kind markers and keeps its [todo] label — accepted asymmetry, ratified
+ * 2026-08-03.) @only maps to NOTHING — it registers a failing test
  * instead, because the runners' focus semantics are irreconcilable: Node keeps
  * only: inert without --test-only; Bun and Deno focus the file on every run
  * with no flag, and Deno exits 0 doing it, so a committed @only would silently
@@ -1177,8 +1190,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null) 
     // goes red instead, naming the stale tag — the same one-way ratchet the
     // wip register applies to unbound scenarios.
     if (tags.has('@todo')) {
-      recorder?.static(parsed.file, sc.name, 'todo');
-      register(title, {}, async () => {
+      const inverted = async () => {
         try {
           await body();
         } catch (e) {
@@ -1188,7 +1200,14 @@ function runFeature(parsed, registry, register = registerTest, recorder = null) 
         }
         throw new Error(
           `${parsed.file}: @todo scenario "${sc.name}" now passes — the tag is stale; remove @todo so the scenario gates the run`);
-      });
+      };
+      // Execution-recorded, unlike @skip: the inversion runs everywhere, so
+      // the row is deterministic — 'todo' while the debt still fails, and
+      // 'failed' when the tag is stale, so a red run's account explains
+      // itself (see wrap's mapping doc).
+      register(title, {}, recorder
+        ? recorder.wrap(parsed.file, sc.name, inverted, { ok: 'todo', err: 'failed' })
+        : inverted);
       continue;
     }
     if (tags.has('@skip')) {
@@ -1276,14 +1295,14 @@ function compareCodePoints(a, b) {
  *    run writes the same bytes on every platform, at every checkout path, and
  *    however the caller spelled the feature dir — an absolute `dir` argument
  *    must not leak machine paths into committed bytes.
- *  - @skip / @todo / unbound are recorded at REGISTRATION, never from body
- *    execution: skip and unbound bodies run nowhere or inconsistently (the
- *    runtimes disagree about todo-mode bodies — node always executes them,
- *    bun only under --todo, Deno never), and a @todo body, though it now
- *    runs everywhere (inverted, registered plain — see runFeature), has a
- *    row that means "declared expected-fail", which is true whether the
- *    debt currently fails (green) or has gone stale (red). Only a plain
- *    bound scenario records from execution: passed or failed.
+ *  - @skip / unbound are recorded at REGISTRATION, never from body
+ *    execution: those bodies run nowhere or inconsistently (the runtimes
+ *    disagree about todo-mode bodies — node always executes them, bun only
+ *    under --todo, Deno never). @todo records from EXECUTION since the
+ *    inversion made its body run everywhere: 'todo' while the declared debt
+ *    still fails, 'failed' when the tag has gone stale — a red run's
+ *    account must explain the red (ratified 2026-08-03). Plain bound
+ *    scenarios record passed or failed.
  *  - The file is written exactly ONCE, when every expected outcome has been
  *    recorded. A filtered (--test-name-pattern / -t / --filter), bailed, or
  *    crashed run never writes — a partial account must not overwrite a full
@@ -1342,13 +1361,21 @@ function createManifestWriter(manifestPath) {
       rows.push({ file: norm(file), title, status });
     },
     /**
-     * Wrap a plain bound scenario body: its resolution records passed/failed
-     * (the failure still propagates — recording never swallows it).
+     * Wrap a scenario body: its resolution records a row (the failure still
+     * propagates — recording never swallows it). A plain bound scenario maps
+     * resolve → 'passed', throw → 'failed'. The @todo inversion passes its
+     * own mapping: the INVERTED body resolving means the debt still fails
+     * (row 'todo'), and it throwing means the tag went stale — the run is
+     * red and the account must be able to explain it, so the row is
+     * 'failed', never a green-looking declaration (ratified 2026-08-03,
+     * owner queue). Both mappings are execution-recorded and deterministic:
+     * @todo bodies run on every runtime since the inversion.
      * @param {string} file @param {string} title
      * @param {() => Promise<void>} fn
+     * @param {{ ok: ManifestStatus, err: ManifestStatus }} [statuses]
      * @returns {() => Promise<void>}
      */
-    wrap(file, title, fn) {
+    wrap(file, title, fn, statuses = { ok: 'passed', err: 'failed' }) {
       pending += 1;
       let invoked = false;
       return async () => {
@@ -1365,15 +1392,14 @@ function createManifestWriter(manifestPath) {
             + 'the manifest option.');
         }
         invoked = true;
-        /** @type {ManifestStatus} */
-        let status = 'passed';
+        let threw = false;
         try {
           await fn();
         } catch (e) {
-          status = 'failed';
+          threw = true;
           throw e;
         } finally {
-          rows.push({ file: norm(file), title, status });
+          rows.push({ file: norm(file), title, status: threw ? statuses.err : statuses.ok });
           pending -= 1;
           try {
             maybeWrite();
@@ -1382,7 +1408,7 @@ function createManifestWriter(manifestPath) {
             // precedence executeSteps gives step failures over cleanup
             // errors. A green last scenario still surfaces the write failure
             // loudly, and the next full run stays loud either way.
-            if (status !== 'failed') throw e;
+            if (!threw) throw e;
           }
         }
       };

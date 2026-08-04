@@ -29,6 +29,13 @@ runFeatures(path.join(here, '..', '..', 'features', 'good'), {
 const manifestFile = path.join(here, '..', '.manifest-out', 'vitest-partial.ndjson');
 fs.mkdirSync(path.dirname(manifestFile), { recursive: true });
 fs.rmSync(manifestFile, { force: true });
+// The @todo inversion under the adapter runtime: the declared failure is
+// tolerated (this registered test passes) — the lane fails if vitest ever
+// gates on it. Stale-@todo redness is pinned by the native lanes.
+runFeatures(path.join(here, '..', '..', 'features', 'todotag'), {
+  'flaky': (reg) => reg.define('boom', () => { throw new Error('todo failure'); }),
+});
+
 runFeatures(path.join(here, '..', '..', 'features', 'partial'), {
   'partial': (reg) => { reg.define(/^a bound step$/, () => {}); },
 }, {

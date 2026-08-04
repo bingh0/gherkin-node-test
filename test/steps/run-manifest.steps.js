@@ -68,6 +68,12 @@ module.exports = (reg) => {
     w.redRun = true;
   });
 
+  reg.define(/^a suite whose declared "@todo" scenario now passes$/, (w) => {
+    w.manifest = outPath('account-stale-todo.ndjson');
+    fs.rmSync(w.manifest, { force: true });
+    w.staleTodo = true;
+  });
+
   reg.define(/^an account file and nothing else$/, async (w) => {
     w.manifest = outPath('account-selfdescribing.ndjson');
     fs.rmSync(w.manifest, { force: true });
@@ -144,6 +150,21 @@ module.exports = (reg) => {
   // --- Whens -------------------------------------------------------------
 
   reg.define(/^the full run completes$/, async (w) => {
+    if (w.staleTodo) {
+      // The account corpus with the @todo scenario's step bound to PASS —
+      // the declared debt has been paid but the tag remains.
+      const staleDefs = {
+        mixed: (/** @type {any} */ r) => {
+          r.define(/^a bound step$/, () => {});
+          r.define(/^a bound step that still fails$/, () => {});
+          r.define(/^case (\d+) of two runs$/, () => {});
+          r.define(/^the outcome is visible$/, () => {});
+        },
+      };
+      w.res = await new SubRun()
+        .registerDir('account', staleDefs, { ...ACCOUNT_OPTS, manifest: w.manifest }).run();
+      return;
+    }
     if (w.optedOut) {
       w.res = await new SubRun().registerDir('account', accountDefs, ACCOUNT_OPTS).run();
       return;
@@ -284,6 +305,22 @@ module.exports = (reg) => {
   reg.define(/^the account is written even though the run is red$/, (w) => {
     assert.ok(w.res.failures.length > 0, 'the run really is red');
     assert.ok(fs.existsSync(w.manifest), 'and the account still exists');
+  });
+
+  reg.define(/^the account records the stale scenario with status "failed"$/, (w) => {
+    const rows = readRows(w.manifest);
+    const hit = rows.find((r) => r.title === 'aspirational one');
+    assert.ok(hit, `the stale scenario has a row: ${JSON.stringify(rows)}`);
+    assert.strictEqual(hit.status, 'failed',
+      'the row is the verdict the account must explain, not the declaration');
+    // The red really is the staleness, not some other failure.
+    assert.ok(w.res.failureText().includes('stale'), w.res.failureText());
+  });
+
+  reg.define(/^no row of the account reads "todo"$/, (w) => {
+    const rows = readRows(w.manifest);
+    assert.ok(rows.every((r) => r.status !== 'todo'),
+      `'todo' means declared AND still failing — a stale account carries none: ${JSON.stringify(rows)}`);
   });
 
   reg.define(/^every verdict is identical to a run with no account present$/, async (w) => {

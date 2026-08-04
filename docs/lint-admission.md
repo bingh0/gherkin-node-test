@@ -114,6 +114,12 @@ at the 2026-08-03 visionary review.*
 3. **Subset**: the parse is unchanged — mainstream Gherkin also treats these
    lines as inert description; gnt only refuses to stay *silent* about the
    ones inside a body. Nothing is reinterpreted.
+   *Extended 2026-08-03 (owner ruling): lines ABOVE the `Feature:` header are
+   covered too, with their own remedy text — they are under no Feature, so
+   the narrative exemption cannot apply; only tags and `#` comments live up
+   there. This closed the last silent-drop hole for files that parse; a
+   refused file reports its refusal alone, which is the established
+   dialect-finding-is-always-alone precedent, and refusals are loud.*
 4. **Loudness**: warn by default (the `near-miss-keyword` precedent — adopting
    the rule on an existing suite needs the consumer's own debt register);
    strict promotes it. It fires only on in-body prose, which honest agent
@@ -139,7 +145,12 @@ per the fence. `strict-tag` is the one strict-only rule, and it covers
 `@skip` and `@only` — **not `@todo`**, by visionary ruling (2026-08-03
 review, position 17): the stale-@todo run-time inversion supersedes any lint
 on the tag — a committed @todo that still fails is honest, visible,
-self-retiring debt, and one that passes is already red.
+self-retiring debt, and one that passes is already red. `@only`'s inclusion
+was ratified with its own anchor scenario (2026-08-03 owner ruling); it
+protects lint-only consumers whose runner never reaches gnt's @only
+refusal. Accepted parity cost, same ruling: the message's remedy names the
+JS runners' focus flags on both siblings — finding text is byte-contracted,
+and gct's own runner refusal supplies the `cargo test` phrasing at run time.
 
 1. **Unique remedy**: names the tag, at the header line of each construct the
    tag reaches (a feature-level tag lands on every scenario it hides); each

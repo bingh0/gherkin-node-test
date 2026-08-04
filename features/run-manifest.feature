@@ -20,6 +20,13 @@ Feature: The run manifest
     Then the account records that scenario with status "failed"
     And the account is written even though the run is red
 
+  Scenario: a stale todo is recorded as the failure it is
+    Given a suite whose declared "@todo" scenario now passes
+    When the full run completes
+    Then the account records the stale scenario with status "failed"
+    And no row of the account reads "todo"
+    And the account is written even though the run is red
+
   Scenario: the account speaks for itself
     Given an account file and nothing else
     When a reader opens it

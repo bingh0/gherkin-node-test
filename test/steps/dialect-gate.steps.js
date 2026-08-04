@@ -147,6 +147,27 @@ module.exports = (reg) => {
     w.bodyLine = 4;
   });
 
+  reg.define(/^a file opening with the line "([^"]*)" above its Feature line$/, (w, opener) => {
+    w.text = text([
+      opener,                      // 1 — above the Feature line, silently dropped pre-0.9.0
+      'Feature: Compliance',
+      '  Scenario: audited',
+      '    Given a balance of 10',
+      '    Then the balance is 10',
+    ]);
+    w.bodyLine = 1;
+  });
+
+  reg.define(/^a feature file whose scenario carries the tag "@only"$/, (w) => {
+    w.text = text([
+      'Feature: Committed focus',
+      '  @only',
+      '  Scenario: favored',
+      '    Given a counter at 0',
+      '    Then the counter is 0',
+    ]);
+  });
+
   reg.define(/^a feature file with a Feature header and narrative lines but no scenarios$/, (w) => {
     w.text = text([
       'Feature: Overdraft alerts',
@@ -280,7 +301,17 @@ module.exports = (reg) => {
     const hit = w.findings.find((/** @type {any} */ f) =>
       f.rule === 'dropped-prose' && f.line === w.bodyLine);
     assert.ok(hit, `expected dropped-prose at line ${w.bodyLine}, got ${JSON.stringify(w.findings)}`);
-    assert.match(String(hit.message), /is not a step/, 'the finding says what the line failed to be');
+    assert.match(String(hit.message), /is not a step/, 'the in-body shape says what the line failed to be');
+  });
+
+  reg.define(/^a finding flags that line as prose preceding the Feature line$/, (w) => {
+    // The pre-Feature shape has its OWN remedy text — pinned here, because
+    // the increment review mutant-proved a message swap survived a shared
+    // loosened assertion (2026-08-03).
+    const hit = w.findings.find((/** @type {any} */ f) =>
+      f.rule === 'dropped-prose' && f.line === w.bodyLine);
+    assert.ok(hit, `expected dropped-prose at line ${w.bodyLine}, got ${JSON.stringify(w.findings)}`);
+    assert.match(String(hit.message), /precedes the Feature: line/, 'the pre-Feature shape names its position');
   });
 
   reg.define(/^a finding accounts for that line$/, (w) => {
@@ -317,5 +348,13 @@ module.exports = (reg) => {
     const hit = w.findings.find((/** @type {any} */ f) => f.rule === 'strict-tag');
     assert.ok(hit, `expected a strict-tag finding, got ${JSON.stringify(w.findings)}`);
     assert.match(String(hit.message), /"@skip"/, 'the finding names the tag');
+  });
+
+  reg.define(/^a finding flags the "@only" tag$/, (w) => {
+    const hit = w.findings.find((/** @type {any} */ f) => f.rule === 'strict-tag');
+    assert.ok(hit, `expected a strict-tag finding, got ${JSON.stringify(w.findings)}`);
+    assert.match(String(hit.message), /"@only"/, 'the finding names the tag');
+    assert.strictEqual(hit.severity, 'error');
+    assert.strictEqual(hit.line, 3, 'reported at the tagged construct header');
   });
 };

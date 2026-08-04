@@ -16,7 +16,9 @@
 {"file":"features/dialect-gate.feature","title":"an examples column nothing references is flagged","status":"passed"}
 {"file":"features/dialect-gate.feature","title":"an outline with a single example row is flagged","status":"passed"}
 {"file":"features/dialect-gate.feature","title":"no line vanishes without a finding","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"prose above the Feature line is a finding","status":"passed"}
 {"file":"features/dialect-gate.feature","title":"prose inside a scenario body is a finding","status":"passed"}
+{"file":"features/dialect-gate.feature","title":"strict mode flags a committed focus tag","status":"passed"}
 {"file":"features/dialect-gate.feature","title":"strict mode flags tags that have no place in reviewed output","status":"passed"}
 {"file":"features/dialect-gate.feature","title":"strict mode promotes every warning to an error","status":"passed"}
 {"file":"features/dialect-gate.feature","title":"two scenarios sharing a title are an error","status":"passed"}
@@ -43,6 +45,7 @@
 {"file":"features/run-manifest.feature","title":"a full run writes one account of every scenario","status":"passed"}
 {"file":"features/run-manifest.feature","title":"a partial run never writes","status":"passed"}
 {"file":"features/run-manifest.feature","title":"a re-run body poisons the account","status":"passed"}
+{"file":"features/run-manifest.feature","title":"a stale todo is recorded as the failure it is","status":"passed"}
 {"file":"features/run-manifest.feature","title":"a write failure is loud","status":"passed"}
 {"file":"features/run-manifest.feature","title":"failure is recorded, not hidden","status":"passed"}
 {"file":"features/run-manifest.feature","title":"identical results write identical bytes","status":"passed"}
