@@ -1,30 +1,34 @@
 # The target dialect — gherkin-*-test supported grammar
 
 Feature files produced by `/scope` must parse under gherkin-node-test /
-gherkin-cargo-test (pinned dialect, **0.6.0**) and pass the SKILL.md
+gherkin-cargo-test (pinned dialect, **0.9.0**) and pass the SKILL.md
 validation script with zero findings. This file is authoring guidance
 verified against the parser source (`index.js`: `parseFeature`,
 `lintFeature`); the code is the authority when prose disagrees.
 
 ## The silent-narrative rule (biggest authoring hazard)
 
-The parser ignores, without any finding, **every line that isn't a recognized
-construct** — that is how the `As a… / I want… / So that…` narrative is
-skipped, but it applies *anywhere in the file*, and keywords are
-**exact-case**: `when I add 5` or `GIVEN a counter` is not a step, it is
-narrative, and it vanishes silently (verified: the parsed scenario simply
-lacks that step, zero lint findings).
+The parser ignores **every line that isn't a recognized construct** — that
+is how the `As a… / I want… / So that…` narrative is skipped, it applies
+*anywhere in the file*, and keywords are **exact-case**: `when I add 5` or
+`GIVEN a counter` is not a step, it is narrative. The parse itself is
+unchanged about this — but since 0.9.0 the *lint* accounts for every dropped
+line: `near-miss-keyword` (0.5.0) catches a line that was almost certainly
+meant as syntax, and `dropped-prose` (0.9.0) is the floor under it — any
+other dropped line inside a scenario body, and any non-tag, non-comment line
+above the `Feature:` header, gets a finding naming the line and the fix. A
+misspelled keyword (`Give a counter`), a non-English keyword, and a
+requirement written as prose all land in `dropped-prose` now. The older
+structural backstops remain: a scenario whose steps *all* vanish trips the
+no-steps guard; a vanished `Then` trips `no-then`.
 
-Three backstops exist, and only the third is direct. A scenario whose steps
-*all* vanish trips the no-steps guard; a vanished `Then` trips `no-then`; and
-since 0.5.0 `near-miss-keyword` catches a dropped line that was almost certainly
-meant as syntax, read off the parser's own record of what it ignored. What that
-rule does **not** catch still defines the discipline below: a keyword that is
-*misspelled* rather than miscased (`Give a counter`), a non-English keyword, and
-— the big one — a requirement simply written as prose. None of the rules below
-is retired by it. (The SKILL.md validation script closes the prose gap for
-scoping output with its `silent-narrative` check: in `/scope` output, *any*
-dropped line inside a scenario body is an error.)
+`dropped-prose` is a warn in default mode — `/scope` output must be
+finding-free, so for scoping purposes it is effectively an error (the
+SKILL.md validation script's `silent-narrative` check predates it and stays;
+the lint rule now enforces the same discipline for every consumer, not just
+`/scope` output). The one dropped-line class no lint can see: a narrative
+line beginning with `|` directly after a step, which the parser *accepts* as
+that step's data table — see below.
 
 There is a second shape of this hazard the rule also covers, and it is nastier
 than the step case because both older backstops are blind to it: a **near-miss

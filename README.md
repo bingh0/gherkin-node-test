@@ -208,8 +208,12 @@ Everything above makes a run that *happens* honest. It cannot make a run
 happen: a feature directory nobody points `runFeatures` at is green by
 absence — spec present, enforcement quietly missing, invisible in any diff of
 the feature files. Results can't expose that class, because the lie is that
-no result exists. The fix is one written sentence per run: **the runner
-writes down what ran, so a reader can notice what didn't.**
+no result exists. (The nearby misses *are* refused: a missing feature
+directory, a path that isn't a directory, and a directory with no `.feature`
+files each fail the run with a registered test naming the path and the fix —
+never a raw stack, never a silently green zero-scenario run.) The fix for
+the far miss is one written sentence per run: **the runner writes down what
+ran, so a reader can notice what didn't.**
 
 ```js
 runFeatures('features', definers, {
@@ -229,7 +233,13 @@ Commit the manifest. A tool (or a reviewer) joining it against the `.feature`
 files in the tree sees the silent class structurally: a feature file with no
 rows in any manifest is coverage that isn't running.
 
-The format is a contract, held deliberately small:
+The format is a contract, held deliberately small — and the file explains
+itself: every account opens with an in-band schema declaration,
+`{"run-manifest":1}`, so a reader holding nothing but the file knows what
+they have. The key names the *format*, not the tool: the Rust sibling
+writes byte-identical accounts. The version bumps only on a change that
+would mislead a version-1 reader (a changed row shape or sort order — not
+a new status value).
 
 - **Rows are `{file, title, status}` and nothing else.** No timestamps, no
   durations — volatile fields would churn git for nothing. The manifest's
@@ -241,11 +251,14 @@ The format is a contract, held deliberately small:
   argument (the robust idiom under vitest) never leaks machine paths into
   committed bytes, and downstream joins stay portable.
 - **Statuses are runtime-independent.** `passed` and `failed` come from
-  execution; `skipped` (@skip), `todo` (@todo), and `unbound` (the wip
-  register's grain) come from *registration* — the runtimes disagree about
-  whether skip/todo bodies run, and a status that varied by runtime would
-  break bytes-follow-results. The same run writes the same bytes on Node,
-  Bun, Deno, vitest, and every OS (`\` normalizes to `/`).
+  execution; `skipped` (@skip) and `unbound` (the wip register's grain) come
+  from *registration* — those bodies run nowhere or inconsistently, and a
+  status that varied by runtime would break bytes-follow-results. `todo`
+  comes from execution too, safely: the @todo inversion runs its body on
+  every runtime, so the row is deterministic — `todo` means *declared and
+  still failing*, and a stale @todo (one that passes) writes `failed`, so a
+  red run's account explains the red. The same run writes the same bytes on
+  Node, Bun, Deno, vitest, and every OS (`\` normalizes to `/`).
 - **A partial run never writes.** The file is written exactly once, when
   every registered scenario's outcome has been observed. A name-filtered
   (`--test-name-pattern` / `-t` / `--filter`), bailed, or crashed run leaves
@@ -345,13 +358,18 @@ call per file keeps every load error ahead of every registration — loud on all
 three runtimes. (The refusal is *registered*, not thrown, for the same
 swallow reason.)
 
+**`@todo` is one behavior everywhere too — by inversion (0.9.0).** The
+runtimes' own todo modes are irreconcilable (Node reports a failing todo as
+*passing*, Bun runs todo bodies only under `--todo`, Deno never runs them),
+so the tag's semantics live in the registered body instead: a @todo
+scenario runs as a plain test on every runtime, its declared failure is
+printed and gates nothing — and the run that would first turn it *green*
+goes red instead, naming the stale tag. Declared debt is visible while it
+lasts and self-retiring when it's paid: the only exit is deleting the tag,
+a one-line reviewed diff.
+
 What still differs — the honest list, pinned by tests:
 
-- **`@todo` scenario bodies**: Node executes them (failures shown, never
-  gate); Bun executes them only under `bun test --todo` (where a *passing*
-  todo fails the run); Deno never executes them (todo folds into "ignored").
-  The safety-relevant part is uniform: `@todo` never gates the suite anywhere,
-  and its steps must still bind.
 - **Reporter output** (test counts, summary format) is each runtime's own.
 - **Permissions**: only Deno needs a flag (`--allow-read`).
 
@@ -404,10 +422,11 @@ Details worth knowing:
   vitest's watch mode re-executes a spec file in a worker whose module cache
   survives — the guard's bookkeeping would misread that re-run as a second
   call.
-- `@todo` scenarios and unbound-step placeholders register as `test.todo`;
-  vitest reports them as todo and never runs their bodies, and the unbound-step
-  *ratchet* still fails the suite through the guard test, exactly as on the
-  native runtimes.
+- Unbound-step placeholders register as `test.todo`; vitest reports them as
+  todo and never runs their bodies, and the unbound-step *ratchet* still
+  fails the suite through the guard test, exactly as on the native runtimes.
+  `@todo` scenarios register as plain tests (the inversion carries the tag's
+  semantics), so they behave under vitest exactly as everywhere else.
 - `bindRunner(testFn)` is exported from the main entry too, for any other
   runner exposing the method-form shape: `test(name, fn)` plus
   `.skip(name, fn)` and `.todo(name, fn)`. The shape is strict about todo
@@ -467,7 +486,7 @@ comparison.
 | `<placeholder>` | substituted from the Examples columns — in step text **and** step data tables; every `<name>` must match a column |
 | Steps | `Given` `When` `Then` `And` `But` `*`, followed by step text |
 | Step data tables | `\|` rows after a step attach to it; the step function receives a **`DataTable`** as its last argument |
-| Tags | `@skip` → skipped (steps must still bind); `@todo` → registered, never gates; `@only` → **rejected loudly** (focus with your runner's per-run filter instead); the three are mutually exclusive; tags on `Feature:` apply to all its scenarios; any other tag is carried on `scenario.tags` with no runtime effect |
+| Tags | `@skip` → skipped (steps must still bind); `@todo` → inverted (runs everywhere, expected to fail, gates nothing — a *passing* @todo fails the run naming the stale tag); `@only` → **rejected loudly** (focus with your runner's per-run filter instead); the three are mutually exclusive; tags on `Feature:` apply to all its scenarios; any other tag is carried on `scenario.tags` with no runtime effect |
 | `# comment` | ignored anywhere |
 | Feature narrative | the `As a… / I want… / So that…` prose block is ignored |
 
@@ -476,9 +495,10 @@ backslash) and `\n` (newline); a backslash before any other character is
 literal, so cells like `C:\Temp` or `Cmd+\` need no escaping.
 
 Tag semantics: `@skip` never executes the scenario (but its steps must still be
-*bound* — skip means "don't run", never "don't bind"); `@todo` doesn't gate the
-run (Node executes the body and reports failures; Bun executes it only under
-`--todo`; Deno never executes it); `@only` is **rejected as a failing test on
+*bound* — skip means "don't run", never "don't bind"); `@todo` is inverted
+(xfail): the body runs on every runtime, an expected failure is printed and
+gates nothing, and a @todo that *passes* fails the run naming the stale tag —
+remove the tag and the scenario gates normally; `@only` is **rejected as a failing test on
 every runtime** — see [One behavior on all three runtimes](#one-behavior-on-all-three-runtimes)
 for why, and for the per-runner focus alternatives. The three are mutually
 exclusive — the runtimes disagree on what a combination would mean, so a
@@ -643,16 +663,29 @@ Findings carry `{ rule, severity, line, message }`:
 | Rule | Severity | Fires on |
 |---|---|---|
 | `dialect` | error | anything the [rejection table](#deliberately-unsupported--and-rejected-loudly) rejects — the exact `GherkinSyntaxError`, as a finding (the parser stops at the first violation, so it arrives alone) |
+| `no-scenarios` | error | a `Feature:` header with no scenarios under it — the file enforces nothing and reads as passing. The same parser refusal as `dialect` (and so also always alone), under its own rule name: "add a scenario or delete the file" is a different remedy than "fix this line" |
 | `no-then` | warn | a scenario whose steps never resolve to `Then` — runs code, asserts nothing (`And`/`But`/`*` inherit the preceding primary keyword, across a `Background`) |
 | `vague-then` | warn | a `Then`-resolved step containing *works · correctly · properly · as expected · handles · appropriate* — words that assert nothing checkable |
 | `single-row-outline` | warn | a `Scenario Outline` with one `Examples` row — a scenario with extra ceremony, and usually a missing case |
 | `near-miss-keyword` | warn | a silently dropped line that was almost certainly meant as syntax: a wrong-case step keyword inside a scenario or `Background` body (`when I add 5`, `GIVEN a counter`), or — anywhere — a construct header that isn't the one exact form the parser recognizes (`scenario: b`, `Scenario : b`, `SCENARIO OUTLINE: b`) |
+| `dropped-prose` | warn | any *other* line inside a scenario, outline, or `Background` body that the parser dropped as narrative — and any non-tag, non-comment line *above* the `Feature:` header. The floor under `near-miss-keyword`: no dropped line goes unaccounted. Prose in a body reads like a requirement and enforces nothing; make it a step, or a `#` comment if it's commentary. The `Feature` narrative (below the header) stays exempt — prose is its job |
 | `duplicate-title` | error | a `Scenario` or `Scenario Outline` title already used earlier in the file — compared pre-expansion, because two outlines sharing a title expand to **byte-identical** test names (the `[n]` suffix indexes rows within one outline, not across outlines) |
 | `unused-column` | warn | an `Examples` column no `<placeholder>` in the outline's title, steps, or step tables ever references — a case someone wrote down that no assertion consumes. Reported at the header row's line |
+| `strict-tag` | error (strict only) | a `@skip` or `@only` tag, in strict mode. Reviewed output carries no silent debt or focus: a committed skip hides a scenario from every run with no ledger entry, and focus is a per-run CLI flag. `@todo` is deliberately exempt — the stale-@todo inversion polices it at *run* time, so a committed @todo is honest, visible, self-retiring debt |
 
 Outline findings are reported once per source construct, not once per expanded
 row — except a vagueness introduced *by* a placeholder substitution, which is
 reported for exactly the rows that produce it.
+
+**Strict mode** is one bit: `lintFeature(text, filename, { strict: true })`
+promotes every warning to an error — same rule, same line, same message,
+nothing removed or reworded — and adds the strict-only `strict-tag` rule. A
+strict-clean file is clean in default mode by construction, and there is no
+relaxed mode: strict promotes, nothing demotes. New rules enter the gate only
+through the four admission tests of
+[`docs/lint-admission.md`](docs/lint-admission.md), which also binds the Rust
+sibling in lockstep — finding text is byte-identical across the two
+implementations, held there by a differential parity corpus.
 
 `near-miss-keyword` is the counterpart to the near-miss *tag* the parser already
 rejects outright (`@Skip`, `@Only`). Keywords are exact; anything else on a
