@@ -450,13 +450,15 @@ module.exports = (reg) => {
   reg.define(/^the refusal states that no feature files were found there$/, (w) => {
     const text = w.res.failureText();
     assert.ok(text.includes('no .feature files were found'), text);
-    assert.ok(text.includes(w.job.dir), `the refusal names the directory: ${text}`);
+    // The refusal quotes the path JSON-style (the one-call rule's precedent),
+    // which escapes Windows backslashes — compare in the same encoding.
+    assert.ok(text.includes(JSON.stringify(w.job.dir)), `the refusal names the directory: ${text}`);
   });
 
   reg.define(/^the refusal names the missing directory path$/, (w) => {
     const text = w.res.failureText();
     assert.ok(text.includes('does not exist'), text);
-    assert.ok(text.includes(w.job.dir), `the refusal names the path: ${text}`);
+    assert.ok(text.includes(JSON.stringify(w.job.dir)), `the refusal names the path: ${text}`);
   });
 
   reg.define(/^the refusal states that one call per test file is the rule$/, (w) => {
