@@ -22,13 +22,13 @@ requirement written as prose all land in `dropped-prose` now. The older
 structural backstops remain: a scenario whose steps *all* vanish trips the
 no-steps guard; a vanished `Then` trips `no-then`.
 
-`dropped-prose` is a warn in default mode — `/scope` output must be
-finding-free, so for scoping purposes it is effectively an error (the
-SKILL.md validation script's `silent-narrative` check predates it and stays;
-the lint rule now enforces the same discipline for every consumer, not just
-`/scope` output). The one dropped-line class no lint can see: a narrative
-line beginning with `|` directly after a step, which the parser *accepts* as
-that step's data table — see below.
+`dropped-prose` is a warn in default mode and an error in strict mode — the
+SKILL.md validation script lints strict, so for scoping output it is an
+error outright (the script's old hand-rolled `silent-narrative` check is
+retired; the lint rule enforces the same discipline for every consumer, not
+just `/scope` output). The one dropped-line class no lint can see: a
+narrative line beginning with `|` directly after a step, which the parser
+*accepts* as that step's data table — see below.
 
 There is a second shape of this hazard the rule also covers, and it is nastier
 than the step case because both older backstops are blind to it: a **near-miss
@@ -58,8 +58,11 @@ design. Consequences:
   the step gains a `[["0.1"]]` table). The loud case is the lucky one; the
   rule exists for the quiet one.
 - Capitalize keywords exactly: `Given` `When` `Then` `And` `But` `*`.
-- After generating a file, the step count you intended must equal the step
-  count that parses — the validation script's parse is the check.
+- After generating a file, re-read each scenario and compare the steps you
+  meant to write against the steps that parse. **No script checks this** —
+  the `|`-swallow case above parses clean and *adds a table* rather than
+  dropping a step, so intent-vs-parse is an author's eyeball check: the one
+  unmechanized guard in this file.
 
 ## File shape
 
@@ -118,12 +121,13 @@ design. Consequences:
 - `@skip` (skipped, steps must still bind), `@todo` (registered placeholder,
   never gates), `@only`. Mutually exclusive — a *combination* is a parse
   error, and a near-miss (`@Skip`, `@SKIP`, `@Only`) is a parse error too.
-- **`@only` and `@skip` are NOT parse errors on their own and `lintFeature`
-  does not flag them** (re-verified against 0.6.0: `@only` still lints
-  clean). `@only` is rejected by the *runner* at test registration — a stage
-  the linter never reaches. That is why the SKILL.md validation script checks
-  tags via `parseFeature` separately: scoping output must carry neither
-  (`@only` never; `@skip` makes no sense for behavior that doesn't exist yet).
+- **`@only` and `@skip` are not parse errors and lint clean in default
+  mode** — historically they were visible only to the *runner* at test
+  registration, a stage the linter never reaches. Since 0.9.0 strict mode
+  closes this: `strict-tag` (error) flags both, the SKILL.md validation
+  script lints strict, and its old separate `parseFeature` tag check is
+  retired. Scoping output must carry neither (`@only` never; `@skip` makes
+  no sense for behavior that doesn't exist yet).
 - Tags go only immediately before `Feature:` / `Scenario:` / `Scenario
   Outline:` — anywhere else is a parse error, as are dangling tags at end of
   file. Feature tags apply to all its scenarios.
@@ -145,11 +149,14 @@ near-miss semantic tags (`@Skip`/`@SKIP`/`@Only`); combined semantic tags;
 design: Cucumber Expressions (`{int}`, `{string}` — step definitions use
 regex, not your concern while scoping) and non-English keywords.
 
-## Lint rules — zero findings required, warnings included
+## Lint rules — zero findings required (the script lints strict: every warn below reports as an error)
 
 | Rule | Fires on | Authoring consequence |
 |---|---|---|
 | `dialect` (error) | anything in the rejected list | file won't parse at all |
+| `dropped-prose` (warn; error in strict, 0.9.0) | any line the parser drops that `near-miss-keyword` didn't already flag — inside a scenario body or above the `Feature:` header | no prose carries a requirement; every dropped line is accounted for |
+| `no-scenarios` (0.9.0; also a `dialect` error at parse) | a `Feature:` header with narrative but no scenarios | an empty shell registers nothing — finish the file or don't emit it |
+| `strict-tag` (error, strict mode only, 0.9.0) | a `@skip` or `@only` tag | scoping output carries neither — see Tags above |
 | `no-then` (warn) | a scenario whose steps never resolve to `Then` | every scenario asserts something observable |
 | `vague-then` (warn) | a Then-resolved step containing *works · correctly · properly · as expected · handles · appropriate* (case-insensitive, whole-word — `networks` is safe) | Thens name concrete observable outcomes: "the counter is 5", never "the counter works correctly" — this is the falsifiability rule from the interview, enforced mechanically. Background `Then` steps are linted too |
 | `single-row-outline` (warn) | an outline with one Examples row | one row means a missing case or a plain Scenario — go back to Phase 3 |
