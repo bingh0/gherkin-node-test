@@ -24,8 +24,8 @@ the text.
 
 | Address | The lie | The tell | The catch |
 |---|---|---|---|
-| `cino:code` | the feature exists and is a near no-op | works on the demo path only; a guard never true; an option read and never used | execute the real thing against real state; assert the **effect**, not the call |
-| `cino:binding` | the step runs, observes nothing, goes green | passes on a fixture containing none of its subject matter; asserts non-empty instead of naming members; no world makes it red | **mutation** — doctor the world so the Then *should* fail, and watch it fail |
+| `cino:code` | the feature exists and is a near no-op | works on the demo path only; a guard never true; an option read and never used; a sibling platform path never lit | execute the real thing against real state; assert the **effect**, not the call |
+| `cino:binding` | the step runs, observes nothing, goes green | passes on a fixture containing none of its subject matter; asserts non-empty instead of naming members; no world makes it red; every binding drives the same seam | **mutation** — doctor the world so the Then *should* fail, and watch it fail |
 | `cino:assertion` | the predicate is real but its ground truth is an artifact the system itself wrote | asserting a file/string the system just produced; "exists" where "usable" was meant | name the foreign system on the far side of the boundary; assert what **it** observes |
 | `cino:spec` | green because the scenario was weakened | scenario text changed in the window its status went red→green; assertion mass shrank | temporal comparison across history — a snapshot cannot see this |
 | `cino:decision` | ratified scope honored in name; the reasons are gone | an agent re-proposes an explicitly rejected option; the same debate recurs | record rejected alternatives *with their reasons*, and recall them before reopening |
@@ -50,6 +50,14 @@ survived every control below its own rung:
   passed the very scenario that defines "green means enforced." Sibling:
   a fixture wrote ~14 KB under an inherited 64 MB cap, so the truncation
   path under test never fired — *"the fixture is the hole."*
+- **half-lighting** (`cino:code` × `cino:binding`, predicted-class — one
+  specimen each, 2026-08-06) — naming, titles and retention shipped wired
+  into one launcher's path only; the sibling platform launchers allocated
+  slots correctly and produced nameless, titleless instances, every
+  scenario green: the contract was platform-agnostic, but every binding
+  drove the same seam, so no mutation of the unlit paths could flip
+  anything — nothing drove them. Caught by deployment-surface questioning
+  *above* the suite, which is the tell's point.
 - **cino:assertion** — a doctor check reported a registration configured
   by parsing back the file it had itself written one call earlier. Fully
   bound, non-vacuous, discriminating — and measuring a mirror. Sibling:

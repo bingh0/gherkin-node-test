@@ -23,11 +23,15 @@ bottom of this file.
    genuinely different options (AskUserQuestion is a good fit). If you have a
    preference, it appears as *one labeled option among several* — never as an
    assumption silently baked into the next question. When the ruling is about
-   the *shape of an artifact* — a pane, a report, a layout — the options are
-   rendered mockups at true dimensions, never prose descriptions: across two
-   runs, shape rulings that stalled on prose resolved on first ask against
-   rendered options, and in one the true width itself surfaced an overflow
-   scenario no prose option would have produced.
+   the *shape of an artifact* — a pane, a report, a layout, CLI output,
+   refusal or error text, a status line — the options are rendered mockups
+   at true dimensions, never prose (three runs: prose stalled, renders
+   resolved on first ask, and twice the render itself surfaced the decisive
+   fact). An option set never fences the visionary in: rejecting the axis
+   is a legitimate answer. When the visionary reframes ("why do we even
+   need X?"), the reframe becomes the decision point — do not re-present
+   the original options; derive the next question from the reframe; record
+   the abandoned axis and its options in Roads not taken.
 3. **Behavior space only.** No languages, frameworks, databases, hosting, or
    architecture — not even as an aside. If the visionary raises stack topics,
    note them in the out-of-scope list as "implementation decisions deferred"
@@ -39,6 +43,29 @@ bottom of this file.
    say so immediately and ask what a person would *see* that tells them it
    worked. Unfalsifiable wishes are surfaced during the interview, never
    silently dropped and never silently reworded.
+6. **No categorical claim enters the record unverified.** When a ruling
+   rests on an assertion about an existing artifact that a read or grep
+   could decide — "nothing reads this file", "that surface is unaffected" —
+   check it before recording, and record an evidence pointer that *decides*
+   the claim (file:line, or the command and its one-line result). Hedged
+   phrasing does not exempt: the trigger is whether the ruling survives the
+   assertion being false. A refuted assertion returns to the visionary as a
+   fresh decision point; an uncheckable one is recorded as a named
+   assumption and listed in the fence. (Three recorded claims fell to greps
+   in one run, each reversing or reshaping its ruling.)
+7. **Rulings are checked against the record before they are recorded.**
+   Before writing any ruling down, re-read the run's prior rulings and name
+   every one it touches; the record carries `touches: <refs>` or
+   `touches: none`. A contradiction is put to the visionary as its own
+   decision point before either ruling stands — never resolved silently in
+   favor of the newer one. (Twice, writing a ruling down surfaced a
+   contradiction with a ratified prior ruling; this makes that accident a
+   procedure.)
+
+This block is closed: the next rule does not get appended here — it forces
+the rules into their own `rules.md` with a summary line per rule remaining
+in this file. A rules block long enough to skim is a rules block that gets
+skimmed.
 
 ## Phases
 
@@ -49,8 +76,9 @@ where they are.
 short paragraph — the visionary is the interview's only live witness, and a
 witness who doesn't know the rules cannot police them: expect one question
 at a time; options, never silent defaults; every quantity probed to its
-extremes; every declined case recorded on the fence; and, after coverage, an
-offer to argue against the corpus. Invite them to call out any question that
+extremes; every declined case recorded on the fence; every ruling checked
+against the record before it lands; and, after coverage, an adversarial
+pass against the corpus that runs unless they decline it. Invite them to call out any question that
 breaks the pattern. Then the one open question: what should exist, for whom,
 and why now? Listen. Do not decompose yet. Reflect the vision back in one
 sentence and get a yes before moving on. If the invocation already carried
@@ -90,17 +118,21 @@ misuse answers become their own scenarios. It is the visionary's call whether
 an edge case is in scope — but the question must be asked, and a declined case
 goes on the out-of-scope list, not in the bin.
 
-**Phase 3½ — Adversarial pushback (offered once; visionary-controlled).**
-After coverage forcing, offer it in one line: "I can now argue *against*
-this corpus — my strongest objections to the rulings so far — until you say
-done." If declined, move on. If accepted: attack genuinely, one objection at
-a time — contradictions between rulings, over-reach, a corner a ruling left
-unpinned — each put as options or a rendered candidate scenario per rule 2.
-Every surviving objection ends as a ruling: an accepted change, or a
-rejection recorded in Roads not taken. The visionary ends the cycle
-explicitly. (Field evidence: in one self-hosting run the two most
-consequential rulings both came from visionary-invoked pushback cycles; the
-offer exists so a visionary who doesn't know to ask learns that they can.)
+**Phase 3½ — Adversarial pushback (default-on; visionary-controlled).**
+After coverage forcing, announce it in one line and begin unless the
+visionary declines: "Next I argue *against* this corpus — my strongest
+objections to the rulings so far — until you say done." Attack genuinely,
+one objection at a time — over-reach, a corner a ruling left unpinned, a
+ruling resting on a named assumption (rule 6), a contradiction rule 7 did
+not catch — each put as options or a rendered candidate scenario per
+rule 2. An objection drafted in an earlier session has its premise
+re-verified per rule 6 before it is put: drafts age across sessions, and
+one objection dissolved entirely — its correct resolution an option the
+draft didn't contain — when its premise was finally checked. Every
+surviving objection ends as a ruling: an accepted change, or a rejection
+recorded in Roads not taken. The visionary ends the cycle explicitly.
+(Default-on on a 3-for-3 record: every run that took the pass had its
+contract materially changed, twice reversing a central ruling.)
 
 **Phase 4 — The scope fence.** Read back everything that came up but was
 declined, deferred, or deliberately excluded, and confirm the list. Scope the
@@ -158,6 +190,15 @@ unbound scenario is a guarantee in name only, and a host gate that ignores
 the `wip` register is *right* to fail it. Where a tag is earned but not yet
 honourable, drop it deliberately and record the debt twice — a fence entry,
 and an in-file comment naming the scenarios that must regain it.
+The same pre-write check consults the host's run manifest and step
+bindings for every scenario a ruling touches, and states its result —
+`bound scenarios touched: <list>` or `none` (a checkable claim under
+rule 6). When a ruling will change the text or verdict of a bound scenario
+at build, the fence gains a **Sanctioned changes** section: per scenario —
+file, title, what changes, and the sanctioning ruling — written before
+build. This is the ratification record the `cino:spec` discriminator
+requires; without it, a sanctioned flip and a silent weakening leave the
+same history.
 
 Every generated feature file must pass `lintFeature` in **strict mode**
 with **zero findings**. Strict is one bit: every warning is promoted to an
@@ -263,6 +304,38 @@ root. If neither resolves, say so explicitly in the handoff — never claim
 scope-clean without having run the linter, and never substitute an older
 linter silently.
 
+## The post-draft pass — and the gate's mode
+
+A lint-clean draft is not handoff-ready. Two steps stand between drafting
+and the visionary's read, in this order.
+
+**First, the gate's mode — one structured decision point, put before any
+audit of the drafted corpus runs.** *Cold gate:* the visionary reads alone;
+the pass below still runs, but its findings are sorted — drafting defects
+(file text not matching a ratified ruling) are fixed before the read, while
+contract-level findings (gaps, new questions, candidate scenarios) are held
+and revealed only after the read completes; correction positions are valid
+data for the run record's attention question. *Interactive gate:* the
+pass's findings are put to the visionary as questions during the read — the
+stronger contract, and the positions are recorded as ratification order,
+excluded from the attention data. The mode decision must precede any audit
+artifacts in the journal; an audit already run forces the interactive label
+— there is no retroactive cold gate. Severity override, either mode: a
+finding indicating live harm (a shipping bug, a security exposure, a broken
+host build) is raised immediately, and the run entry marks the data
+contaminated — the instrument never outranks the product. The run entry
+records the mode. (Of three completed reviews, two were excluded from the
+attention data post-hoc; the default workflow destroys the measurement
+unless the mode is chosen, not discovered.)
+
+**Then the pass itself: an adversarial pass over the drafted corpus at
+every `cino:` layer the corpus touches, plus `blind:surface`** —
+`layers.md` is the map — routed per the mode above. Derivable gaps are
+drafted and flagged; genuine unknowns are asked, never silently defaulted.
+(Two runs: sixteen pre-handoff findings in one; a live shipping bug and a
+directory tree deleted from the ruled layout in the other — a pass that
+only transcribes rulings would have shipped both.)
+
 ## Handoff
 
 Present the feature files and the fence to the visionary as **the contract**.
@@ -324,8 +397,10 @@ where corrections land), and has the unreviewed tier started to wander
 (drift sightings — the signal that a machine-checked traceability rule has
 become worth building).
 
-An interview that will span sessions checkpoints its rulings at phase
-boundaries in the installation's cross-session journal, when it has one —
+An interview that will span sessions checkpoints its rulings — plus the
+running structured-question count, the phase position, and any open
+decision points — at phase boundaries in the installation's cross-session
+journal, when it has one —
 the mechanism that made a three-session interview seamless in the field.
 An installation without one keeps the interview inside sittings it can
 afford to lose. And where the installation journals the session, the
