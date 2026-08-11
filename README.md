@@ -124,6 +124,32 @@ If a step is missing, the guard failure hands you the definition:
   });
 ```
 
+## Writing the feature files: the `/scope` skill
+
+The runner enforces a contract it does not help you write. This repo ships an
+[Agent Skills](https://agentskills.io) skill for the step before: `/scope`, a
+structured scoping interview that turns a project idea into lint-clean
+`.feature` files in this dialect, plus an explicit out-of-scope fence. You are
+the visionary — you answer one question at a time and never touch the feature
+files; the interview stays in behavior space and refuses to record anything
+that can't be phrased as an observable outcome.
+
+Two commands in Claude Code:
+
+```
+/plugin marketplace add bingh0/gherkin-node-test
+/plugin install scope@gherkin-node-test
+```
+
+It is a plain `SKILL.md`, so it also loads in VS Code / GitHub Copilot by
+copying one directory. Full instructions for both, plus verification and
+troubleshooting: **[plugins/scope/README.md](plugins/scope/README.md)**.
+
+The skill versions on its own line — currently **scope 3.0.0**, grounded
+against **gherkin-node-test 0.9.0**. It probes the linter's behavior rather
+than trusting a version string, and refuses to certify output it could not
+check.
+
 ## The binding ratchet
 
 That guard failure is half of the design's central mechanism. The other half

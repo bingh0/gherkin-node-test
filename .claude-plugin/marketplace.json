@@ -1,5 +1,6 @@
 {
   "name": "gherkin-node-test",
+  "description": "Tooling for the gherkin-node-test dialect: a scoping interview that writes the feature files the runner then enforces.",
   "owner": {
     "name": "Bing Ho",
     "email": "reps-attic-riot@duck.com"
@@ -9,7 +10,7 @@
       "name": "scope",
       "source": "./plugins/scope",
       "description": "Structured scoping interview that turns a project idea into lint-clean Gherkin feature files in the gherkin-node-test dialect, plus an explicit out-of-scope fence.",
-      "version": "0.7.0",
+      "version": "3.0.0",
       "license": "MIT",
       "homepage": "https://github.com/bingh0/gherkin-node-test"
     }
