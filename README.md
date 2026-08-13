@@ -62,6 +62,12 @@ there is no second toolchain: one command (`node --test`, `bun test`, or
 `deno test`) runs unit tests and acceptance criteria together, with watch mode,
 coverage, and CI reporters inherited from the runtime itself.
 
+The workflow *around* the tool — the roles, the loop, and the review
+practices that keep an agent-built suite honest above the layer these
+guards can reach (auditing agent-written step code, coverage-gap
+interrogation) — is written down in
+**[docs/workflow.md](docs/workflow.md)**.
+
 ## Quick start
 
 ```
@@ -648,6 +654,11 @@ Be honest about what this buys: it is enforced by *your* build, not by the
 runner, and it proves a world key is spelled consistently — never that a
 step has assigned it. Keep `W`'s fields optional; a required field on a
 world that is born `{}` is a type-level claim no `Given` has made true yet.
+
+Why it exists at all: the practice of [auditing agent-written step
+code](docs/workflow.md#auditing-the-step-layer) — the field report behind
+this feature was a reviewer drowning in `as MyWorld` casts while checking
+that the robot was actually testing things.
 
 ## Deliberately unsupported — and rejected loudly
 
