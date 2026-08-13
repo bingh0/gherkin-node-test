@@ -78,14 +78,24 @@ survived every control below its own rung:
 | Address | The gap | The tell | The catch |
 |---|---|---|---|
 | `blind:surface` | a surface the feature touches has no scenario | the interview never asked what else this feature shares, crosses, or sits inside | forcing questions at scoping (Phase 3's surface axis); review cannot catch what is not on the page |
+| `blind:need` | a need was never elicited, so the scenarios that would serve it were never conceived | non-functional needs volunteered late or never; a mechanism recorded with no need under it; a post-hoc needs reconstruction surfacing motivations the interview never asked about | the checklist sweep (Phase 3¼) and the ledger's bidirectional coverage check (`needs.md`); deeper than `blind:surface` — the missing thing is not yet even a behavior |
 
-Specimen: a read-only pane scoped inside a mature tool — nothing reached
+Specimen (`blind:surface`): a read-only pane scoped inside a mature
+tool — nothing reached
 the renderer's trust boundary or the shared draw loop until the visionary
 asked "what other surfaces does this touch?", and the answers became two
 of the five feature files.
 
-Keep the families separate when you type: `blind:` is fence/Phase-3
-material (a scoping correction); `cino:` is an adversarial-direction
+Specimen (`blind:need`): a document archive scoped end to end in which
+three ops needs arrived unprompted in the visionary's own final sweep,
+the single most decision-shaping need — low operational burden — was
+never asked for, "passkeys only" was honored literally while the need
+under it (secure-yet-simple authentication) went unrecorded, and search
+was never discussed at all. Every one surfaced by a post-hoc needs
+reconstruction; none by the interview.
+
+Keep the families separate when you type: `blind:` is scoping material —
+Phase 3 / 3¼ and the fence (a scoping correction); `cino:` is an adversarial-direction
 interrupt (a build/audit correction). The same hunch about "surfaces"
 can be either — absent scenario versus hollow green — and the two fixes
 share nothing.

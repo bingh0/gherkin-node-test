@@ -18,7 +18,9 @@ bottom of this file.
 
 1. **One question at a time.** Never batch questions in prose. Wait for the
    answer before deciding the next question — the protocol is adaptive, the
-   rules are not.
+   rules are not. (One sanctioned exception, declared where it lives:
+   Phase 3¼ opens with a single structured multi-select triage —
+   structured, never prose.)
 2. **Options, not defaults.** When a decision point arises, present 2–4
    genuinely different options (AskUserQuestion is a good fit). If you have a
    preference, it appears as *one labeled option among several* — never as an
@@ -38,11 +40,23 @@ bottom of this file.
    and steer back to behavior.
 4. **No leading questions.** Derive questions from the visionary's own answers.
    Ask "what should happen when…" not "should it do X?" unless X came from them.
-5. **Everything must land as Given/When/Then.** If an answer cannot be phrased
-   with an observable outcome ("it should feel fast", "it should be robust"),
-   say so immediately and ask what a person would *see* that tells them it
-   worked. Unfalsifiable wishes are surfaced during the interview, never
-   silently dropped and never silently reworded.
+5. **Altitude is policed in both directions.** Everything must land as
+   Given/When/Then. If an answer is too abstract to falsify ("it should
+   feel fast", "it should be robust"), say so immediately and ask what a
+   person would *see* that tells them it worked — unfalsifiable wishes
+   are surfaced during the interview, never silently dropped and never
+   silently reworded. And the mirror, for answers too concrete: when a
+   mechanism arrives stated as a constraint ("passkeys only"), one
+   laddering question surfaces the need it serves — "what would be lost
+   if this mechanism were swapped?" — and both are recorded in the needs
+   sketch: the need owns the weight, the mechanism is its chosen means.
+   Laddering changes the record's shape, never the constraint's force: a
+   laddered means stays a binding ruling under rule 7, and swapping it
+   is a visionary decision, never a downstream optimization.
+   (Field specimen: a passkeys-only constraint honored literally for a
+   whole run while the need under it — authentication that is secure yet
+   simple — surfaced only in a post-hoc reconstruction. `needs.md` is
+   the sketch this feeds.)
 6. **No categorical claim enters the record unverified.** When a ruling
    rests on an assertion about an existing artifact that a read or grep
    could decide — "nothing reads this file", "that surface is unaffected" —
@@ -75,19 +89,38 @@ where they are.
 **Phase 0 — Vision.** Before the open question, disclose the protocol in one
 short paragraph — the visionary is the interview's only live witness, and a
 witness who doesn't know the rules cannot police them: expect one question
-at a time; options, never silent defaults; every quantity probed to its
-extremes; every declined case recorded on the fence; every ruling checked
-against the record before it lands; and, after coverage, an adversarial
-pass against the corpus that runs unless they decline it. Invite them to call out any question that
+at a time; options, never silent defaults; a running sketch of the needs
+behind their answers, read back for a yes before scenario work begins;
+every quantity probed to its extremes; every declined case recorded on
+the fence; every ruling checked against the record before it lands; and,
+after coverage, a checklist sweep for the needs their answers never
+volunteered, then an adversarial pass against the corpus — each of which
+runs unless they decline it. Invite them to call out any question that
 breaks the pattern. Then the one open question: what should exist, for whom,
 and why now? Listen. Do not decompose yet. Reflect the vision back in one
 sentence and get a yes before moving on. If the invocation already carried
 the vision, do not re-ask it — go straight to the reflection and the yes.
+The confirmed sentence, restated first-person, opens the needs sketch as
+its root entry (`needs.md` — format, weights, and the means-vs-need
+rule).
 
 **Phase 1 — Actors and outcomes.** Establish who or what acts on the system
 (people, roles, other systems, time) and, per actor, what observable outcome
 defines success. These become the `Feature:` boundaries — one feature file per
 coherent behavior area, named for the behavior, not for a component.
+
+**Phase 1½ — Intent checkpoint.** First run the swap test (`needs.md`)
+over every sketch entry — an entry that dies when its mechanism is
+swapped is a means wearing a need's clothing; demote it before the
+visionary sees it (hoisting design into needs is the field-observed
+drafting failure). Then read the needs sketch back — each need
+in its recorded first-person statement, with its weight and any
+means-vs-need pairing rule 5 produced — and ask one question: is the why
+adequately captured? Corrections land in the sketch before any scenario
+is drafted. This is the last cheap moment before the interview turns
+literal: from Phase 2 on, questions chase behavior, and a wrong or
+missing need stops being visible in the answers. The confirmed sketch is
+the baseline the final ledger reconciles against (`needs.md`).
 
 **Phase 2 — Happy paths.** For each behavior area, walk the primary path
 aloud as Given/When/Then *in plain conversation* and get the visionary's
@@ -118,8 +151,39 @@ misuse answers become their own scenarios. It is the visionary's call whether
 an edge case is in scope — but the question must be asked, and a declined case
 goes on the out-of-scope list, not in the bin.
 
+**Phase 3¼ — Checklist sweep (default-on; visionary-controlled).** After
+coverage forcing, announce it in one line and begin unless the visionary
+declines. The sweep runs **once per run, at whole-system altitude** — a
+category drills into a specific behavior area only when an answer names
+one. It opens with the protocol's one sanctioned exception to rule 1: a
+single structured multi-select triage over the checklist categories in
+`needs.md` ("which of these matter for this system?") — eight sequential
+questions is the wrong price at this scale; categories left unselected
+are recorded to the fence in bulk, declined-with-provenance. Each
+selected category then gets its own question, one at a time again, every
+question naming its provenance — "this is a checklist category, not
+derived from anything you said" — the same
+provenance rail Phase 3 runs mined surfaces on, which is what keeps a
+checklist question on the informing side of rule 4. A category the
+sketch already covers is confirmed, not re-probed ("reliability is
+already sketched as N4 — anything beyond it?"). A scenario-able
+answer gets Phase-2/3 treatment; an answer that opens a whole new
+behavior area re-enters Phase 1 for that area first — that is the
+"cause" Phase 5's no-reopening clause anticipates; a real need no
+scenario can carry
+enters the sketch with an honest coverage status (`needs.md` defines
+them); a declined category goes on the fence. The sweep closes with one
+domain question — "what do systems of this kind commonly need that
+never came up?" — provenance: the interviewer's own priors, named as
+such; the ledger reconciliation keeps the backstop. (This phase exists because
+the protocol was reactive here: in the run that seeded the checklist,
+three ops needs arrived unprompted in the visionary's own final sweep,
+the run's most decision-shaping need — low operational burden — was
+never asked for, and search was never discussed in a document archive.
+`layers.md`: `blind:need`.)
+
 **Phase 3½ — Adversarial pushback (default-on; visionary-controlled).**
-After coverage forcing, announce it in one line and begin unless the
+After the checklist sweep, announce it in one line and begin unless the
 visionary declines: "Next I argue *against* this corpus — my strongest
 objections to the rulings so far — until you say done." Attack genuinely,
 one objection at a time — over-reach, a corner a ruling left unpinned, a
@@ -139,7 +203,8 @@ declined, deferred, or deliberately excluded, and confirm the list. Scope the
 visionary *declined* is as load-bearing as scope they accepted.
 
 **Phase 5 — Readback and stop.** Summarize: N feature files, M scenarios,
-the fence. Ask once: "walking the vision end to end, is anything missing?"
+the fence, and the needs sketch — each need with where it will land
+(scenario, structural, absence, partial, fence). Ask once: "walking the vision end to end, is anything missing?"
 The interview stops when this sweep produces no new scenarios and the
 visionary confirms the fence. Do not reopen settled phases without cause.
 
@@ -181,6 +246,21 @@ The deliverable, produced only after Phase 5:
   inside. Both exist so a later agent finds a decision where it would
   otherwise find an open question and re-litigate it (`layers.md`:
   `cino:decision` — this section is its catch, in the deliverable itself).
+- `USER-NEEDS.md` — the needs ledger, living beside the fence: per need,
+  the first-person statement, its beneficiary (user, operator, business,
+  or a named role), weight, evidence, the chosen means where
+  rule 5 recorded one, tension links, and one primary coverage
+  status — `scenario` (naming the files), `structural`, `absence`
+  (naming the fence entries), `partial` (naming the accepted trade-off
+  and the need that caps it), or `fenced` — plus a free-prose coverage
+  note where one word cannot carry the truth. Format, statuses, and the
+  bidirectional check are defined in `needs.md`. Reconciled from the
+  whole interview record against the Phase-1½ baseline; ratified by the
+  visionary at review. **The ledger explains and prioritizes; it never
+  specifies.** At build, only the feature files bind: a `partial` status
+  is a ratified stopping point, not debt, and a builder who believes the
+  ledger implies missing behavior raises the question — it never builds
+  from the ledger.
 
 **Scoping into an existing repo:** before writing any file, inventory what
 the host's suite does to new feature files — tags it gates, discovery that
@@ -195,10 +275,24 @@ bindings for every scenario a ruling touches, and states its result —
 `bound scenarios touched: <list>` or `none` (a checkable claim under
 rule 6). When a ruling will change the text or verdict of a bound scenario
 at build, the fence gains a **Sanctioned changes** section: per scenario —
-file, title, what changes, and the sanctioning ruling — written before
-build. This is the ratification record the `cino:spec` discriminator
-requires; without it, a sanctioned flip and a silent weakening leave the
-same history.
+file, title, **direction** (one or more of `drops` / `rewords` / `adds` /
+`deletes-scenario`), what changes, and the sanctioning ruling — written
+before build. This is the ratification record the `cino:spec`
+discriminator requires; without it, a sanctioned flip and a silent
+weakening leave the same history. Direction is required, not decoration
+(amendment ruled 2026-08-06, probe-survived; first field consumer
+gherkin-trace's dilution family, 2026-08-11): to a fence-reading
+consumer a directionless entry is malformed and covers nothing — the
+edit fires as unsanctioned — so sections written before this amendment
+must be amended before a consumer honors them. Write entries against the
+reader-side contract the dilution interview ratified: an entry lies
+dormant until an edit touches its scenario and survives unrelated runs,
+so a scoping-time entry outlives the gap to build; several entries may
+name one scenario, and an edit is judged against the union of the live
+ones; the whole entry is spent at the first green after a covered edit —
+so a compound entry whose directions land across separate greens loses
+coverage for the latecomers. The discipline: land all of a compound
+entry's directions before going green, or write separate entries.
 
 Every generated feature file must pass `lintFeature` in **strict mode**
 with **zero findings**. Strict is one bit: every warning is promoted to an
@@ -251,7 +345,13 @@ const dir = path.dirname(files[0]);
 const fence = [path.join(dir, "OUT-OF-SCOPE.md"), path.join(dir, "..", "OUT-OF-SCOPE.md")]
   .find((p) => fs.existsSync(p) && fs.readFileSync(p, "utf8").trim().length > 0);
 if (!fence) {
-  console.error(`fence missing or empty (looked beside the files and one level up) — the fence is half the deliverable, and a clean report without it is vacuous`);
+  console.error(`fence missing or empty (looked beside the files and one level up) — the fence is a third of the deliverable, and a clean report without it is vacuous`);
+  process.exit(1);
+}
+const ledger = [path.join(dir, "USER-NEEDS.md"), path.join(dir, "..", "USER-NEEDS.md")]
+  .find((p) => fs.existsSync(p) && fs.readFileSync(p, "utf8").trim().length > 0);
+if (!ledger) {
+  console.error(`needs ledger missing or empty (looked beside the files and one level up) — the ledger is a third of the deliverable, and a clean report without it is vacuous`);
   process.exit(1);
 }
 let bad = 0, plain = 0, outlines = 0;
@@ -274,6 +374,7 @@ if (bad) process.exit(1);
 console.log("scope-clean: zero strict findings");
 console.log("corpus: " + files.map((f) => path.resolve(f)).join(" "));
 console.log("fence: " + path.resolve(fence));
+console.log("ledger: " + path.resolve(ledger));
 console.log(`stats: ${files.length} feature files, ${plain} scenarios, ${outlines} scenario outlines`);
 ' -- features/*.feature
 ```
@@ -291,7 +392,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-3.0.0**, grounded against **gherkin-node-test 0.9.0** (strict mode,
+4.0.0**, grounded against **gherkin-node-test 0.9.0** (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
 the script probes for `strict-tag` behavior and refuses to proceed rather
@@ -330,8 +431,13 @@ attention data post-hoc; the default workflow destroys the measurement
 unless the mode is chosen, not discovered.)
 
 **Then the pass itself: an adversarial pass over the drafted corpus at
-every `cino:` layer the corpus touches, plus `blind:surface`** —
-`layers.md` is the map — routed per the mode above. Derivable gaps are
+every `cino:` layer the corpus touches, plus the absence family
+(`blind:surface`, `blind:need`)** — `layers.md` is the map — routed per
+the mode above. The pass also reconciles the needs ledger: `USER-NEEDS.md`
+is drafted from the whole record against the Phase-1½ baseline, and the
+bidirectional coverage check runs (`needs.md`) — an uncovered need or an
+orphan feature file is a finding, routed per the mode like any other.
+Derivable gaps are
 drafted and flagged; genuine unknowns are asked, never silently defaulted.
 (Two runs: sixteen pre-handoff findings in one; a live shipping bug and a
 directory tree deleted from the ruled layout in the other — a pass that
@@ -342,7 +448,12 @@ only transcribes rulings would have shipped both.)
 Present the feature files and the fence to the visionary as **the contract**.
 The visionary has two jobs, different in kind, and the handoff states both.
 
-**The first job is the scope gate — once, at review:** read every scenario
+**The first job is the scope gate — once, at review:** read the needs
+ledger first — it is the standard the scenarios are judged against,
+never a second source of requirements. Then read every scenario,
+ordered so the files serving the heaviest-weighted needs come first —
+attention fades late in a long review, and the heaviest needs must not
+sit where it fades —
 and challenge anything that doesn't match the vision. Their corrections are
 Phase-2/3 material — apply them and re-lint. Record each correction and
 **where in the review order it occurred** — that record goes to the run
@@ -356,7 +467,7 @@ direction.** A ratified, green contract can still be hollow at every layer
 below its text. `layers.md` (in this skill's directory) is the map: five
 addresses for completion-in-name-only — `cino:code`, `cino:binding`,
 `cino:assertion`, `cino:spec`, `cino:decision` — plus the absence family
-(`blind:surface`), each with its tell and its catch. Hand the visionary the
+(`blind:surface`, `blind:need`), each with its tell and its catch. Hand the visionary the
 vocabulary: suspecting a layer and naming its address is a complete,
 platform-independent instruction to the build agent, because the address
 dispatches the catch procedure. And state the two acceptance bars this
@@ -376,6 +487,18 @@ intent-complete, and anything platform-specific the interview surfaced is
 delegated to the design tier via the out-of-scope list, not smuggled into a
 reviewed file.
 
+The tier has a named horizon (foreign report, 2026-08-12): the fork's
+team envisions the build agent bounded by **triangulation — feature
+files ↔ code ↔ an architecture & design document** — because a large
+repo can be locally coherent yet globally incoherent, and the human who
+never reads the code still needs a design artifact they *can* vet. That
+guiding document is not this skill's output either — a design gate is
+its own protocol, not a tail on this interview — but its intent-side
+seed already is: the ledger's means-under-need rulings, `structural`
+statuses, and tension caps are human-ratified, architecture-shaping
+constraints. State in the handoff that a future design gate starts from
+them.
+
 ## Run statistics — the run record
 
 Each installation keeps a running record of how the skill is working on
@@ -388,8 +511,13 @@ delete it — losing the record that drives protocol change is `layers.md`'s
 version control when entries name private projects; each installation
 accumulates its own. After each run, append one dated entry:
 project scoped, question count, reviewed-corpus size (files/scenarios),
-corrections with their review-order positions, and any protocol change the
-run motivated. For projects that reach build, a follow-up line: whether a
+needs-ledger size with how many needs arrived only through the Phase-3¼
+sweep (the sweep's earn-its-keep number), corrections with their
+review-order positions, and any protocol change the
+run motivated. Entries from foreign runs are welcome too — an external
+fork that reports back (a multi-persona variant, a larger team) gets its
+own dated entry, marked foreign; that is how the checklist's lens tags
+earn a second interview style, or don't. For projects that reach build, a follow-up line: whether a
 `features/design/` tier was created, its size, and any **drift sighting** —
 a design-tier scenario contradicting a reviewed one. Each entry is there to
 answer a question you'll eventually ask: is the interview getting cheaper
@@ -399,6 +527,7 @@ where corrections land), and has the unreviewed tier started to wander
 become worth building).
 
 An interview that will span sessions checkpoints its rulings — plus the
+needs sketch (the Phase-1½ baseline travels with the rulings), the
 running structured-question count, the phase position, and any open
 decision points — at phase boundaries in the installation's cross-session
 journal, when it has one —

@@ -12,13 +12,13 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 3.0.0**, grounded against **gherkin-node-test 0.9.0**.
+**scope 4.0.0**, grounded against **gherkin-node-test 0.9.0**.
 
 The two numbers are independent, and deliberately so. Earlier releases pinned
 the plugin version to the dialect version it targeted (0.6.0, then 0.7.0);
 that scheme broke the first time two protocol revisions landed against one
 dialect release, because there was no second number to bump. So the skill now
-carries its own major line — 3.0.0 is the third release of the protocol — and
+carries its own major line — 4.0.0 is the fourth release of the protocol — and
 names the dialect it is grounded against separately, here and in `SKILL.md`.
 
 The grounding is not decoration: strict mode, `dropped-prose`, and
@@ -28,12 +28,12 @@ trusting a version string, and refuses to certify output it could not check.
 
 | | |
 | :--- | :--- |
-| Skill-only change (protocol, grammar notes, wording) | 3.0.x / 3.x.0 |
+| Skill-only change (protocol, grammar notes, wording) | 4.0.x / 4.x.0 |
 | Re-grounding onto a new dialect release | new major, pin restated |
 
 The number that governs is the one in the plugin's own `plugin.json`: Claude
 Code resolves a plugin's version from `plugin.json` first, the marketplace
-entry second, and the source commit SHA last. Both files carry `3.0.0` here,
+entry second, and the source commit SHA last. Both files carry `4.0.0` here,
 and `claude plugin tag plugins/scope --dry-run` checks that they still agree.
 
 ## What gets installed
@@ -43,12 +43,14 @@ scope/
 ├── SKILL.md      # the interview protocol (entry point)
 ├── grammar.md    # the Gherkin subset the output must lint clean against
 ├── layers.md     # the failure-mode map the protocol routes against
+├── needs.md      # the needs ledger + quality checklist the interview fills
 └── RUNS.md       # pointer to the run record (see "The run record" below)
 ```
 
 Copy the **whole directory**, not just `SKILL.md`. The protocol reads
-`grammar.md` before writing any feature file and routes against `layers.md`
-during the interview; without them the interview still starts and then stalls.
+`grammar.md` before writing any feature file, routes against `layers.md`
+during the interview, and keeps the needs ledger defined in `needs.md`;
+without them the interview still starts and then stalls.
 
 ---
 
@@ -90,7 +92,7 @@ This repo is itself a Claude Code plugin marketplace: the catalog lives at
 
 4. **Verify.** Type `/` and look for `scope`, or ask *"what skills are
    available?"* The plugin's own tab (`/plugin` → **Installed** → `scope`)
-   lists what it contributes and should report **3.0.0** — that number comes
+   lists what it contributes and should report **4.0.0** — that number comes
    from the plugin's own `plugin.json`, so a stale reading there is the tell
    that an update didn't take.
 
@@ -139,7 +141,7 @@ restart once. Invoke it with `/scope`.
 Project skills load from `.claude/skills/` in your working directory and every
 parent up to the repo root.
 
-A plain-skill copy carries no version metadata — nothing reports `3.0.0` back
+A plain-skill copy carries no version metadata — nothing reports `4.0.0` back
 to you. Record the commit you cloned if you need to know later what the
 interview was grounded on; `SKILL.md` names the dialect pin either way.
 
@@ -212,9 +214,9 @@ control if entries name private projects.
 | `/scope` doesn't appear in Claude Code | `/plugin` → **Errors** tab. If skills are missing entirely: `rm -rf ~/.claude/plugins/cache`, restart, reinstall. |
 | `Marketplace "gherkin-node-test" not found` | Run the `/plugin marketplace add` step first, then retry the install. |
 | Plugin not found in the catalog | `/plugin marketplace update gherkin-node-test`, then retry. |
-| Installed tab shows an older version than 3.0.0 | The marketplace refresh didn't reach the install. `/plugin marketplace update gherkin-node-test`, then uninstall and reinstall. |
+| Installed tab shows an older version than 4.0.0 | The marketplace refresh didn't reach the install. `/plugin marketplace update gherkin-node-test`, then uninstall and reinstall. |
 | Skill silently missing in VS Code | Directory name must equal the frontmatter `name` (`scope`), lowercase, no prefixes. Check with `/skills`. |
-| Interview starts, then stalls or invents grammar | `grammar.md` and `layers.md` weren't copied. Copy the whole directory. |
+| Interview starts, then stalls or invents grammar | `grammar.md`, `layers.md`, and `needs.md` weren't copied. Copy the whole directory. |
 | Interview drifts into stacks and frameworks | Not an install problem — say so; the protocol is required to fence stack topics into the out-of-scope list and steer back to behavior. |
 | Interview claims output is clean but names no files | The lint gate never ran, or ran elsewhere. The report carries a `corpus:` line naming every file that earned the verdict — no line, no verdict. |
 
