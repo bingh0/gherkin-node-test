@@ -144,9 +144,9 @@ function methodRegister(t, title, opts, fn) {
  * test function. Only the one-runFeatures-call-per-file guard is bypassed —
  * see runFeatures for why it is native-runner-only.
  * @param {any} testFn a `test` function with `.skip` and `.todo` methods
- * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry) => void,
- *             runFeatureFile: (file: string, registry: StepRegistry) => void,
- *             runFeatures: (dir: string, definers: Record<string, (reg: StepRegistry) => any>, opts?: { wip?: Iterable<WipEntry>, manifest?: string }) => void }}
+ * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry<any>) => void,
+ *             runFeatureFile: (file: string, registry: StepRegistry<any>) => void,
+ *             runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: { wip?: Iterable<WipEntry>, manifest?: string }) => void }}
  */
 function bindRunner(testFn) {
   if (typeof testFn !== 'function' || typeof testFn.skip !== 'function' || typeof testFn.todo !== 'function') {
@@ -230,7 +230,33 @@ function currentTestFile() {
 /** @typedef {{ name: string, line: number, rows: number, header: string[], headerLine: number, placeholders: string[] }} OutlineMeta */
 /** @typedef {{ line: number, text: string, inBody: boolean }} NarrativeLine */
 /** @typedef {{ feature: string, featureLine: number, background: Step[], scenarios: Scenario[], outlines: OutlineMeta[], narrative: NarrativeLine[], file: string }} ParsedFeature */
-/** @typedef {(world: Record<string, any>, ...args: any[]) => (void | Promise<void>)} StepFn */
+/**
+ * A step implementation. `W` is the world's ACCRETED shape — what the steps
+ * build up over a scenario, not a constructor contract: the world is born
+ * `{}`, so a field in `W` proves its key is spelled consistently, never that
+ * a step has assigned it yet. Enforced by the consumer's own type-check, not
+ * by the runner — the runtime guards below owe nothing to it. Args arrive as
+ * the regex capture strings plus, when the step has a table, a trailing
+ * DataTable — typed as the union because that is what actually arrives; a
+ * captured number is a string until the step coerces it.
+ * @template [W=Record<string, any>]
+ * @typedef {(world: W & { defer(fn: (world: W) => (void | Promise<void>)): void }, ...args: (string | DataTable)[]) => (void | Promise<void>)} StepFn
+ */
+/**
+ * A step-definer module: receives a feature's scoped registry, defines its
+ * steps. The annotation seam for typed worlds — `Definer<MyWorld>` is how a
+ * definer passed to runFeatures gets a typed `world` without a cast.
+ * `unknown` return, deliberately: define() returns `this`, and definers
+ * routinely trail-return the registry by accident.
+ * @template [W=Record<string, any>]
+ * @typedef {(reg: StepRegistry<W>) => unknown} Definer
+ */
+/**
+ * The instance type of a (possibly typed) registry, exported so consumers of
+ * the `export =` entry never have to spell `InstanceType<typeof StepRegistry>`.
+ * @template [W=Record<string, any>]
+ * @typedef {StepRegistry<W>} Registry
+ */
 
 /**
  * Thrown when a feature file uses syntax this parser does not support, or a
@@ -962,15 +988,19 @@ const STRICT_TAG_MESSAGE = {
 
 // --- Step registry ----------------------------------------------------------
 
+/**
+ * @template [W=Record<string, any>] the world this registry's steps share —
+ *   see StepFn for what `W` does and does not prove
+ */
 class StepRegistry {
   constructor() {
-    /** @type {{ re: RegExp, fn: StepFn }[]} */
+    /** @type {{ re: RegExp, fn: StepFn<W> }[]} */
     this.steps = [];
   }
 
   /**
    * @param {RegExp | string} pattern RegExp (capture groups become step args) or exact string
-   * @param {StepFn} fn
+   * @param {StepFn<W>} fn
    * @returns {this}
    */
   define(pattern, fn) {
@@ -981,7 +1011,7 @@ class StepRegistry {
 
   /**
    * @param {string} text
-   * @returns {{ fn: StepFn, args: string[] } | null}
+   * @returns {{ fn: StepFn<W>, args: string[] } | null}
    */
   find(text) {
     for (const s of this.steps) {
@@ -1059,10 +1089,11 @@ function ambiguityError(steps, registry) {
  * failing assertion can't leak temp dirs/processes. The step failure, if any,
  * outranks cleanup errors; with no step failure the first cleanup error throws.
  * (`defer` is a reserved key on the world.)
+ * @template [W=Record<string, any>]
  * @param {Step[]} steps
- * @param {StepRegistry} registry
- * @param {Record<string, any>} [world]
- * @returns {Promise<Record<string, any>>}
+ * @param {StepRegistry<W>} registry
+ * @param {W} [world]
+ * @returns {Promise<W>}
  */
 async function executeSteps(steps, registry, world = {}) {
   // Ambiguity preflight, before ANY step runs: a step matching two bindings
@@ -1123,8 +1154,9 @@ async function executeSteps(steps, registry, world = {}) {
  * own per-run flag instead: `node --test --test-name-pattern <re>`,
  * `bun test -t <re>`, or `deno test --filter <text>` — a CLI argument can't be
  * committed into the suite, which is the point.
+ * @template [W=Record<string, any>]
  * @param {ParsedFeature} parsed
- * @param {StepRegistry} registry
+ * @param {StepRegistry<W>} registry
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  * @param {ManifestRecorder | null} [recorder] run-manifest recorder; supplied
@@ -1227,8 +1259,9 @@ function runFeature(parsed, registry, register = registerTest, recorder = null) 
 }
 
 /**
+ * @template [W=Record<string, any>]
  * @param {string} file
- * @param {StepRegistry} registry
+ * @param {StepRegistry<W>} registry
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  */
@@ -1494,7 +1527,10 @@ const manifestClaims = new Map();
  * Under Deno the write needs `--allow-write=<its directory>`.
  *
  * @param {string} dir directory containing .feature files
- * @param {Record<string, (reg: StepRegistry) => any>} definers feature basename → step definer
+ * @param {Record<string, Definer<any>>} definers feature basename → step definer;
+ *   annotate an entry `Definer<MyWorld>` to type its steps' world — the record
+ *   stays `any` deliberately: each feature has its OWN world, and one type
+ *   parameter here would collapse them all into one
  * @param {{ wip?: Iterable<WipEntry>, manifest?: string }} [opts] features (or
  *   scenarios) still bootstrapping (TODO allowed); run-manifest output path
  * @param {typeof registerTest} [register] test-registration hook; supplied by

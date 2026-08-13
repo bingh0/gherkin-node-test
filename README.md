@@ -622,6 +622,33 @@ reg.define(/^a scratch dir$/, (w) => {
 });
 ```
 
+### Typed worlds (TypeScript, opt-in)
+
+The world defaults to `Record<string, any>` and every runtime guard works
+exactly the same either way. TypeScript consumers can opt into a typed
+world — `StepRegistry<W>` threads `W` to every step, and `Definer<W>` is
+the seam for step modules handed to `runFeatures`:
+
+```ts
+import { runFeatures, type Definer } from 'gherkin-node-test';
+
+type CounterWorld = { count?: number };  // the ACCRETED shape — the world is born {}
+
+const counter: Definer<CounterWorld> = (reg) => {
+  reg.define(/^a counter at (\d+)$/, (w, n) => { w.count = Number(n); });
+  reg.define(/^the count is (\d+)$/, (w, n) => { assert.strictEqual(w.count, Number(n)); });
+};
+
+runFeatures('features', { counter });  // one world PER FEATURE — no type param here
+```
+
+Step args are typed `string | DataTable` — captures arrive as strings, so
+the `Number()` coercion stays in view instead of silently concatenating.
+Be honest about what this buys: it is enforced by *your* build, not by the
+runner, and it proves a world key is spelled consistently — never that a
+step has assigned it. Keep `W`'s fields optional; a required field on a
+world that is born `{}` is a type-level claim no `Given` has made true yet.
+
 ## Deliberately unsupported — and rejected loudly
 
 The design rule: **parse the supported subset correctly; reject everything else
@@ -789,7 +816,8 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 | `runFeatures(dir, definers, { wip, manifest }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; `wip` takes basenames or `{ feature, scenarios }`; `manifest` opts into the [run manifest](#the-run-manifest); **one call per test file** (a second call is refused loudly) |
 | `parseFeature(text, filename?)` | parse → `{ feature, background, scenarios, outlines }`; throws `GherkinSyntaxError` |
 | `lintFeature(text, filename?)` | **linter**: dialect gate + spec lints as `{ rule, severity, line, message }[]` — pure text-in/findings-out, for use under another runner |
-| `StepRegistry` | `.define(pattern, fn)` / `.find(text)` |
+| `StepRegistry` | `.define(pattern, fn)` / `.find(text)`; optionally generic — [`StepRegistry<W>`](#typed-worlds-typescript-opt-in) types the world |
+| `Definer<W>`, `Registry<W>`, `StepFn<W>` *(types)* | the [typed-world](#typed-worlds-typescript-opt-in) seams; also re-exported by the vitest entry |
 | `executeSteps(steps, registry, world?)` | run a flat step list against a shared world (installs `world.defer`) |
 | `runFeature(parsed, registry)` | register one runner test per scenario (`@skip`/`@todo` mapped; `@only` and duplicate titles → failing test; unbound → TODO) |
 | `runFeatureFile(file, registry)` | read + parse + run a single `.feature` file |
