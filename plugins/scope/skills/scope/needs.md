@@ -131,10 +131,11 @@ the check runs in both directions:
   whichever gate mode is in force.
 
 The ledger's means, `structural`, and tension rows carry a second life:
-they are the intent-side seed of any future architecture & design
-document (the design-gate horizon `SKILL.md`'s handoff names) —
-human-ratified, architecture-shaping constraints a guiding document
-starts from. A consumer, not a new obligation on the drafting.
+they are the intent-side seed of `DESIGN.md` — the orienting document
+the interviewer drafts after the electives phase (`SKILL.md`, Phase 5½
+and the output contract) — where each enters as a `ruled` constraint
+citing its ledger row. A consumer, not a new obligation on the
+drafting.
 
 Findings route through the post-draft pass like any other (the gate's
 mode decides when the visionary sees them). A candidate need with *no*

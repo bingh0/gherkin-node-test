@@ -1,12 +1,13 @@
 ---
 name: scope
-description: Conduct a structured scoping interview that turns a project idea into reviewable Gherkin feature files. Use when the user wants to scope, spec, or define acceptance criteria for a new project, or for a new feature inside an existing one — before the code for it exists. The user is the visionary; the interview stays in behavior space and ends with lint-clean .feature files plus an explicit out-of-scope list for human review.
+description: Conduct a structured scoping interview that turns a project idea into reviewable Gherkin feature files. Use when the user wants to scope, spec, or define acceptance criteria for a new project, or for a new feature inside an existing one — before the code for it exists. The user is the visionary; the interview stays in behavior space (with one opt-in technology-preferences step at its end) and delivers lint-clean .feature files, an explicit out-of-scope fence, a needs ledger, and a DESIGN.md orienting document, all for human review.
 ---
 
 # /scope — the structured scoping interview
 
 You are the interviewer. The human is the **visionary**: they know what should
-exist and why; they do not write feature files or touch the tech stack. Your
+exist and why; they do not write feature files, and technology stays out of
+the conversation until the one sanctioned moment at its end (Phase 5½). Your
 job is to extract a testable contract from them, then write it down in the
 Gherkin subset defined in `grammar.md` (in this skill's directory — read it
 before writing any feature file).
@@ -37,7 +38,10 @@ bottom of this file.
 3. **Behavior space only.** No languages, frameworks, databases, hosting, or
    architecture — not even as an aside. If the visionary raises stack topics,
    note them in the out-of-scope list as "implementation decisions deferred"
-   and steer back to behavior.
+   and steer back to behavior. Deferred has a destination now: Phase 5½ is
+   the sanctioned room for technology preferences, and these notes are its
+   pre-loaded queue — the rule quarantines stack talk, it no longer
+   discards it.
 4. **No leading questions.** Derive questions from the visionary's own answers.
    Ask "what should happen when…" not "should it do X?" unless X came from them.
 5. **Altitude is policed in both directions.** Everything must land as
@@ -95,8 +99,12 @@ every quantity probed to its extremes; every declined case recorded on
 the fence; every ruling checked against the record before it lands; and,
 after coverage, a checklist sweep for the needs their answers never
 volunteered, then an adversarial pass against the corpus — each of which
-runs unless they decline it. Invite them to call out any question that
-breaks the pattern. Then the one open question: what should exist, for whom,
+runs unless they decline it; and, after the readback, one offer to state
+technology preferences, which only runs if they take it. Invite them to
+call out any question that breaks the pattern. (This disclosure is
+capped at one paragraph: a protocol addition that cannot fit replaces a
+sentence instead of appending one — a disclosure long enough to skim
+gets skimmed, and an unwitnessed rule is unenforced.) Then the one open question: what should exist, for whom,
 and why now? Listen. Do not decompose yet. Reflect the vision back in one
 sentence and get a yes before moving on. If the invocation already carried
 the vision, do not re-ask it — go straight to the reflection and the yes.
@@ -205,8 +213,37 @@ visionary *declined* is as load-bearing as scope they accepted.
 **Phase 5 — Readback and stop.** Summarize: N feature files, M scenarios,
 the fence, and the needs sketch — each need with where it will land
 (scenario, structural, absence, partial, fence). Ask once: "walking the vision end to end, is anything missing?"
-The interview stops when this sweep produces no new scenarios and the
-visionary confirms the fence. Do not reopen settled phases without cause.
+The behavior interview stops when this sweep produces no new scenarios and
+the visionary confirms the fence. Do not reopen settled phases without
+cause.
+
+**Phase 5½ — Design electives (opt-in — unlike the default-on passes,
+this one runs only if taken).** After the readback closes, one offer in
+one line: the interview
+deliberately excluded technology; if the visionary has technical
+preferences — a stack, a platform, a favored service — this is the
+sanctioned place to state them. "Make it so" is a complete answer and
+costs nothing; rule 3's deferred stack notes, if any, are read back as
+the opening queue rather than re-elicited. If taken: one preference at a
+time (rule 1), each recorded as a **ruled** design constraint numbered
+`E1`, `E2`, … in order of ruling — the ID the doc's `ruled` tags cite —
+and laddered
+to the need it serves where one exists (rule 5) — and preference with no
+need under it is a legitimate why, recorded as such; the drill stops at
+the stated bound, never descends into architecture. Research is available
+on request ("what fits what we scoped?"), and its results return as
+labeled options with named sources — rules 2 and 6 extend to research
+claims: provenance on every option, no recommendation baked silently
+into the next question. A collision — elective vs elective, or elective
+vs a ratified behavior ruling ("iOS and Android" against a web-only
+framework preference) — is put back as a decision point, never absorbed
+silently. Electives land in `DESIGN.md` (output contract below), not in
+feature files: behavior stays the contract; electives bound the build.
+(This phase reverses a 2026-08-12 ruling that the design conversation
+must be a sibling protocol — reversed on the pro team's multi-prototype
+evidence that an orienting design document improves build convergence;
+the standalone form, a design pass over a project that never had a
+scoping interview, is the capability the reversal gave up.)
 
 ## Variant — code-derived (characterization) scoping
 
@@ -234,7 +271,9 @@ what the behavior *is*. Three rules carry the variant:
 
 ## Output contract
 
-The deliverable, produced only after Phase 5:
+The deliverable, produced only after Phase 5½ closes — taken or declined
+(a collision surfaced there can amend a ratified ruling, so nothing is
+drafted while that door is open):
 
 - `features/*.feature` — in the `grammar.md` subset, drafted inside the
   conservative intersection it describes.
@@ -261,10 +300,63 @@ The deliverable, produced only after Phase 5:
   is a ratified stopping point, not debt, and a builder who believes the
   ledger implies missing behavior raises the question — it never builds
   from the ledger.
+- `DESIGN.md` — the orienting document, living beside the fence
+  (`features/DESIGN.md` — the canonical home; the filename is common in
+  the wild, which is why it gets one and the collision check below
+  exists), drafted by the interviewer after
+  Phase 5½ (or straight after Phase 5 when the electives offer is
+  declined — the doc is produced every run; the offer only decides
+  whether the visionary's preferences are in it). It is the
+  highest-altitude architecture & design view — principles, overall
+  shape, major components in prose, the constraints the build must not
+  cross — written **for the agent that builds**, with the human as
+  secondary reader: a vibe-coding visionary may never open it; a
+  professional reads it as the PRD-level artifact. (Provenance: the pro
+  BDD team, 2026-08, across several prototypes with the output reviewed
+  at every level — agent-internal design notes ran too deep in the weeds
+  to keep a build globally coherent, and a high-level orienting document
+  reportedly improved convergence; their observation, relayed, not yet
+  measured here.) The altitude rule is the drafting
+  mirror of rule 5: a statement that survives its mechanism being
+  swapped belongs here; anything below that altitude belongs in the
+  agent's own internal notes, which stay the agent's business and are
+  not part of the reviewed deliverable — whether a downstream audit
+  reads *them* is that protocol's own ruling to make. `DESIGN.md`
+  itself is always an audit vertex: it is the plan leg of the
+  triangulation the handoff states. Every constraint carries one of two tags:
+  **`ruled`** — the visionary's, citing its source (a Phase-5½ elective
+  by its `E` number, or a ledger means/`structural`/tension row by its
+  `N` number: those rows are the doc's
+  seed, `needs.md` records the role) — or **`chosen`**, the agent's own
+  call. The doc closes with a **Changelog**, seeded with one line for
+  the initial draft. The shape, by example (an example because the
+  format has consumers — the post-draft pass and a downstream audit
+  resolve these tags mechanically):
+
+      - Persistent store: SQLite, one file, no server. [ruled: E2]
+      - Sync engine isolated from rendering. [chosen]
+
+      ## Changelog
+      - 2026-08-14 — initial draft (scope interview; electives E1–E3). Edit doctrine, stated in the doc itself: nobody
+  edits this file outside a discussion — human and agent iterate, the
+  agent holds the pen, and every change appends one changelog line
+  naming the ruling that sanctioned it; changing a `ruled` constraint is
+  a reversal only the visionary can make, while a `chosen` one still
+  takes a discussion, at a lower bar. A change with no changelog line is
+  indistinguishable from silent drift, and a downstream audit is right
+  to treat it as drift. The doc explains and bounds; it never overrides
+  a feature file — at build the feature files bind, and a conflict
+  between doc and corpus is raised as a question, never resolved by
+  editing either side alone.
 
 **Scoping into an existing repo:** before writing any file, inventory what
 the host's suite does to new feature files — tags it gates, discovery that
-auto-runs them, registers they must enter. Scoping output never carries a
+auto-runs them, registers they must enter. The same inventory checks for a
+pre-existing `DESIGN.md` at either path the lint gate consults (beside the
+features, and one level up — a common filename, unlike the fence's):
+finding one is a rule-6 checkable collision, put to the visionary — adopt
+it as the seed, relocate ours, or merge by ruling — never overwritten
+silently. Scoping output never carries a
 tag whose claim the unbuilt code cannot yet honour: a `@security` tag on an
 unbound scenario is a guarantee in name only, and a host gate that ignores
 the `wip` register is *right* to fail it. Where a tag is earned but not yet
@@ -345,13 +437,23 @@ const dir = path.dirname(files[0]);
 const fence = [path.join(dir, "OUT-OF-SCOPE.md"), path.join(dir, "..", "OUT-OF-SCOPE.md")]
   .find((p) => fs.existsSync(p) && fs.readFileSync(p, "utf8").trim().length > 0);
 if (!fence) {
-  console.error(`fence missing or empty (looked beside the files and one level up) — the fence is a third of the deliverable, and a clean report without it is vacuous`);
+  console.error(`fence missing or empty (looked beside the files and one level up) — the fence is a quarter of the deliverable, and a clean report without it is vacuous`);
   process.exit(1);
 }
 const ledger = [path.join(dir, "USER-NEEDS.md"), path.join(dir, "..", "USER-NEEDS.md")]
   .find((p) => fs.existsSync(p) && fs.readFileSync(p, "utf8").trim().length > 0);
 if (!ledger) {
-  console.error(`needs ledger missing or empty (looked beside the files and one level up) — the ledger is a third of the deliverable, and a clean report without it is vacuous`);
+  console.error(`needs ledger missing or empty (looked beside the files and one level up) — the ledger is a quarter of the deliverable, and a clean report without it is vacuous`);
+  process.exit(1);
+}
+const design = [path.join(dir, "DESIGN.md"), path.join(dir, "..", "DESIGN.md")]
+  .find((p) => fs.existsSync(p) && fs.readFileSync(p, "utf8").trim().length > 0);
+if (!design) {
+  console.error(`design doc missing or empty (looked beside the files and one level up) — DESIGN.md is a quarter of the deliverable, and a clean report without it is vacuous`);
+  process.exit(1);
+}
+if (!/^#{1,6}\s*Changelog\b/im.test(fs.readFileSync(design, "utf8"))) {
+  console.error(`design doc has no Changelog heading (${design}) — the edit doctrine hangs on the changelog, and a doc born without one starts life indistinguishable from drift`);
   process.exit(1);
 }
 let bad = 0, plain = 0, outlines = 0;
@@ -375,6 +477,7 @@ console.log("scope-clean: zero strict findings");
 console.log("corpus: " + files.map((f) => path.resolve(f)).join(" "));
 console.log("fence: " + path.resolve(fence));
 console.log("ledger: " + path.resolve(ledger));
+console.log("design: " + path.resolve(design));
 console.log(`stats: ${files.length} feature files, ${plain} scenarios, ${outlines} scenario outlines`);
 ' -- features/*.feature
 ```
@@ -437,6 +540,12 @@ the mode above. The pass also reconciles the needs ledger: `USER-NEEDS.md`
 is drafted from the whole record against the Phase-1½ baseline, and the
 bidirectional coverage check runs (`needs.md`) — an uncovered need or an
 orphan feature file is a finding, routed per the mode like any other.
+And the pass verifies `DESIGN.md` — the deliverable whose human read is
+optional gets a machine-side leg instead: every `ruled` tag's citation is
+checked against the record (a citation is a checkable claim under rule 6;
+a mis-cited or distorted ruling is a drafting defect), and every `chosen`
+constraint is checked for collision with ratified rulings per rule 7 —
+findings routed per the mode like any other.
 Derivable gaps are
 drafted and flagged; genuine unknowns are asked, never silently defaulted.
 (Two runs: sixteen pre-handoff findings in one; a live shipping bug and a
@@ -445,12 +554,19 @@ only transcribes rulings would have shipped both.)
 
 ## Handoff
 
-Present the feature files and the fence to the visionary as **the contract**.
+Present the feature files, the fence, and the ledger to the visionary as
+**the contract** — `DESIGN.md` travels alongside it, under its own edit
+doctrine, without being part of it.
 The visionary has two jobs, different in kind, and the handoff states both.
 
 **The first job is the scope gate — once, at review:** read the needs
 ledger first — it is the standard the scenarios are judged against,
-never a second source of requirements. Then read every scenario,
+never a second source of requirements. (`DESIGN.md` is *not* on the
+required reading list: its primary consumer is the build agent, and the
+review contract stays behavior-sized. Invite the visionary to read it —
+a professional will want to — and state that the `ruled` entries are
+theirs to spot-check, since each cites the ruling it came from.) Then
+read every scenario,
 ordered so the files serving the heaviest-weighted needs come first —
 attention fades late in a long review, and the heaviest needs must not
 sit where it fades —
@@ -483,21 +599,32 @@ files under `features/design/` — run by a *second* `runFeatures` call with
 its own `wip` register, never mixed into `features/`, and outside the review
 contract. State this boundary in the handoff explicitly: the visionary
 reviews `features/` and only `features/`; the reviewed set stays small and
-intent-complete, and anything platform-specific the interview surfaced is
-delegated to the design tier via the out-of-scope list, not smuggled into a
+intent-complete. Platform material now has two routes, split by who
+decides: a constraint the visionary *ruled* (a Phase-5½ elective) lands in
+`DESIGN.md` as a `ruled` entry; acceptance criteria the *builder derives*
+land here, in the design tier; the fence keeps only what was deferred and
+left unruled. Neither route ever smuggles platform material into a
 reviewed file.
 
-The tier has a named horizon (foreign report, 2026-08-12): the fork's
-team envisions the build agent bounded by **triangulation — feature
-files ↔ code ↔ an architecture & design document** — because a large
-repo can be locally coherent yet globally incoherent, and the human who
-never reads the code still needs a design artifact they *can* vet. That
-guiding document is not this skill's output either — a design gate is
-its own protocol, not a tail on this interview — but its intent-side
-seed already is: the ledger's means-under-need rulings, `structural`
-statuses, and tension caps are human-ratified, architecture-shaping
-constraints. State in the handoff that a future design gate starts from
-them.
+The whole build — the tier included — sits under a named doctrine
+(foreign report, 2026-08-12;
+ratified into this protocol 2026-08-14): the build agent is bounded by
+**triangulation — intent ↔ plan ↔ build**. Intent is the feature files
+and the ledger, human-ratified; plan is `DESIGN.md`, agent-drafted and
+human-iterated under its edit doctrine; build is the code and its
+evidence artifacts (bindings, registers, run manifest). The third
+vertex exists because a large repo can be locally coherent yet globally
+incoherent, and both the human who never reads code and the agent that
+must stay converged need one orienting altitude — which is why the
+guiding document now *is* this skill's output (the 2026-08-12 ruling
+that a design gate must be a sibling protocol was reversed on the pro
+team's multi-prototype evidence; Phase 5½ records the road not taken).
+State the doctrine in the handoff: `DESIGN.md` travels with the
+contract; a downstream audit reads the three vertices for consistency —
+what is built, what is left, and whether any vertex has wandered from
+the other two — and when it does, the feature files bind, the doc
+explains, and a silent edit to either is the defect, not the
+disagreement.
 
 ## Run statistics — the run record
 
@@ -512,14 +639,20 @@ version control when entries name private projects; each installation
 accumulates its own. After each run, append one dated entry:
 project scoped, question count, reviewed-corpus size (files/scenarios),
 needs-ledger size with how many needs arrived only through the Phase-3¼
-sweep (the sweep's earn-its-keep number), corrections with their
+sweep (the sweep's earn-its-keep number), whether the Phase-5½ electives
+offer was taken and how many `ruled` constraints it produced (that
+phase's earn-its-keep number — a run of "make it so" answers is the
+evidence that would demote the offer, so record the declines too),
+corrections with their
 review-order positions, and any protocol change the
 run motivated. Entries from foreign runs are welcome too — an external
 fork that reports back (a multi-persona variant, a larger team) gets its
 own dated entry, marked foreign; that is how the checklist's lens tags
 earn a second interview style, or don't. For projects that reach build, a follow-up line: whether a
-`features/design/` tier was created, its size, and any **drift sighting** —
-a design-tier scenario contradicting a reviewed one. Each entry is there to
+`features/design/` tier was created, its size, any **drift sighting** —
+a design-tier scenario contradicting a reviewed one — and the
+`DESIGN.md` changelog length (how many amendments the build forced;
+a doc amended every week was drafted at the wrong altitude). Each entry is there to
 answer a question you'll eventually ask: is the interview getting cheaper
 (question count), is the reviewed set staying reviewable (corpus size and
 where corrections land), and has the unreviewed tier started to wander

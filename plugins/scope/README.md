@@ -2,9 +2,13 @@
 
 A structured scoping interview that turns a project idea into lint-clean
 `.feature` files in the [gherkin-node-test](https://github.com/bingh0/gherkin-node-test)
-dialect, plus an explicit out-of-scope fence. You are the visionary; the agent
-interviews you and writes the feature files. It runs *before* the code exists —
-the output is the contract the runner then enforces.
+dialect, plus three companion documents: an explicit out-of-scope fence, a
+needs ledger mapping every need to what covers it, and `DESIGN.md` — the
+high-altitude orienting document the build agent works under (with an
+opt-in moment at the end of the interview for you to put technology
+preferences into it). You are the visionary; the agent interviews you and
+writes everything. It runs *before* the code exists — the output is the
+contract the runner then enforces.
 
 The skill is an [Agent Skills](https://agentskills.io) skill, so it works in any
 host that reads `SKILL.md`. Instructions below cover **Claude Code** and
@@ -217,7 +221,7 @@ control if entries name private projects.
 | Installed tab shows an older version than 4.0.0 | The marketplace refresh didn't reach the install. `/plugin marketplace update gherkin-node-test`, then uninstall and reinstall. |
 | Skill silently missing in VS Code | Directory name must equal the frontmatter `name` (`scope`), lowercase, no prefixes. Check with `/skills`. |
 | Interview starts, then stalls or invents grammar | `grammar.md`, `layers.md`, and `needs.md` weren't copied. Copy the whole directory. |
-| Interview drifts into stacks and frameworks | Not an install problem — say so; the protocol is required to fence stack topics into the out-of-scope list and steer back to behavior. |
+| Interview drifts into stacks and frameworks | Not an install problem — say so; the protocol is required to fence stack topics into the out-of-scope list and steer back to behavior. Technology preferences have a sanctioned home at the *end* of the interview (the opt-in design-electives step), never in the middle. |
 | Interview claims output is clean but names no files | The lint gate never ran, or ran elsewhere. The report carries a `corpus:` line naming every file that earned the verdict — no line, no verdict. |
 
 ## Security note
