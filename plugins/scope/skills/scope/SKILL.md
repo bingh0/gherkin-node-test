@@ -666,11 +666,10 @@ which is why this contract names no tool for it. A change-watching
 consumer reads all four surfaces at once — `gherkin-trace` reads the
 feature files, the fence, the manifest, and the journal — which is what
 makes the fence's entry grammar above machine-read rather than
-decorative: directions, dates, `Guarded by:`. One operational note while
-it lasts: gherkin-trace's fence default is `<root>/OUT-OF-SCOPE.md` while
-this contract's canonical location is `features/OUT-OF-SCOPE.md`, so runs
-pass `--fence features/OUT-OF-SCOPE.md` until that tool's default-probe
-ruling lands.
+decorative: directions, dates, `Guarded by:`. gherkin-trace >= 0.0.2
+probes `features/OUT-OF-SCOPE.md` before the repo root, so this
+contract's canonical location is found without flags; older builds need
+`--fence features/OUT-OF-SCOPE.md`.
 
 ## Run statistics — the run record
 
