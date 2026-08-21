@@ -30,7 +30,14 @@ bottom of this file.
    refusal or error text, a status line — the options are rendered mockups
    at true dimensions, never prose (three runs: prose stalled, renders
    resolved on first ask, and twice the render itself surfaced the decisive
-   fact). An option set never fences the visionary in: rejecting the axis
+   fact). **The values in a mockup are themselves a scoping decision:
+   render the case that stresses the ruling, never the case that flatters
+   it, and where one render cannot show the stressing case, name the case
+   it does not show.** A flattering example launders a rule past review —
+   field specimen, 2026-08-15: a multi-store mockup showed equal coverage
+   at both stores, so the ruling that the worse-covered store wins by
+   default was ratified unseen and survived to the adversarial pass.
+   An option set never fences the visionary in: rejecting the axis
    is a legitimate answer. When the visionary reframes ("why do we even
    need X?"), the reframe becomes the decision point — do not re-present
    the original options; derive the next question from the reframe; record
@@ -279,7 +286,26 @@ drafted while that door is open):
   conservative intersection it describes.
 - `OUT-OF-SCOPE.md` — the fence, living beside the feature files it fences
   (`features/OUT-OF-SCOPE.md`): each declined/deferred item with one line on
-  why, in the visionary's terms — plus a **Roads not taken** section: for
+  why, in the visionary's terms, and **an ISO date in a trailing
+  parenthetical — the date that entry was ratified** (`… (2026-08-21)`); a
+  reaffirmation or a reversal updates that date in place rather than
+  appending a second one beside it. The date is not provenance decoration:
+  a fence-reading consumer derives an entry's effective date from the
+  latest date its text carries, and pressure detection — the reconsider
+  bell that rings when a fenced topic re-enters discussion — cannot run at
+  all for an undated entry, so an undated fence is a fence with that alarm
+  quietly disconnected (first field consumer gherkin-trace, whose own fence
+  carried eight undated entries that could not fire — 2026-08-21 review).
+  A **Declined** entry may also name the scenarios that *enforce* it —
+  `Guarded by: "<title>", "<title>"` in the entry body. An enforcing
+  scenario carries the fence's vocabulary by construction — it is the
+  scenario that proves the declined thing never happens — and bag-of-words
+  matching cannot see the "never", so the guardian reads as the breach.
+  Naming it exempts it from that entry's breach tiers and has it cited as a
+  guardian instead. Unlisted lookalikes still fire: the exemption is a
+  ruling, never an inference, and the safe default holds for every scenario
+  the entry does not name (ruled gherkin-trace D2, 2026-08-11).
+  The fence closes with a **Roads not taken** section: for
   each contested ruling, the options the visionary rejected, with one line
   on why. Declined scope fences the outside; rejected options pin the
   inside. Both exist so a later agent finds a decision where it would
@@ -495,7 +521,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-4.0.0**, grounded against **gherkin-node-test 0.9.0** (strict mode,
+4.1.0**, grounded against **gherkin-node-test 0.9.0** (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
 the script probes for `strict-tag` behavior and refuses to proceed rather
@@ -626,6 +652,26 @@ the other two — and when it does, the feature files bind, the doc
 explains, and a silent edit to either is the defect, not the
 disagreement.
 
+Name the build-side toolchain in the handoff too, so a scoped repo is
+consumable on day one rather than after an archaeology pass: the build
+runs the **pinned runner** — `gherkin-node-test`, or `gherkin-cargo-test`
+where the build is Rust — over the reviewed corpus and, separately, the
+design tier, and it **commits its run manifest** (declared format
+`{"run-manifest":1}`), which is where the triangulation's build vertex is
+read from; where the installation journals the work, that journal is the
+audit surface for how the build was actually conducted, on the same terms
+the interview's journal is stated below — captured at event time, not
+narrated afterward, and the mechanism stays the installation's own choice,
+which is why this contract names no tool for it. A change-watching
+consumer reads all four surfaces at once — `gherkin-trace` reads the
+feature files, the fence, the manifest, and the journal — which is what
+makes the fence's entry grammar above machine-read rather than
+decorative: directions, dates, `Guarded by:`. One operational note while
+it lasts: gherkin-trace's fence default is `<root>/OUT-OF-SCOPE.md` while
+this contract's canonical location is `features/OUT-OF-SCOPE.md`, so runs
+pass `--fence features/OUT-OF-SCOPE.md` until that tool's default-probe
+ruling lands.
+
 ## Run statistics — the run record
 
 Each installation keeps a running record of how the skill is working on
@@ -644,8 +690,13 @@ offer was taken and how many `ruled` constraints it produced (that
 phase's earn-its-keep number — a run of "make it so" answers is the
 evidence that would demote the offer, so record the declines too),
 corrections with their
-review-order positions, and any protocol change the
-run motivated. Entries from foreign runs are welcome too — an external
+review-order positions, **the visionary's self-reported read depth**, and
+any protocol change the
+run motivated. Read depth is not optional colour: zero corrections after a
+skim and zero after a close reading are the same row without it, and the
+gate mode was chosen to make that row mean something. A self-described
+superficial read marks the attention data *weak*, the way the severity
+override marks it *contaminated*. Entries from foreign runs are welcome too — an external
 fork that reports back (a multi-persona variant, a larger team) gets its
 own dated entry, marked foreign; that is how the checklist's lens tags
 earn a second interview style, or don't. For projects that reach build, a follow-up line: whether a
