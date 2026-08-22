@@ -291,13 +291,22 @@ drafted while that door is open):
   reaffirmation or a reversal updates that date in place rather than
   appending a second one beside it. The date is not provenance decoration:
   a fence-reading consumer derives an entry's effective date from the
-  latest date its text carries, and pressure detection — the reconsider
+  latest date in that trailing parenthetical (a date quoted in the reason
+  prose never counts — citing a roadmap must not read as reaffirming the
+  ruling), and pressure detection — the reconsider
   bell that rings when a fenced topic re-enters discussion — cannot run at
   all for an undated entry, so an undated fence is a fence with that alarm
   quietly disconnected (first field consumer gherkin-trace, whose own fence
   carried eight undated entries that could not fire — 2026-08-21 review).
   A **Declined** entry may also name the scenarios that *enforce* it —
-  `Guarded by: "<title>", "<title>"` in the entry body. An enforcing
+  `Guarded by: "<title>", "<title>"` in the entry body, **before** the
+  date parenthetical: the parenthetical is where a reader looks for the
+  date, so it stays the entry's final text, and a `Guarded by:` line
+  written after it leaves the entry reading as undated — the reconsider
+  bell disconnected on exactly the entries ruled important enough to
+  carry guardians (the ordering a faithful transcription produced on
+  first try, 2026-08-22 verification run — which is why it is now
+  written down). An enforcing
   scenario carries the fence's vocabulary by construction — it is the
   scenario that proves the declined thing never happens — and bag-of-words
   matching cannot see the "never", so the guardian reads as the breach.
@@ -521,7 +530,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-4.1.0**, grounded against **gherkin-node-test 0.9.0** (strict mode,
+4.1.1**, grounded against **gherkin-node-test 0.9.0** (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
 the script probes for `strict-tag` behavior and refuses to proceed rather
@@ -663,13 +672,15 @@ audit surface for how the build was actually conducted, on the same terms
 the interview's journal is stated below — captured at event time, not
 narrated afterward, and the mechanism stays the installation's own choice,
 which is why this contract names no tool for it. A change-watching
-consumer reads all four surfaces at once — `gherkin-trace` reads the
-feature files, the fence, the manifest, and the journal — which is what
-makes the fence's entry grammar above machine-read rather than
-decorative: directions, dates, `Guarded by:`. gherkin-trace >= 0.0.2
-probes `features/OUT-OF-SCOPE.md` before the repo root, so this
-contract's canonical location is found without flags; older builds need
-`--fence features/OUT-OF-SCOPE.md`.
+consumer, where the installation has one, reads all four surfaces at
+once — the feature files, the fence, the manifest, and the journal —
+which is what makes the fence's entry grammar above machine-read rather
+than decorative: directions, dates, `Guarded by:`. The contract does
+not require such a consumer to exist: the four surfaces stand on their
+own, and the grammar costs nothing unread. (First such consumer:
+`gherkin-trace` — private beta, unreleased; named here as provenance,
+not as a dependency, because a public contract must not send its reader
+to install what is not published.)
 
 ## Run statistics — the run record
 
