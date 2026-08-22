@@ -28,7 +28,8 @@ jobs:
       # The committed account must match what the run just wrote — a stale
       # run-manifest.ndjson is coverage accounting that silently lies in git
       # history, the exact class the manifest exists to expose. (ubuntu only:
-      # byte determinism across OS is its own scenario, wip until 0.9.0.)
+      # byte determinism across runtimes is its own scenario, held as
+      # unbound debt in the manifest.)
       - run: git diff --exit-code run-manifest.ndjson
         if: matrix.os == 'ubuntu-latest'
 

@@ -6,7 +6,7 @@ runner: [`node:test`](https://nodejs.org/api/test.html) under Node,
 [`bun:test`](https://bun.sh/docs/cli/test) natively under Bun, and `node:test`
 under [Deno](https://docs.deno.com/runtime/reference/cli/test/) (whose
 `node:test` bridges to the native `Deno.test` runner) — and it treats every
-silence as a bug. One file, ~1,400 lines, small enough to read in one sitting or
+silence as a bug. One file, ~1,700 lines, small enough to read in one sitting or
 to vendor outright. The same file doubles as a **feature-file linter** for
 projects whose runner is something else — see
 [the linter role](#the-linter-role--under-someone-elses-runner).
@@ -145,7 +145,7 @@ It is a plain `SKILL.md`, so it also loads in VS Code / GitHub Copilot by
 copying one directory. Full instructions for both, plus verification and
 troubleshooting: **[plugins/scope/README.md](plugins/scope/README.md)**.
 
-The skill versions on its own line — currently **scope 3.0.0**, grounded
+The skill versions on its own line — currently **scope 4.1.1**, grounded
 against **gherkin-node-test 0.9.0**. It probes the linter's behavior rather
 than trusting a version string, and refuses to certify output it could not
 check.
