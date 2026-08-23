@@ -530,14 +530,14 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-4.1.1**, grounded against **gherkin-node-test 0.9.0** (strict mode,
+4.1.2**, grounded against **gherkin-node-test 0.10.0** (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
 the script probes for `strict-tag` behavior and refuses to proceed rather
 than trusting a version string; a clean report from an older linter has not
 checked what this contract requires). If `gherkin-node-test` is not installed
 where the interview runs, install the pinned dialect
-(`npm install --no-save gherkin-node-test@0.9.0`) or point `GNT` at a
+(`npm install --no-save gherkin-node-test@0.10.0`) or point `GNT` at a
 checkout's `index.js` — this plugin ships inside the gherkin-node-test
 repository, so the checkout that provided the plugin has `index.js` at its
 root. If neither resolves, say so explicitly in the handoff — never claim

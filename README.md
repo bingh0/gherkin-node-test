@@ -15,6 +15,10 @@ projects whose runner is something else — see
 npm i -D gherkin-node-test    # or just copy index.js into your repo
 ```
 
+Node `>=22.17` (also runs on Bun and Deno). Support policy: the active and
+maintenance LTS lines — Node 22 rides until its EOL, April 2027; floors move
+only at those boundaries, in a versioned release.
+
 ## Why another BDD tool
 
 There are excellent Gherkin runners already — [cucumber-js](https://github.com/cucumber/cucumber-js)

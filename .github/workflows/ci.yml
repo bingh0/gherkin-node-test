@@ -13,10 +13,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, node: 18 }
-          - { os: ubuntu-latest, node: 20 }
-          - { os: ubuntu-latest, node: 22 }
+          # 22.17 is the engines floor — pinned exactly so the floor is
+          # tested, not just declared. Policy: active + maintenance LTS
+          # lines; 22 rides until its EOL (2027-04).
+          - { os: ubuntu-latest, node: 22.17 }
           - { os: ubuntu-latest, node: 24 }
+          - { os: ubuntu-latest, node: 26 }
           - { os: macos-latest, node: 24 }
           - { os: windows-latest, node: 24 }
     steps:
@@ -84,5 +86,9 @@ jobs:
       - run: npm ci
       - run: npm run test:vitest
       # Strict consumer typecheck (skipLibCheck OFF) of both shipped .d.ts
-      # entry points — hand-written vitest.d.ts has no other gate.
+      # entry points — hand-written vitest.d.ts has no other gate. Run under
+      # BOTH supported TypeScript majors: the 5.x and 7.x lines disagree
+      # about `export =` (TS2309, gh#2 shipped green because only 7.x
+      # gated) — one lane per major keeps that class caught.
       - run: npm run typecheck
+      - run: npm run typecheck:ts5
