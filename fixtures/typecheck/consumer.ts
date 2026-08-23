@@ -4,7 +4,10 @@
 // class this exists for: vitest.d.ts once annotated with `StepRegistry` as a
 // type, which an `export =` module only exports as a value.) Run via
 // `npm run typecheck`; the CI vitest lane runs it too. Never executed.
-import { bindRunner, lintFeature, parseFeature, StepRegistry } from 'gherkin-node-test';
+import {
+  bindRunner, lintFeature, parseFeature, StepRegistry,
+  type Definer, type Registry,
+} from 'gherkin-node-test';
 import * as vitestEntry from 'gherkin-node-test/vitest';
 
 export function typecheckMainEntry(): void {
@@ -27,6 +30,33 @@ export function typecheckMainEntry(): void {
   bound.runFeature(parsed, reg);
   // 0.8.0 run manifest through the bound surface (never executed — types only).
   bound.runFeatures('features', {}, { manifest: 'features/run-manifest.ndjson' });
+}
+
+// Typed worlds. W describes the world's ACCRETED shape (it is born {}), so
+// fields stay optional — the generic proves keys are spelled consistently,
+// never that a step has assigned them. All compile-time, consumer-side; the
+// runtime guards owe nothing to any of this.
+type CounterWorld = { count?: number; errors?: string[] };
+export function typecheckTypedWorld(): void {
+  const reg = new StepRegistry<CounterWorld>();
+  reg.define(/^a counter at (\d+)$/, (w, n) => {
+    if (typeof n === 'string') w.count = Number(n); // args are string | DataTable: coercion in view
+    w.defer(() => { w.count = 0; });                // defer arrives typed, no cast
+  });
+  // @ts-expect-error — a misspelled world key is a compile error under a typed W
+  reg.define(/^x$/, (w) => { w.cuont = 1; });
+  // @ts-expect-error — step args arrive as string | DataTable, never pre-coerced number
+  reg.define(/^y (\d+)$/, (w, n: number) => { void w; void n; });
+
+  // Definer<W> is the annotation seam: it types a step module handed to
+  // runFeatures, whose definers record stays Definer<any> (one world PER
+  // FEATURE — a type param on runFeatures itself would collapse them).
+  const definer: Definer<CounterWorld> = (r) => r.define(/^a$/, (w) => { void w.count; });
+  const bound = bindRunner((() => {}) as any);
+  bound.runFeatures('features', { counter: definer });
+  // Registry<W> now comes from the main entry too, not just the vitest one.
+  const alias: Registry<CounterWorld> = reg;
+  void alias;
 }
 
 export function typecheckVitestEntry(): void {
