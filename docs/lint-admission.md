@@ -91,8 +91,9 @@ resource in the system and the entire trust model routes through it.
   dialect-gate feature's preamble should reference this document once
   ratified.
 - The class of checks test 2 evicts from lint is proposed for gt as a
-  signal family (see gt's `docs/scoping-appeasement-signatures-2026-08-03.md`)
-  and for /audit as checklist lines — each through its own repo's gate.
+  signal family (`gherkin-trace` — private beta, unreleased; named here as
+  provenance, its scoping record of 2026-08-03 lives in that repo) and for
+  /audit as checklist lines — each through its own repo's gate.
 - This doctrine binds gct identically; divergence between the siblings on
   an admission decision is itself a defect.
 

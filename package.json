@@ -1,6 +1,6 @@
 {
   "name": "gherkin-node-test",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "The smallest honest Gherkin runner and feature-file linter — zero dependencies, native on node:test, bun:test, and Deno, with a vitest adapter, built for agent-driven BDD.",
   "license": "MIT",
   "author": "Bing Ho <reps-attic-riot@duck.com>",
@@ -24,7 +24,7 @@
     "./package.json": "./package.json"
   },
   "engines": {
-    "node": ">=18.3"
+    "node": ">=22.17"
   },
   "peerDependencies": {
     "vitest": ">=1"
@@ -46,7 +46,7 @@
     "test": "node --test",
     "test:vitest": "vitest run",
     "typecheck": "tsc -p fixtures/typecheck",
-    "types": "tsc index.js --declaration --emitDeclarationOnly --allowJs --noCheck --outDir . --target es2022 --module nodenext --skipLibCheck --types node"
+    "typecheck:ts5": "npx -y -p typescript@5 tsc -p fixtures/typecheck"
   },
   "keywords": [
     "gherkin",
@@ -69,5 +69,10 @@
     "@types/node": "^26.1.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
-  }
+  },
+  "homepage": "https://github.com/bingh0/gherkin-node-test#readme",
+  "bugs": {
+    "url": "https://github.com/bingh0/gherkin-node-test/issues"
+  },
+  "funding": "https://github.com/sponsors/bingh0"
 }
