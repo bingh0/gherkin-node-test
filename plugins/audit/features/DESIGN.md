@@ -64,6 +64,11 @@ archive assembly — is clerking, and the clerk is not the judge.
   it to the agent, and its honest move is a clearing move. Never-run,
   orphan, dark, unrefined, regressed, has-contract pass it; nothing
   conduct-shaped ever does. [ruled: N1]
+- Staleness is keyed to evidence, not text. A self-sanction goes stale
+  when the prover its reason names can no longer be sighted; a recorded
+  ruling that cites external state names its resight condition — the
+  observable whose change reopens it — and one that names none is
+  sighted as unconditioned while its suppression stands. [ruled: N0]
 
 ## Chosen (agent's calls, lower bar to revisit)
 
@@ -90,3 +95,10 @@ cost is stated before the pass spends it, and an unmeasured cost says so.)
   a vacuous reason is no reason; readiness-kind admission criterion
   written down, admitting regressed and has-contract. Two scenarios
   reworded, two added.
+- 2026-08-24 — amendment #3 (visionary ruling on gherkin-node-test issue
+  #4 round two and an independent-instance review): self-sanction
+  staleness keyed to the named prover; an in-step control earns an
+  absence; resight conditions read at every ruling level, unconditioned
+  external-state rulings sighted. Four scenarios added, one reworded.
+  Reviewed before ratification by two independent instances and the
+  reporting practitioner.

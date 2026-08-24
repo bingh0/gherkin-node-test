@@ -12,7 +12,7 @@ nothing else — the skill era's whole footprint is the report and one
 conformance-record entry. Read `rubric.md` (what a flag means and how a
 unit is placed) and `report.md` (what the caller sees) before grading
 anything. The ratified contract this protocol serves lives at
-`plugins/audit/features/` in the gherkin-node-test checkout — seventy-seven
+`plugins/audit/features/` in the gherkin-node-test checkout — eighty-one
 scenarios with their fence, ledger, and `DESIGN.md`. It is grounding, not
 runtime reading: you consult it only at step 9, and a run that cannot
 find it says so there.
@@ -190,7 +190,17 @@ name — are **self-sanctions**, written by the party being judged: the
 finding stays visible under its own heading with the reason inline,
 rank-demoted, never counted as suppressed. A marker with no reason, or
 whose reason states no checkable fact ("ok", "reviewed", "fine"), is a
-bare marker: the finding stands and the marker is sighted.
+bare marker: the finding stands and the marker is sighted. A
+self-sanction's evidence is the *prover its reason names* — usually
+outside both the marked line and the scenario — so staleness is keyed to
+the prover, not the text: a prover you can no longer sight makes the
+sanction stale and returns the finding at full rank; an enclosing
+definition changed after the marker's commit marks it for resight.
+*Resight conditions*, at every level: a ruling that names the observable
+whose change reopens it (`Resights when:`, or prose naming it) reopens
+when that observable has changed, both dates shown; a ruling that cites
+external state and names no condition is sighted as unconditioned — its
+suppression stands, and the report says it can go stale silently.
 
 **7. Rank.** Severity × need centrality — weights from the ledger where
 one exists; where none, infer centrality and disclose that you did.
@@ -225,7 +235,7 @@ findable from this installation, the entry says so instead of guessing.
 This revision is **audit 0.1.0**, grounded against **gherkin-node-test
 0.10.0** (its manifest declaration, wip register shape, and typed-world
 binding idiom are what steps 1–3 read), and against the ratified contract
-at `plugins/audit/features/` (7 files, 77 scenarios; fence, ledger, and
+at `plugins/audit/features/` (7 files, 81 scenarios; fence, ledger, and
 `DESIGN.md` beside them). The skill era is **report-only**: the archive,
 the registry file, stable finding keys, and archive diffing are clerk-era
 rulings that activate when a clerk ships — `gherkin-muster` is the

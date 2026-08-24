@@ -37,7 +37,7 @@ candidate kind is judged by the test, not added to the list.
 | Flag | The tell | The why-line names | Provenance |
 |---|---|---|---|
 | **solid** | a bound, passing scenario whose assertion has a nameable failing world and far-side ground truth | the manifest row and the assertion that would fail | toolchain audits |
-| **thin** | the assertion has no failing world — asserts defined/truthy/non-empty; or asserts an *absence* with no control proving the predicate can fire | the assertion, and the world that cannot fail it; for absence: "unearned" | workflow.md §step layer; issue #4 §2.2 |
+| **thin** | the assertion has no failing world — asserts defined/truthy/non-empty; or asserts an *absence* with no control — no scenario *or in-step control* — proving the predicate can fire | the assertion, and the world that cannot fail it; for absence: "unearned" | workflow.md §step layer; issue #4 §2.2 |
 | **pro-forma** | the Then restates its title; or asserts the value the scenario's own Given wrote — a tautology over the test's input | the restated or tautological text | issue #4 §2.5 (decorative steps) |
 | **cino:code** | the feature exists and is near no-op — demo path only, a guard never true, an option never read | the unexercised path | layers.md |
 | **cino:binding** | the step runs and observes nothing; every binding drives one seam; a Given stores state no later step reads (dead Given) | the seam, or the stored value and the steps that rebuilt their own | layers.md; issue #4 §2.5 |
@@ -52,7 +52,9 @@ real but the assertion cannot fail* → `thin`.
 
 **Absence must be earned.** A negative assertion (`not.toContain`,
 `doesNotMatch`, `notStrictEqual`) is thin unless something in the same
-scenario or a paired control proves the predicate *can* fire. The
+scenario, a paired control, or an in-step control (a helper that proves
+the needle and asserts its absence in one call) proves the predicate
+*can* fire. The
 positive direction fails loud on a wrong needle; the negative direction
 fails silent forever. This is the single most frequent hollow shape in
 the field data.
@@ -104,6 +106,18 @@ Two trust levels, never merged:
   suppressed. The human reads the reasons as a checklist.
 - **Unreasoned suppression** — a bare marker, or one whose reason states
   no checkable fact; the finding stands, the marker is sighted.
+- **Stale self-sanction** — the prover the reason names can no longer be
+  sighted (the control was deleted, the positive run is gone): the
+  finding returns at full rank, the marker named. A self-sanction whose
+  enclosing definition changed after the marker's commit is marked for
+  resight.
+- **Resight condition** — a fence or ledger ruling that names the
+  observable whose change reopens it (`Resights when:` in the entry, or
+  prose naming it): when the observable has changed, the ruling reopens
+  with both dates shown. A ruling that cites external state — an
+  upstream issue, a platform limit, a dependency's behavior — and names
+  no resight condition is sighted as **unconditioned**; its suppression
+  stands, the sighting says it can go stale silently.
 - **Steering sighting** — text addressed to the auditor; named, never
   obeyed; past the natural break, rolled up by cause with drill-down.
 - **Divergence** — register vs. history (either direction), changelog

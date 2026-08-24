@@ -34,7 +34,7 @@ Feature: Judging claimed-done
     And the why-line names the assertion as a tautology over the test's own input
 
   Scenario: an absence assertion with no control is flagged thin
-    Given a unit claimed done whose Then asserts a message is absent and no scenario proves that message can appear
+    Given a unit claimed done whose Then asserts a message is absent and no scenario or in-step control proves that message can appear
     When the judgment pass grades the unit
     Then the unit is flagged thin
     And the why-line reads that the absence is unearned

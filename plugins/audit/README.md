@@ -33,7 +33,7 @@ The 0.x line is deliberate: this is the **skill era** of an instrument
 whose contract (`features/`, beside this file, with fence, needs ledger,
 and `DESIGN.md`) was
 scoped in full but is verified today by a **conformance record**, not by
-bindings. (Seven feature files, seventy-seven scenarios.) Each field run records which contract scenarios it exercised
+bindings. (Seven feature files, eighty-one scenarios.) Each field run records which contract scenarios it exercised
 and whether the report matched them, human-ratified; a scenario never
 exercised is visible debt. The archive, the machine registry file, stable
 finding keys, and archive diffing are *clerk-era* rulings — they activate

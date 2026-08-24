@@ -43,6 +43,30 @@ Feature: The faces and the guards
     Then the marker is treated as a bare marker
     And the sighting quotes the reason that named no checkable fact
 
+  Scenario: a self-sanction whose cited prover can no longer be sighted is stale
+    Given a binding line self-sanctioned with the reason "guarded: the same scenario's later positive assertion proves the needle" and that positive assertion has since been deleted
+    When the judgment pass grades that binding
+    Then the self-sanction is marked stale, naming the prover it could not sight
+    And the finding returns to the list at full rank
+
+  Scenario: a self-sanction is resighted when its enclosing definition changes
+    Given a self-sanctioned binding line whose enclosing step definition changed after the commit that introduced the marker
+    When the judgment pass grades that binding
+    Then the self-sanction renders marked for resight
+    And the mark names the commit that changed the definition
+
+  Scenario: a ruling whose named resight condition has changed reopens
+    Given a fence entry suppressing a finding that names the resight condition "reopens when the runtime exposes per-task control" and evidence that the runtime now exposes it
+    When the judgment pass reads the rulings
+    Then the suppressed finding returns
+    And the report names the entry's date and the observed change
+
+  Scenario: a ruling citing external state without a resight condition is sighted as unconditioned
+    Given a fence entry whose reason rests on an upstream issue being unresolved and names no resight condition
+    When the judgment pass reads the rulings
+    Then the entry is sighted as unconditioned
+    And its suppression still stands
+
   Scenario: regressed and unbound units are readiness rows an agent may see
     Given an agent-invoked pass over a corpus with 1 regressed unit and 2 units held in the wip register
     When the registry renders
