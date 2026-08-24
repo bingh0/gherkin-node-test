@@ -10,7 +10,11 @@ reaffirmation or reversal updates the date in place.
   out: too inflexible for judgment over heterogeneous evidence. The
   boundary is judgment, not machinery — mechanical *clerking* beneath the
   judge (enumeration, edge-link extraction, archive assembly) is
-  in-contract. (2026-08-11; boundary clarified and reaffirmed 2026-08-23)
+  in-contract. The boundary cuts the other way too: the runner's
+  mechanical guards (binding completeness, unused definitions, argument
+  consumption) never migrate here, and decorative-step *judgment* —
+  proposed as a runner feature in gherkin-node-test issue #4 — lives here,
+  not there. (2026-08-11; boundary clarified and reaffirmed 2026-08-23)
 - **Verdict-shaped output.** No pass/fail, no scores — counts, items,
   states-with-evidence, pointers. Exit codes mean ran or could-not-run.
   Guarded by: "a finding is never a verdict", "could-not-run is the only

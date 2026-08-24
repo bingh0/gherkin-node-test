@@ -51,6 +51,11 @@ archive assembly — is clerking, and the clerk is not the judge.
 - Counts never fold: mountains stay mountains, acknowledged debt stays
   listed, sightings collapse only by cause and only past the break, with
   drill-down. [ruled: N9]
+- Step-level sanction markers carrying a reason are recorded rulings —
+  read as substrate like a fence entry; a marker without a reason is not
+  a ruling and is sighted as such. Decorative-step judgment (tautology,
+  unearned absence, dead Given) is this instrument's, never the runner's
+  — the runner gates only what is mechanical. [ruled: N0, N3]
 
 ## Chosen (agent's calls, lower bar to revisit)
 
@@ -67,3 +72,7 @@ cost is stated before the pass spends it, and an unmeasured cost says so.)
 
 - 2026-08-23 — initial draft (scope interview, electives declined; ruled
   constraints cite ledger rows N0–N9).
+- 2026-08-23 — amendment (visionary ruling on gherkin-node-test issue
+  #4): step-fidelity taxonomy enters the grading vocabulary; step-level
+  sanction markers read as recorded rulings; decorative-step judgment
+  placed here, relocated from the runner. Five scenarios added.

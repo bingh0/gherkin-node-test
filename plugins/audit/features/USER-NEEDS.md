@@ -28,7 +28,12 @@ files bind.
 - **N3** (owner, wt 5) — *I need claimed-done graded for confidence — 244
   done, but which 32 are thin, pro-forma, cino, or blind?* Evidence: v1
   core anchor from Phase 0; the grading walk was the first confirmed
-  happy path. Coverage: `scenario` — judging-claimed-done.feature.
+  happy path. Amended 2026-08-23: the step-fidelity taxonomy from
+  gherkin-node-test issue #4 (an independent practitioner audit —
+  tautological Thens, unearned absence assertions, dead Given state)
+  enters the why-line vocabulary; mechanical no-op step detection was
+  declined for the runner and relocated here as judgment. Coverage:
+  `scenario` — judging-claimed-done.feature.
 - **N4** (owner, wt 4) — *I need the per-unit state ladder never collapsed
   into done.* Evidence: v1 core; the six-contracts-nothing-built specimen.
   Coverage: `scenario` — the-state-ladder.feature.

@@ -27,6 +27,24 @@ Feature: Judging claimed-done
     Then the unit is flagged with the address cino:assertion
     And the flag carries a pointer to the binding line that grounds near-side
 
+  Scenario: a Then asserting the scenario's own input is flagged pro-forma
+    Given a unit claimed done whose Then asserts the value its own Given wrote into the world
+    When the judgment pass grades the unit
+    Then the unit is flagged pro-forma
+    And the why-line names the assertion as a tautology over the test's own input
+
+  Scenario: an absence assertion with no control is flagged thin
+    Given a unit claimed done whose Then asserts a message is absent and no scenario proves that message can appear
+    When the judgment pass grades the unit
+    Then the unit is flagged thin
+    And the why-line reads that the absence is unearned
+
+  Scenario: a Given nothing reads is flagged at the binding address
+    Given a unit claimed done whose Given stores a value no later step of the scenario reads
+    When the judgment pass grades the unit
+    Then the unit is flagged with the address cino:binding
+    And the why-line names the stored value and the steps that rebuilt their own
+
   Scenario: a blind flag names the surface nothing watches
     Given a unit claimed done whose shared screen has no scenario touching it
     When the judgment pass grades the unit

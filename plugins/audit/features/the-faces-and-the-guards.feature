@@ -25,6 +25,18 @@ Feature: The faces and the guards
     When the report renders
     Then the report states 1 suppressed by recorded ruling, citing the entry
 
+  Scenario: a step-level sanction with a reason is read as a recorded ruling
+    Given a binding line carrying a sanction marker with a stated reason
+    When the judgment pass grades that binding
+    Then a finding on that line is suppressed
+    And the suppression count cites the marker's file, line, and reason
+
+  Scenario: a bare sanction marker is not a ruling
+    Given a binding line carrying a sanction marker with no reason
+    When the judgment pass grades that binding
+    Then the finding on that line stands
+    And the bare marker is itself sighted as an unreasoned suppression
+
   Scenario: an overrule reopens when its evidence changes
     Given an overruled finding whose scenario body changed after the ruling's date
     When the pass runs
