@@ -128,12 +128,15 @@ module.exports = (reg) => {
   });
 
   reg.define(/^a definition matched only by its already-bound steps$/, (w) => {
-    // Partial binding: the first step binds (consuming this definition), the
-    // rest stay unbound — so the wip entry stays honest while the scenario
-    // is the definition's only consumer.
+    // Partial binding, and the bound consumer is the LAST step — unbound
+    // steps stand between the scenario's start and it. Binding the first
+    // step instead would let an early-exit rewrite of incidental counting
+    // pass this anchor: such a rewrite still evaluates steps up to the
+    // first unbound one (mutation-verified 2026-08-24 — the first-step
+    // variant stayed green under the implanted rewrite; this one goes red).
     w.job.definers = {
       counter: (/** @type {any} */ r) => {
-        r.define(/^a counter at (\d+)$/, () => {});
+        r.define(/^the counter is (\d+)$/, () => {});
       },
     };
   });

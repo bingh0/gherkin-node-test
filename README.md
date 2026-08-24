@@ -841,7 +841,7 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 | `StepRegistry` | `.define(pattern, fn)` / `.find(text)`; optionally generic — [`StepRegistry<W>`](#typed-worlds-typescript-opt-in) types the world |
 | `Definer<W>`, `Registry<W>`, `StepFn<W>` *(types)* | the [typed-world](#typed-worlds-typescript-opt-in) seams; also re-exported by the vitest entry |
 | `executeSteps(steps, registry, world?)` | run a flat step list against a shared world (installs `world.defer`) |
-| `runFeature(parsed, registry)` | register one runner test per scenario (`@skip`/`@todo` mapped; `@only` and duplicate titles → failing test; unbound → TODO) |
+| `runFeature(parsed, registry)` | register one runner test per scenario (`@skip`/`@todo` mapped; `@only`, duplicate titles, and unconsumed definitions → failing test; unbound → TODO) — the registry is one feature's, so a registry shared across files answers for full consumption in each |
 | `runFeatureFile(file, registry)` | read + parse + run a single `.feature` file |
 | `bindRunner(testFn)` | rebind `runFeature`/`runFeatureFile`/`runFeatures` to a method-form `test` function (`.skip`/`.todo`) — how [`gherkin-node-test/vitest`](#and-under-vitest--via-the-adapter) is built |
 | `DataTable` | cucumber-compatible step table: `raw` / `rows` / `hashes` / `rowsHash` / `transpose` |
