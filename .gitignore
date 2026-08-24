@@ -8,6 +8,8 @@ fixtures/.manifest-out/
 
 # scope plugin lab notebook — run entries name real projects; each install keeps its own
 docs/scope-runs.md
+# audit plugin conformance record — same doctrine
+docs/audit-runs.md
 
 # local thinking notes — not part of the published repo
 docs/notes/

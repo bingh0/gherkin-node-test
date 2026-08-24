@@ -1,6 +1,6 @@
 {
   "name": "gherkin-node-test",
-  "description": "Tooling for the gherkin-node-test dialect: a scoping interview that writes the feature files the runner then enforces.",
+  "description": "Tooling for the gherkin-node-test dialect: a scoping interview that writes the feature files the runner then enforces, and a judgment pass that asks where the build really stands.",
   "owner": {
     "name": "Bing Ho",
     "email": "reps-attic-riot@duck.com"
@@ -11,6 +11,14 @@
       "source": "./plugins/scope",
       "description": "Structured scoping interview that turns a project idea into lint-clean Gherkin feature files in the gherkin-node-test dialect, plus an explicit out-of-scope fence.",
       "version": "4.1.2",
+      "license": "MIT",
+      "homepage": "https://github.com/bingh0/gherkin-node-test"
+    },
+    {
+      "name": "audit",
+      "source": "./plugins/audit",
+      "description": "Judgment pass over a BDD corpus and its bindings — where are we really? Grades claimed-done against solid, places units on a state ladder, judges whether needs, feature files, design, and code describe one system. Never a gate.",
+      "version": "0.1.0",
       "license": "MIT",
       "homepage": "https://github.com/bingh0/gherkin-node-test"
     }
