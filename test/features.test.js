@@ -26,6 +26,15 @@ runFeatures(path.join(__dirname, '..', 'features'), {
   'run-manifest': require('./steps/run-manifest.steps'),
 }, {
   wip: [
+    { feature: 'binding-ratchet', scenarios: [
+      // The unused-definition guard — the wip ratchet's dual (gh#5, 0.11.0).
+      // Contract leads the code; these clear when the guard lands.
+      'a definition no scenario consumes is red',
+      'a skipped scenario still consumes its definitions',
+      'an execution filter cannot fake an unused definition',
+      'the refusal is a registered failure, not a load-time crash',
+      'an unused definition is cleared explicitly',
+    ] },
     { feature: 'honest-run', scenarios: [
       // Enforced by CI running this suite under every runtime; a scenario
       // cannot spawn all four from inside one of them.
