@@ -58,3 +58,40 @@ Feature: The binding ratchet
     When the declaration is removed and the suite runs
     Then the scenario is enforced and passes
     And the run is green
+
+  Scenario: a definition no scenario consumes is red
+    Given a feature file with 2 scenarios
+    And bindings that make both pass
+    And one more definition matching no step in the feature
+    When the suite runs
+    Then the run is red
+    And the failure names the unused definition's pattern
+    And the failure names the feature whose definer registered it
+
+  Scenario: a skipped scenario still consumes its definitions
+    Given a feature file whose scenario carries the tag "@skip"
+    And a definition matched only by that scenario's steps
+    When the suite runs
+    Then the run is green
+
+  Scenario: an execution filter cannot fake an unused definition
+    Given a definition matched only by a scenario an execution filter excludes
+    When the suite runs under that filter
+    Then the run is green
+
+  Scenario: a wip-declared scenario still consumes its bound steps
+    Given a scenario declared as work in progress
+    And a definition matched only by its already-bound steps
+    When the suite runs
+    Then the run is green
+
+  Scenario: the refusal is a registered failure, not a load-time crash
+    Given a definer whose only defect is one unused definition
+    When the suite runs
+    Then the failure registers as a failing test
+    And every other scenario in the feature still runs
+
+  Scenario: an unused definition is cleared explicitly
+    Given a definition that was red as unused
+    When the definition is deleted and the suite runs
+    Then the run is green

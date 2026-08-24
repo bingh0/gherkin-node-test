@@ -99,9 +99,11 @@ resource in the system and the entire trust model routes through it.
 
 ## Admission records
 
-*One entry per rule shipped after ratification; the anchor scenarios live in
-`features/dialect-gate.feature`. Rules that predate the doctrine were reviewed
-at the 2026-08-03 visionary review.*
+*One entry per rule shipped after ratification — a rule may enter as a stub
+at anchor time, completed when it ships; anchor scenarios live with the
+contract they extend (`features/dialect-gate.feature` for parser and lint
+rules, the runner's own feature files for runner refusals). Rules that
+predate the doctrine were reviewed at the 2026-08-03 visionary review.*
 
 ### `dropped-prose` — 0.9.0, warn (error under strict)
 
@@ -163,3 +165,38 @@ and gct's own runner refusal supplies the `cargo test` phrasing at run time.
    default mode is unchanged, and strict refuses rather than reinterprets.
 4. **Loudness**: strict-only by construction — the reviewer-facing default
    stays quiet; a repo opts its builder surfaces into the red.
+
+### `unused-definition` — stub, unshipped (0.11.0 target, gh#5)
+
+*Anchor scenarios live in `features/binding-ratchet.feature` (the ratchet's
+own contract — this guard is its dual), held in the wip register until the
+guard is built. This entry is a stub: it names which admission test each
+scenario pins, and it is completed when the guard ships.*
+
+1. **Unique remedy**: pinned by *a definition no scenario consumes is red* —
+   the refusal names the definition's pattern and its feature; the fix is
+   derivable from the finding alone (delete the definition, or restore the
+   scenario meant to consume it).
+2. **Cheapest legal move**: delete the dead definition — a reviewed diff in
+   the step layer; pinned by *an unused definition is cleared explicitly*.
+   The two evasions both land in reviewed artifacts or existing refusals:
+   widening the pattern until it poaches another definition's step trips the
+   ambiguity refusal (already pinned by *a declared scenario's ambiguous step
+   is still red*), and writing a throwaway scenario to consume dead code is
+   an edit to the feature file — the most-reviewed artifact in the system.
+   The third legal move is the sanctioned one (ruled at this stub's review,
+   gh#6): park a wip-held consumer scenario for the definition — spec-first
+   done honestly, and even done cynically it is named, reviewed, and
+   todo-counted on every run.
+3. **Subset, never divergence**: nothing in Gherkin is reinterpreted — the
+   guard reads the registry's match counts, never the feature text; no
+   scenario pins feature grammar because none is touched.
+4. **Loudness stays rare**: fires only on dead code in the step layer, which
+   spec-first output does not emit. Three scenarios pin the false-red guards
+   — consumption is counted at the binding preflight, so *a skipped scenario
+   still consumes its definitions*, *an execution filter cannot fake an
+   unused definition*, and *a wip-declared scenario still consumes its bound
+   steps* (the house's own primary ink; wip-held rows take their own code
+   path and must keep counting); and *the refusal is a registered failure,
+   not a load-time crash* keeps the red local (one failing test; the rest of
+   the suite still reports — the Deno load-throw precedent).
