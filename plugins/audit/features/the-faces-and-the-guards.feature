@@ -25,17 +25,29 @@ Feature: The faces and the guards
     When the report renders
     Then the report states 1 suppressed by recorded ruling, citing the entry
 
-  Scenario: a step-level sanction with a reason is read as a recorded ruling
+  Scenario: a step-level sanction with a reason is self-sanctioned, visible, and demoted
     Given a binding line carrying a sanction marker with a stated reason
     When the judgment pass grades that binding
-    Then a finding on that line is suppressed
-    And the suppression count cites the marker's file, line, and reason
+    Then the finding on that line renders under the self-sanctioned heading with the reason inline
+    And the finding is rank-demoted, never counted as suppressed
 
   Scenario: a bare sanction marker is not a ruling
     Given a binding line carrying a sanction marker with no reason
     When the judgment pass grades that binding
     Then the finding on that line stands
     And the bare marker is itself sighted as an unreasoned suppression
+
+  Scenario: a reason that states nothing checkable is no reason
+    Given a binding line carrying a sanction marker whose reason reads only "reviewed"
+    When the judgment pass grades that binding
+    Then the marker is treated as a bare marker
+    And the sighting quotes the reason that named no checkable fact
+
+  Scenario: regressed and unbound units are readiness rows an agent may see
+    Given an agent-invoked pass over a corpus with 1 regressed unit and 2 units held in the wip register
+    When the registry renders
+    Then the registry carries 1 regressed row and 2 has-contract rows
+    And each row's evidence is a runner artifact the agent could already read, a manifest row or a wip entry
 
   Scenario: an overrule reopens when its evidence changes
     Given an overruled finding whose scenario body changed after the ruling's date

@@ -54,11 +54,11 @@ Feature: Reporting to callers
     When the needs-work list renders
     Then the acknowledged mark carries its age of 225 days
 
-  Scenario: suppression and acknowledgment count under different words
-    Given 1 finding suppressed by a recorded ruling and 2 findings acknowledged
+  Scenario: suppression, acknowledgment, and self-sanction count under different words
+    Given 1 finding suppressed by a recorded ruling, 2 findings acknowledged, and 3 findings self-sanctioned by marker
     When the report renders
-    Then the counts read 1 suppressed by ruling and 2 acknowledged
-    And neither count folds into the other
+    Then the counts read 1 suppressed by ruling, 2 acknowledged, and 3 self-sanctioned
+    And no count folds into another
 
   Scenario: sightings collapse by cause past the break
     Given 214 steering sightings across 12 files

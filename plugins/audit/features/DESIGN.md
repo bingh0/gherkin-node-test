@@ -51,11 +51,19 @@ archive assembly — is clerking, and the clerk is not the judge.
 - Counts never fold: mountains stay mountains, acknowledged debt stays
   listed, sightings collapse only by cause and only past the break, with
   drill-down. [ruled: N9]
-- Step-level sanction markers carrying a reason are recorded rulings —
-  read as substrate like a fence entry; a marker without a reason is not
-  a ruling and is sighted as such. Decorative-step judgment (tautology,
-  unearned absence, dead Given) is this instrument's, never the runner's
-  — the runner gates only what is mechanical. [ruled: N0, N3]
+- Step-level sanction markers carrying a reason are **self-sanctions**,
+  not rulings: the finding stays visible under its own heading with the
+  reason inline, rank-demoted, never counted as suppressed — a fence
+  entry is a human ruling in a reviewed artifact; a marker is written by
+  the party being judged. A marker without a reason, or whose reason
+  states nothing checkable, is a bare marker and is sighted as such.
+  Decorative-step judgment (tautology, unearned absence, dead Given) is
+  this instrument's, never the runner's — the runner gates only what is
+  mechanical. [ruled: N0, N3]
+- The readiness face admits a kind by one test: the runner already shows
+  it to the agent, and its honest move is a clearing move. Never-run,
+  orphan, dark, unrefined, regressed, has-contract pass it; nothing
+  conduct-shaped ever does. [ruled: N1]
 
 ## Chosen (agent's calls, lower bar to revisit)
 
@@ -76,3 +84,9 @@ cost is stated before the pass spends it, and an unmeasured cost says so.)
   #4): step-fidelity taxonomy enters the grading vocabulary; step-level
   sanction markers read as recorded rulings; decorative-step judgment
   placed here, relocated from the runner. Five scenarios added.
+- 2026-08-23 — amendment (visionary ruling after the skill's adversarial
+  review): markers reclassified from suppressions to visible
+  self-sanctions (the judged party must not write its own suppressions);
+  a vacuous reason is no reason; readiness-kind admission criterion
+  written down, admitting regressed and has-contract. Two scenarios
+  reworded, two added.

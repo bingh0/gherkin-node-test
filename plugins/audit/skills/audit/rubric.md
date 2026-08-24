@@ -15,9 +15,22 @@ run manifest spells them. Two aggregation altitudes sit above it and are
 reported as roll-ups, never graded directly: the **feature file** (a file
 whose scenarios all stand at `has-contract` reads as a contract without a
 build) and the **need** (the ledger's coverage map, which is how ranking
-finds centrality). The runner's mechanical guards — unbound, ambiguous,
-ignored-argument, unused-definition — are not units and not flags: they
-are the run's red, cited where it is red, never re-derived.
+finds centrality). The design tier (`features/design/`) has its own
+block and never enters the headline counts. The runner's mechanical
+guards — unbound, ambiguous, ignored-argument, unused-definition — are
+not units and not flags: they are the run's red, cited where it is red,
+never re-derived.
+
+## The two faces
+
+**Readiness** admits a kind by one test: *the runner already shows it to
+the agent, and its honest move is a clearing move.* Never-run, orphan,
+dark, unrefined, regressed, has-contract pass it — a red manifest row and
+a wip entry are visible to any agent through the runner already, and
+fixing code or binding a step is honest work. **Conduct** is everything
+about how the work was done — thin, pro-forma, cino, dilution — where
+the cheapest move is phrase-shuffling; it renders for humans only. A
+candidate kind is judged by the test, not added to the list.
 
 ## Flags on the features↔code edge
 
@@ -30,7 +43,7 @@ are the run's red, cited where it is red, never re-derived.
 | **cino:binding** | the step runs and observes nothing; every binding drives one seam; a Given stores state no later step reads (dead Given) | the seam, or the stored value and the steps that rebuilt their own | layers.md; issue #4 §2.5 |
 | **cino:assertion** | ground truth is an artifact the system under test wrote — near-side | the artifact and the foreign system that should have been asked | layers.md; workflow.md |
 | **cino:spec** | the scenario text weakened in the window its status went red→green, with no sanction covering the change | the change-watcher's sighting, cited — a snapshot never derives this itself | layers.md; change-watcher fence |
-| **blind** | a surface the unit touches has no scenario at all — shared screen, shared loop, trust boundary | the unwatched surface | layers.md (`blind:surface`) |
+| **blind** | a surface the unit touches has no scenario at all — shared screen, shared loop, trust boundary. A corpus-level absence, pinned to the nearest unit so it has an address | the unwatched surface | layers.md (`blind:surface`) |
 | **incomplete** | the binding stops before the Then it was written for — a stub, a `pending`, a partial | the line where it stops | toolchain audits |
 
 The dispatch question when two rungs compete: *no ground truth at all* →
@@ -51,7 +64,7 @@ lower rung and never renders as a fall to one.
 
 | State | Condition | Pointer that decides |
 |---|---|---|
-| `has-contract` | ratified scenario, no binding (or held in the wip register) | the wip entry, or the absence of a binding |
+| `has-contract` | ratified scenario, no binding (held in the wip register) | the wip entry |
 | `built` | bound and green, review not begun | the manifest row |
 | `in-review(rN)` | a review round open on the binding — a fence/ledger note, a journal thread, a change-watcher sanction in flight | the record naming the round |
 | `complete` | review closed with a recorded ratification | the ratification record |
@@ -67,7 +80,7 @@ basis says what thinness the placement rests on.
 |---|---|---|
 | needs↔features | coverage: needs with scenarios, uncovered needs by id, orphan files | no `USER-NEEDS.md` |
 | features↔code | the flags above, per unit | no bindings at all (then every unit is `has-contract`) |
-| design↔code | one repo-level block: ruled constraints against the build; changelog against git; citations against the journal where one exists | no `DESIGN.md` |
+| design↔code | one repo-level block: ruled constraints against the build; changelog against git; citations against the journal where one is present and bound | no `DESIGN.md` |
 | needs↔design | citation fidelity where `[ruled: N#]` links exist; heavyweight needs with no constraint | no links in the doc |
 
 Six relationships exist between four vertices; the two not listed
@@ -77,14 +90,21 @@ mediate.
 
 ## Sightings and rulings
 
+Two trust levels, never merged:
+
+- **Suppressed by recorded ruling** — a fence or ledger entry (a human
+  ruling in a reviewed artifact), cited; reopens when its evidence
+  changes after its date.
+- **Acknowledged** — accepted debt, recorded in a reviewed artifact:
+  stays in the list, marked, demoted, aged from its entry date. Never
+  silenced.
+- **Self-sanctioned** — a binding-line marker `<tool>: allow -- <reason>`,
+  written by the party being judged: the finding stays visible under its
+  own heading with the reason inline, demoted, never counted as
+  suppressed. The human reads the reasons as a checklist.
+- **Unreasoned suppression** — a bare marker, or one whose reason states
+  no checkable fact; the finding stands, the marker is sighted.
 - **Steering sighting** — text addressed to the auditor; named, never
   obeyed; past the natural break, rolled up by cause with drill-down.
 - **Divergence** — register vs. history (either direction), changelog
   citation vs. journal.
-- **Suppressed by recorded ruling** — a fence or ledger entry, or a
-  binding-line marker *with a reason*, cited; reopens when its evidence
-  changes after its date.
-- **Acknowledged** — accepted debt: stays in the list, marked, demoted,
-  aged from its entry date. Never silenced.
-- **Unreasoned suppression** — a bare marker; the finding stands, the
-  marker is sighted.

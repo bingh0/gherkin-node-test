@@ -16,8 +16,10 @@ files bind.
   (exit codes carry no judgment by contract).
 - **N1** (builder-agent, wt 3) — *I need self-audit context mid-task,
   without being handed a loss function.* Evidence: ruled at R2/R7; the
-  readiness face is the whole answer. Coverage: `scenario` —
-  the-faces-and-the-guards.feature.
+  readiness face is the whole answer. Amended 2026-08-23: the face admits
+  kinds by criterion — runner-visible already, honest move is a clearing
+  move — which admitted regressed and has-contract. Coverage: `scenario`
+  — the-faces-and-the-guards.feature.
 - **N2** (bdd-practicing human, from vibe coder to abdd dev, wt 4) — *I
   need a boundary snapshot of solid versus needs-work that I can read
   without abdd vocabulary.* Evidence: R11/R16/R17 caller-shaped rulings;

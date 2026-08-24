@@ -114,3 +114,12 @@ reaffirmation or reversal updates the date in place.
 - Era-split design-block default and cost-statement-as-is — the first
   under-exercises the edges the reframe was ruled for; the second states
   a number known to be unpriced. (2026-08-23)
+- Markers-as-suppressions and markers-ignored — the first lets the judged
+  party write its own suppressions (one comment line per hollow
+  assertion, hidden behind a count); the second discards the one
+  review-shaped artifact the design tier produces. Self-sanctioned —
+  visible, reasons inline, demoted — is the ruled middle. (2026-08-23)
+- Readiness face by enumerated list — replaced by a criterion (runner
+  already shows it to the agent; honest move is a clearing move) so the
+  next candidate kind is judged by the rule, not by whoever edits the
+  list. (2026-08-23)
