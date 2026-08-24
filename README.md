@@ -45,6 +45,7 @@ False greens have specific, boring causes. Each one is a design decision here:
 |---|---|
 | The parser half-understands a construct and silently drops steps or table cells | Unsupported syntax is a **hard error with `file:line`** — doc strings, `Rule:`, ragged tables, a table row missing its closing `\|`, all of it. Never a best-effort parse. |
 | A scenario with zero bound steps "passes" | Unbound scenarios register as `node:test` TODO — and TODO is *reported as passing*, so the high-level runner **fails the suite** on any unbound step unless the feature is explicitly listed as work-in-progress. Rewording one step can't silently un-test a feature. |
+| A step definition outlives every scenario that consumed it | Dead definitions are **rejected as a failing test** naming the pattern and its feature — the wip ratchet's dual (wip catches scenarios without definitions; this catches definitions without scenarios). Keep a spec-first definition by writing the scenario it serves and holding *that* in the wip register; otherwise deletion is the remedy. |
 | A step matches two definitions and one silently wins | Ambiguity is **asserted against per feature**, at suite start, for every step. |
 | Step definitions collide across the suite's global namespace | There is no global namespace: **each feature gets its own registry**. An agent editing one feature structurally cannot break another's bindings. |
 | A scaffolded step stub passes vacuously | Missing-step errors include a **paste-ready definition whose body throws** `pending`. You cannot paste your way to a false green. |
@@ -233,10 +234,16 @@ Under a wip'd feature, the TODOs you see are exactly the ones the register
 declares — a reviewer can tell "intentionally pending" from "someone broke a
 binding" by grepping the entry.
 
-Two companion rules seal the ratchet's other entrances: the orphan-definer
-guard (renaming a `.feature` file can't silently strand its steps), and
+Three companion rules seal the ratchet's other entrances: the orphan-definer
+guard (renaming a `.feature` file can't silently strand its steps),
 skip-still-binds (`@skip` means "don't run", never "don't bind" — otherwise
-a tag would be a hole in the ratchet).
+a tag would be a hole in the ratchet), and the unused-definition guard, the
+ratchet's dual: a definition no scenario consumes is a registered failing
+test naming the pattern and its feature. The pair holds the ledger taut from
+both sides — the ratchet catches scenarios without definitions, the guard
+catches definitions without scenarios; the guard carries no register of its
+own, because the sanctioned way to keep a definition is to write the
+scenario it serves and hold *that* in the wip register.
 
 ## The run manifest
 

@@ -1184,6 +1184,36 @@ function runFeature(parsed, registry, register = registerTest, recorder = null) 
         + 'focused (--test-name-pattern / -t / --filter) and how failures are reported; rename the copies apart');
     });
   }
+  // Third rejection, same additive shape: a definition no scenario consumes
+  // is dead code in the step layer — the wip ratchet's dual (wip catches
+  // scenarios without definitions; this catches definitions without
+  // scenarios). Consumption is counted HERE, at registration, in a pass of
+  // its own: every scenario counts — @skip'd, @todo'd, and wip-held rows
+  // included — because registration runs under every execution filter, and
+  // the count must not ride along inside the unbound-step filter below
+  // (full evaluation is incidental there; an early-exit rewrite would
+  // silently stop counting for wip-held rows while both stayed green). A
+  // definition matched by an ambiguous step still counts as consumed:
+  // ambiguity carries its own refusal, and the remedy here must stay
+  // unique — delete the definition, or write the scenario it serves.
+  const consumed = new Set();
+  for (const sc of parsed.scenarios) {
+    for (const step of [...parsed.background, ...sc.steps]) {
+      for (const def of registry.steps) {
+        if (step.text.match(def.re)) consumed.add(def);
+      }
+    }
+  }
+  const unused = registry.steps.filter((d) => !consumed.has(d));
+  if (unused.length) {
+    const list = unused.map((d) => String(d.re)).join('; ');
+    register(`${base} :: every definition has a consumer`, {}, () => {
+      throw new Error(
+        `${parsed.file}: unused step definition(s) registered by the "${base}" definer: ${list} — `
+        + 'matched by no scenario step; delete the definition, or restore the scenario meant to '
+        + 'consume it (a spec-first consumer can be held in the wip register while the code catches up)');
+    });
+  }
   for (const sc of parsed.scenarios) {
     const steps = [...parsed.background, ...sc.steps];
     const title = `${parsed.feature} :: ${sc.name}`;

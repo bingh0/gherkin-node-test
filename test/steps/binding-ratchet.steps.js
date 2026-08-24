@@ -86,6 +86,96 @@ module.exports = (reg) => {
     w.job = { dir: 'good', definers: {}, opts: {} };
   });
 
+  reg.define(/^a feature file with 2 scenarios$/, (w) => {
+    w.job = { dir: 'pair', definers: {}, opts: {} };
+  });
+
+  reg.define(/^bindings that make both pass$/, (w) => {
+    w.job.definers = {
+      pair: (/** @type {any} */ r) => {
+        r.define(/^a paired step$/, () => {});
+        r.define(/^the pair balances$/, () => {});
+      },
+    };
+  });
+
+  reg.define(/^one more definition matching no step in the feature$/, (w) => {
+    const bound = w.job.definers.pair;
+    w.unusedPattern = '/^a definition nobody consumes$/';
+    w.job.definers = {
+      pair: (/** @type {any} */ r) => {
+        bound(r);
+        r.define(/^a definition nobody consumes$/, () => {});
+      },
+    };
+  });
+
+  reg.define(/^a definition matched only by that scenario's steps$/, (w) => {
+    w.job.definers = {
+      held: (/** @type {any} */ r) => {
+        r.define(/^a step nobody bound$/, () => {});
+        r.define(/^the gap is visible$/, () => {});
+      },
+    };
+  });
+
+  reg.define(/^a definition matched only by a scenario an execution filter excludes$/, (w) => {
+    w.job = { dir: 'good', definers: { counter: counterDefs }, opts: {} };
+    // The same narrowing --test-name-pattern / -t / --filter perform: the
+    // scenario's BODY never executes, but registration already ran — which
+    // is the whole reason consumption is counted there.
+    w.filter = (/** @type {{ title: string }} */ b) => !b.title.includes('increment once');
+  });
+
+  reg.define(/^a definition matched only by its already-bound steps$/, (w) => {
+    // Partial binding: the first step binds (consuming this definition), the
+    // rest stay unbound — so the wip entry stays honest while the scenario
+    // is the definition's only consumer.
+    w.job.definers = {
+      counter: (/** @type {any} */ r) => {
+        r.define(/^a counter at (\d+)$/, () => {});
+      },
+    };
+  });
+
+  reg.define(/^a definer whose only defect is one unused definition$/, (w) => {
+    w.enforced = 0;
+    w.unusedPattern = '/^a definition nobody consumes$/';
+    w.job = {
+      dir: 'good',
+      definers: {
+        counter: (/** @type {any} */ r) => {
+          r.define(/^a counter at (\d+)$/, (/** @type {any} */ sw, /** @type {string} */ n) => {
+            w.enforced += 1;
+            sw.count = Number(n);
+          });
+          r.define(/^I add (\d+)$/, (/** @type {any} */ sw, /** @type {string} */ n) => { sw.count += Number(n); });
+          r.define(/^the counter is (\d+)$/, (/** @type {any} */ sw, /** @type {string} */ n) => {
+            assert.strictEqual(sw.count, Number(n));
+          });
+          r.define(/^a definition nobody consumes$/, () => {});
+        },
+      },
+      opts: {},
+    };
+  });
+
+  reg.define(/^a definition that was red as unused$/, async (w) => {
+    // The control arm: the deleted definition's redness is PROVED, not
+    // assumed — an absence assertion is only admitted alongside a run that
+    // shows the same predicate can fire.
+    const dirty = {
+      counter: (/** @type {any} */ r) => {
+        counterDefs(r);
+        r.define(/^a definition nobody consumes$/, () => {});
+      },
+    };
+    const control = await new SubRun().registerDir('good', dirty, {}).run();
+    assert.ok(control.failures.length > 0, 'the control arm proves the guard fires on the unused definition');
+    assert.ok(control.failureText().includes('/^a definition nobody consumes$/'), control.failureText());
+    w.job = { dir: 'good', definers: { counter: counterDefs }, opts: {} };
+  });
+
   reg.define(/^a new binding that makes it pass$/, (w) => {
     w.job.definers = {
       counter: (/** @type {any} */ r) => {
@@ -109,6 +199,15 @@ module.exports = (reg) => {
 
   reg.define(/^the declaration is removed and the suite runs$/, async (w) => {
     // The register stays empty — removal is the Given's whole point.
+    w.res = await new SubRun().registerDir(w.job.dir, w.job.definers, w.job.opts).run();
+  });
+
+  reg.define(/^the suite runs under that filter$/, async (w) => {
+    w.res = await new SubRun().registerDir(w.job.dir, w.job.definers, w.job.opts).run(w.filter);
+  });
+
+  reg.define(/^the definition is deleted and the suite runs$/, async (w) => {
+    // The definer no longer registers it — deletion is the Given's whole point.
     w.res = await new SubRun().registerDir(w.job.dir, w.job.definers, w.job.opts).run();
   });
 
@@ -175,5 +274,35 @@ module.exports = (reg) => {
   reg.define(/^the scenario is enforced and passes$/, (w) => {
     assert.strictEqual(w.enforced, 1, 'the newly bound scenario executed');
     assert.deepStrictEqual(w.res.failures, [], w.res.failureText());
+  });
+
+  reg.define(/^the failure names the unused definition's pattern$/, (w) => {
+    const text = w.res.failureText();
+    assert.ok(w.unusedPattern, 'the Given recorded which pattern must be named');
+    assert.ok(text.includes(w.unusedPattern), `the unused definition's pattern is named:\n${text}`);
+  });
+
+  reg.define(/^the failure names the feature whose definer registered it$/, (w) => {
+    // Pattern alone cannot locate a definition — registries are scoped per
+    // feature, and the same pattern may be defined in several definer
+    // modules benignly. The MESSAGE must carry the feature, not just the
+    // test title, so the finding travels whole.
+    const message = (w.res.failures || []).map((/** @type {any} */ f) => String(f.error?.message ?? f.error)).join('\n');
+    assert.ok(message.includes('"pair" definer'), `the message names the definer's feature:\n${message}`);
+  });
+
+  reg.define(/^the failure registers as a failing test$/, (w) => {
+    // A load-time crash would have thrown out of registration and left no
+    // result at all; a registered refusal is a body that ran and failed.
+    assert.deepStrictEqual(
+      (w.res.failures || []).map((/** @type {any} */ f) => f.title),
+      ['counter :: every definition has a consumer'], w.res.failureText());
+    assert.ok(w.res.failureText().includes(w.unusedPattern), w.res.failureText());
+  });
+
+  reg.define(/^every other scenario in the feature still runs$/, (w) => {
+    assert.strictEqual(w.enforced, 1, 'the bound scenario executed its binding despite the refusal');
+    assert.ok(w.res.titles().includes('Counter :: increment once'),
+      'the consuming scenario registered alongside the refusal');
   });
 };

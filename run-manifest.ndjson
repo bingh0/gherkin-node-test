@@ -1,16 +1,16 @@
 {"run-manifest":1}
 {"file":"features/binding-ratchet.feature","title":"a declaration naming nothing is red","status":"passed"}
 {"file":"features/binding-ratchet.feature","title":"a declared scenario's ambiguous step is still red","status":"passed"}
-{"file":"features/binding-ratchet.feature","title":"a definition no scenario consumes is red","status":"unbound"}
-{"file":"features/binding-ratchet.feature","title":"a skipped scenario still consumes its definitions","status":"unbound"}
+{"file":"features/binding-ratchet.feature","title":"a definition no scenario consumes is red","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"a skipped scenario still consumes its definitions","status":"passed"}
 {"file":"features/binding-ratchet.feature","title":"a skipped scenario's steps must still bind","status":"passed"}
 {"file":"features/binding-ratchet.feature","title":"a stale declaration is red","status":"passed"}
-{"file":"features/binding-ratchet.feature","title":"a wip-declared scenario still consumes its bound steps","status":"unbound"}
-{"file":"features/binding-ratchet.feature","title":"an execution filter cannot fake an unused definition","status":"unbound"}
-{"file":"features/binding-ratchet.feature","title":"an unused definition is cleared explicitly","status":"unbound"}
+{"file":"features/binding-ratchet.feature","title":"a wip-declared scenario still consumes its bound steps","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"an execution filter cannot fake an unused definition","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"an unused definition is cleared explicitly","status":"passed"}
 {"file":"features/binding-ratchet.feature","title":"debt is cleared explicitly","status":"passed"}
 {"file":"features/binding-ratchet.feature","title":"declared debt keeps the run green and visible","status":"passed"}
-{"file":"features/binding-ratchet.feature","title":"the refusal is a registered failure, not a load-time crash","status":"unbound"}
+{"file":"features/binding-ratchet.feature","title":"the refusal is a registered failure, not a load-time crash","status":"passed"}
 {"file":"features/binding-ratchet.feature","title":"undeclared debt is red","status":"passed"}
 {"file":"features/dialect-gate.feature","title":"a construct outside the dialect refuses the whole file","status":"passed"}
 {"file":"features/dialect-gate.feature","title":"a feature file with no scenarios is an error","status":"passed"}

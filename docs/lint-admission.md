@@ -166,12 +166,15 @@ and gct's own runner refusal supplies the `cargo test` phrasing at run time.
 4. **Loudness**: strict-only by construction — the reviewer-facing default
    stays quiet; a repo opts its builder surfaces into the red.
 
-### `unused-definition` — stub, unshipped (0.11.0 target, gh#5)
+### `unused-definition` — 0.11.0, error (always-on runner refusal, gh#5)
 
 *Anchor scenarios live in `features/binding-ratchet.feature` (the ratchet's
-own contract — this guard is its dual), held in the wip register until the
-guard is built. This entry is a stub: it names which admission test each
-scenario pins, and it is completed when the guard ships.*
+own contract — this guard is its dual). They entered as wip-held stubs with
+this entry (gh#6, co-authored review) and cleared from the wip register when
+the guard landed — the entry's own stub promise, kept. The refusal registers
+per feature at binding time, additive like the @only rejection: one failing
+test naming every unused pattern and the definer's feature; every scenario
+below still registers and runs.*
 
 1. **Unique remedy**: pinned by *a definition no scenario consumes is red* —
    the refusal names the definition's pattern and its feature; the fix is
