@@ -33,6 +33,12 @@ Feature: The state ladder
     When the ladder renders
     Then the ladder counts 6 units at has-contract and 0 at built
 
+  Scenario: a ratification recorded at feature altitude places its unchanged scenarios at complete
+    Given a fence ruling dated 2026-08-01 ratifying a feature file and 6 of its 7 scenarios unchanged since that date
+    When the ladder renders
+    Then the 6 unchanged scenarios read complete with the fence line as their pointer
+    And the changed scenario reads built with a note naming the ratification date and the commit that changed it
+
   Scenario: a mid-churn snapshot names its basis
     Given a unit whose bindings changed 3 times in the day before the pass
     When the ladder renders

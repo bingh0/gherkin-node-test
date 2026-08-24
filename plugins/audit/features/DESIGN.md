@@ -81,6 +81,19 @@ an agent call — it lives above under N2's honesty-to-the-reader line:
 cost is stated before the pass spends it, and an unmeasured cost says so.)
 [ruled: N2]
 
+- Absence is earned only in the scenario's own world — a positive in the
+  same scenario, a paired run, or an in-step control; a positive elsewhere
+  earns the needle, never the world. A fixture that erases the failing
+  world makes the assertion thin by fixture. A unit that pins a dependency
+  with the product out of the loop is product-free, not contract.
+  [ruled: N3]
+- A ratification recorded at feature altitude reaches the scenarios the
+  feature held, unchanged, at that date. A pre-v4 design doc is judged
+  sentence by sentence and says so; a constraint falsified by a ruling
+  recorded elsewhere names that ruling's home; an overstatement is not a
+  contradiction. Fence entries dated only by their heading are read at
+  that date, with the basis named. [ruled: N4, N8]
+
 ## Changelog
 
 - 2026-08-23 — initial draft (scope interview, electives declined; ruled
@@ -102,3 +115,12 @@ cost is stated before the pass spends it, and an unmeasured cost says so.)
   external-state rulings sighted. Four scenarios added, one reworded.
   Reviewed before ratification by two independent instances and the
   reporting practitioner.
+- 2026-08-24 — amendment #4 (owner-delegated to the judge, from field run
+  #1 over treecontext, 408 units): absence-control locality tightened to
+  the scenario's own world (three batches independently graded stricter
+  than the text); product-free flag; thin-by-fixture; feature-altitude
+  ratification rolls down to unchanged scenarios; pre-v4 design docs
+  judged in prose mode with overstatement and ruling-landed-elsewhere
+  states; heading-inherited fence dates read with the basis named;
+  instrument line names delegated batches. Nine scenarios added, one
+  reworded, one extended. audit 0.1.1.

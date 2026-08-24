@@ -42,6 +42,7 @@ Feature: Reporting to callers
     When the report renders
     Then the header names the judge model, the skill version, the substrate versions read, and the timestamp
     And a run with no clerk states no clerk in the same line
+    And a run whose grading was delegated to batches names the batch count and the batches' model in the same line
 
   Scenario: acknowledged debt stays visible
     Given a finding acknowledged by a dated entry in the corpus's reviewed artifacts

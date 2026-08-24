@@ -27,13 +27,13 @@ Code) or `.github/skills/` (VS Code / Copilot). Keep the directory named
 
 ## Version
 
-**audit 0.1.0**, grounded against **gherkin-node-test 0.10.0**.
+**audit 0.1.1**, grounded against **gherkin-node-test 0.10.0**.
 
 The 0.x line is deliberate: this is the **skill era** of an instrument
 whose contract (`features/`, beside this file, with fence, needs ledger,
 and `DESIGN.md`) was
 scoped in full but is verified today by a **conformance record**, not by
-bindings. (Seven feature files, eighty-one scenarios.) Each field run records which contract scenarios it exercised
+bindings. (Seven feature files, eighty-nine scenarios.) Each field run records which contract scenarios it exercised
 and whether the report matched them, human-ratified; a scenario never
 exercised is visible debt. The archive, the machine registry file, stable
 finding keys, and archive diffing are *clerk-era* rulings — they activate

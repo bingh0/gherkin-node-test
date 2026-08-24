@@ -41,6 +41,12 @@ Feature: Evidence and degradation
     When the pass runs
     Then a divergence finding names the unbacked register entry
 
+  Scenario: a fence entry dated only by its section heading is read at that date, and the basis is named
+    Given a fence whose entries sit under a heading dated 2026-08-06 and carry no date of their own
+    When the judgment pass reads the rulings
+    Then each such entry's effective date is the heading's
+    And the evidence basis states how many entries carry heading-inherited dates that a trailing-parenthetical reader would read as undated
+
   Scenario: a pre-clerk run names its own era
     Given a pass run before any clerk exists
     When the report renders

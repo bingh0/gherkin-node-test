@@ -34,10 +34,28 @@ Feature: Judging claimed-done
     And the why-line names the assertion as a tautology over the test's own input
 
   Scenario: an absence assertion with no control is flagged thin
-    Given a unit claimed done whose Then asserts a message is absent and no scenario or in-step control proves that message can appear
+    Given a unit claimed done whose Then asserts a message is absent and no control in that scenario's own world proves the message can appear, neither a positive in the same scenario, a paired run, nor an in-step control
     When the judgment pass grades the unit
     Then the unit is flagged thin
     And the why-line reads that the absence is unearned
+
+  Scenario: a positive in another scenario earns the needle, not the world
+    Given a unit claimed done whose Then asserts a token is absent from an index and the only scenario proving that token can be indexed builds a different world
+    When the judgment pass grades the unit
+    Then the unit is flagged thin
+    And the why-line reads that the needle is earned elsewhere and this world is not
+
+  Scenario: a scenario that pins a dependency with the product out of the loop is flagged product-free
+    Given a unit claimed done whose binding drives only a raw database engine and never a product seam
+    When the judgment pass grades the unit
+    Then the unit is flagged product-free
+    And the why-line names the dependency and states that no product change can fail the unit
+
+  Scenario: an assertion whose fixture erases the failing world is flagged thin by fixture
+    Given a unit claimed done whose Then asserts a ranking and whose fixture inserts the expected winner first so a tie renders the same order
+    When the judgment pass grades the unit
+    Then the unit is flagged thin
+    And the why-line reads thin by fixture and names the world the fixture cannot distinguish
 
   Scenario: a Given nothing reads is flagged at the binding address
     Given a unit claimed done whose Given stores a value no later step of the scenario reads

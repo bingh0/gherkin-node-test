@@ -12,7 +12,7 @@ nothing else — the skill era's whole footprint is the report and one
 conformance-record entry. Read `rubric.md` (what a flag means and how a
 unit is placed) and `report.md` (what the caller sees) before grading
 anything. The ratified contract this protocol serves lives at
-`plugins/audit/features/` in the gherkin-node-test checkout — eighty-one
+`plugins/audit/features/` in the gherkin-node-test checkout — eighty-nine
 scenarios with their fence, ledger, and `DESIGN.md`. It is grounding, not
 runtime reading: you consult it only at step 9, and a run that cannot
 find it says so there.
@@ -107,10 +107,11 @@ Two registers, and the report header states which one it read.
 
 **0. Cost ritual and instrument line.** Count what you are about to read.
 State the shape of the pass (rule 7). Assemble the instrument line: the
-model that is judging, `audit 0.1.0`, the clerk version or *no clerk*, the
+model that is judging, `audit 0.1.1`, the clerk version or *no clerk*, the
 runner dialect found (`gherkin-node-test` version from the host's
 `package.json` or checkout), the change-watcher version where present,
-and the timestamp. It heads every report.
+and the timestamp — and, when grading is delegated to batches (step 3),
+the batch count and the batches' model. It heads every report.
 
 **1. Locate the surfaces.** Feature files (`features/*.feature`); the
 `features/design/` tier is read but rendered as its own block, never in
@@ -236,10 +237,10 @@ findable from this installation, the entry says so instead of guessing.
 
 ## Grounding
 
-This revision is **audit 0.1.0**, grounded against **gherkin-node-test
+This revision is **audit 0.1.1**, grounded against **gherkin-node-test
 0.10.0** (its manifest declaration, wip register shape, and typed-world
 binding idiom are what steps 1–3 read), and against the ratified contract
-at `plugins/audit/features/` (7 files, 81 scenarios; fence, ledger, and
+at `plugins/audit/features/` (7 files, 89 scenarios; fence, ledger, and
 `DESIGN.md` beside them). The skill era is **report-only**: the archive,
 the registry file, stable finding keys, and archive diffing are clerk-era
 rulings that activate when a clerk ships — `gherkin-muster` is the

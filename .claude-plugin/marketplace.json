@@ -18,7 +18,7 @@
       "name": "audit",
       "source": "./plugins/audit",
       "description": "Judgment pass over a BDD corpus and its bindings — where are we really? Grades claimed-done against solid, places units on a state ladder, judges whether needs, feature files, design, and code describe one system. Never a gate.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "license": "MIT",
       "homepage": "https://github.com/bingh0/gherkin-node-test"
     }

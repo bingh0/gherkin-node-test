@@ -9,7 +9,7 @@ specimen, not a flattering one.
 ```
 audit — <repo> — 2026-08-23 14:02
 question: where are we really? [derived]        filters: none
-instrument: judge <model> · audit 0.1.0 · no clerk · gherkin-node-test 0.10.0 · gt 0.0.3
+instrument: judge <model> · audit 0.1.1 · no clerk · gherkin-node-test 0.10.0 · gt 0.0.3
 
 ⚠ design↔code is DRIFTING — the plan no longer describes the build
   (DESIGN.md changelog predates 14 commits touching ruled surfaces)
@@ -68,7 +68,7 @@ and evidence.
 
 ```
 {"audit-registry":1}
-{"instrument":{"judge":"<model>","audit":"0.1.0","clerk":null,"runner":"gherkin-node-test 0.10.0"},"question":"where are we really?","derived":true,"filters":{}}
+{"instrument":{"judge":"<model>","audit":"0.1.1","clerk":null,"runner":"gherkin-node-test 0.10.0"},"question":"where are we really?","derived":true,"filters":{}}
 {"legend":"readiness kinds: never-run orphan dark unrefined regressed has-contract — each runner-visible already, honest move is a clearing move; remedy: churn ruling re-scope"}
 {"unit":"features/ledger.feature::a refund reverses the balance","state":"regressed","kind":"regressed","remedy":"churn","evidence":"run-manifest.ndjson:41 status=failed"}
 {"unit":"features/design/blob.feature::the blob is written after the refresh record","state":"has-contract","kind":"never-run","remedy":"churn","evidence":"absent from run-manifest.ndjson"}

@@ -36,6 +36,24 @@ Feature: Edges of the tetrahedron
     Then the evidence basis states that changelog citations are unverifiable without a journal
     And the block judges structure only
 
+  Scenario: a design doc with prose constraints and no tags is judged sentence by sentence
+    Given a design doc carrying no ruled or chosen tags and no changelog heading
+    When the design block runs
+    Then each constraint is judged as a numbered sentence with its line
+    And the evidence basis states the prose mode and that the changelog-gap check was impossible
+
+  Scenario: a constraint falsified by a ruling recorded elsewhere names the ruling's home
+    Given a design constraint contradicted by an amendment recorded only in a companion design note
+    When the design block runs
+    Then the contradiction names the companion note and the amendment
+    And the finding states that the design doc was never back-propagated
+
+  Scenario: a constraint that describes two mechanisms as one is overstated, not contradicted
+    Given a design constraint reading "dedup is a unique constraint" where curated dedup is a unique index and capture dedup is an anchor table
+    When the design block runs
+    Then the constraint reads honored, overstated
+    And the why-line names both mechanisms
+
   Scenario: the needs-design edge is judged where links exist
     Given a design doc whose constraints cite ledger rows N2 and N4
     When the needs-design edge renders
