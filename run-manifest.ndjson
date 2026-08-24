@@ -5,6 +5,7 @@
 {"file":"features/binding-ratchet.feature","title":"a skipped scenario still consumes its definitions","status":"unbound"}
 {"file":"features/binding-ratchet.feature","title":"a skipped scenario's steps must still bind","status":"passed"}
 {"file":"features/binding-ratchet.feature","title":"a stale declaration is red","status":"passed"}
+{"file":"features/binding-ratchet.feature","title":"a wip-declared scenario still consumes its bound steps","status":"unbound"}
 {"file":"features/binding-ratchet.feature","title":"an execution filter cannot fake an unused definition","status":"unbound"}
 {"file":"features/binding-ratchet.feature","title":"an unused definition is cleared explicitly","status":"unbound"}
 {"file":"features/binding-ratchet.feature","title":"debt is cleared explicitly","status":"passed"}

@@ -66,6 +66,7 @@ Feature: The binding ratchet
     When the suite runs
     Then the run is red
     And the failure names the unused definition's pattern
+    And the failure names the feature whose definer registered it
 
   Scenario: a skipped scenario still consumes its definitions
     Given a feature file whose scenario carries the tag "@skip"
@@ -76,6 +77,12 @@ Feature: The binding ratchet
   Scenario: an execution filter cannot fake an unused definition
     Given a definition matched only by a scenario an execution filter excludes
     When the suite runs under that filter
+    Then the run is green
+
+  Scenario: a wip-declared scenario still consumes its bound steps
+    Given a scenario declared as work in progress
+    And a definition matched only by its already-bound steps
+    When the suite runs
     Then the run is green
 
   Scenario: the refusal is a registered failure, not a load-time crash

@@ -32,6 +32,7 @@ runFeatures(path.join(__dirname, '..', 'features'), {
       'a definition no scenario consumes is red',
       'a skipped scenario still consumes its definitions',
       'an execution filter cannot fake an unused definition',
+      'a wip-declared scenario still consumes its bound steps',
       'the refusal is a registered failure, not a load-time crash',
       'an unused definition is cleared explicitly',
     ] },
