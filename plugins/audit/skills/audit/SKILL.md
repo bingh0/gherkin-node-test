@@ -125,15 +125,19 @@ how a binding is *located*: match the scenario's step text against that
 module's patterns; a step whose binding you cannot locate is disclosed
 in the evidence basis, never guessed. Git. Then the optional substrate:
 
-- **Change-watcher.** If `gt` resolves (on PATH or in the host's
-  `node_modules/.bin`), run `gt attention --root <repo>` and read
+- **Change-watcher.** (`gherkin-trace` — private beta, unreleased; named
+  as provenance, never as a dependency: this protocol conditions on its
+  presence and asks no one to install it.) If `gt` resolves (on PATH or
+  in the host's `node_modules/.bin`), run `gt attention --root <repo>` and read
   the JSON. Exit 0 is a picture; exit 2 is a teaching refusal — quote
   it, treat the watcher as dark, and surface its remedy ("run `gt
   refresh`") as a readiness note; exit 1 is a failure you name. **Never
   run `gt refresh` yourself**: it writes into the host, and this
   instrument is read-only toward the repo.
-- **Journal.** The treecontext MCP tools count as a journal only when
-  `treecontext_status` shows the store bound to the repo under audit;
+- **Journal.** (Any event-time capture the installation keeps counts;
+  the first consumer is `treecontext` — private release candidate,
+  unreleased, named as provenance.) Its MCP tools count as a journal
+  only when its status call shows the store bound to the repo under audit;
   a store bound elsewhere is the wrong ground truth — journal *dark*,
   with that reason. Query, never write. Exclude by rule any hit that is
   this instrument's own prior output (the journal captures your past
