@@ -1069,9 +1069,18 @@ function analyzeSignature(fn) {
         const c = src[i];
         if (c === '(') depth++;
         else if (c === ')') { depth--; if (depth === 0) { end = i; break; } }
-        else if (c === '/' && src[i + 1] === '*') i = src.indexOf('*/', i) + 1;
-        else if (c === '/' && src[i + 1] === '/') i = src.indexOf('\n', i);
-        else if (c === "'" || c === '"' || c === '`') {
+        // Unterminated comments cannot appear in a syntactically valid
+        // function, but the scan must be total anyway: a failed skip ends
+        // the scan (end stays -1 → fail open) instead of cycling.
+        else if (c === '/' && src[i + 1] === '*') {
+          const close = src.indexOf('*/', i);
+          if (close === -1) break;
+          i = close + 1;
+        } else if (c === '/' && src[i + 1] === '/') {
+          const nl = src.indexOf('\n', i);
+          if (nl === -1) break;
+          i = nl;
+        } else if (c === "'" || c === '"' || c === '`') {
           const q = c;
           for (i++; i < src.length && src[i] !== q; i++) if (src[i] === '\\') i++;
         }

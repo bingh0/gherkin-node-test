@@ -174,7 +174,11 @@ the guard landed — the stub's own promise, kept, one day old. The check
 runs per invocation in `executeSteps`, before the step body (a refused
 binding must not half-execute); the signature is read once per definition
 and cached, and an unreadable source (native or bound functions) fails
-open rather than guessing. The convention it enforces was ratified
+open rather than guessing. One transpilation caveat, adversarial review
+2026-08-25: a rest-form callback downleveled below ES2015 compiles to an
+arity-0 signature reading `arguments`, which the guard would refuse as
+under-consuming — a build targeting ES2015+ (anything the Node ≥22.17
+floor implies) preserves the signature the convention reads. The convention it enforces was ratified
 2026-08-24 on census evidence
 (six corpora, 2,656 definitions: zero rest, zero defaults, zero
 over-declarations, zero dual table/no-table; ten under-consumptions, every
