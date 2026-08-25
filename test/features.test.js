@@ -27,6 +27,10 @@ runFeatures(path.join(__dirname, '..', 'features'), {
   'run-manifest': require('./steps/run-manifest.steps'),
 }, {
   wip: [
+    // The step-definition lint — unearned-absence default, ratified
+    // 2026-08-25 on the six-corpus measurement. Contract leads the code;
+    // the whole feature clears when lintStepDefinitionSource lands (0.11.0).
+    'step-lint',
     { feature: 'honest-run', scenarios: [
       // Enforced by CI running this suite under every runtime; a scenario
       // cannot spawn all four from inside one of them.
