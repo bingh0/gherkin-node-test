@@ -17,6 +17,7 @@ Feature: The step-definition lint
       | assert.doesNotMatch(out, /warning/i)              |
       | assert.ok(!frame.includes('% left'))              |
       | assert.notStrictEqual(data.state, 'contested')    |
+      | assert.notStrictEqual(mode, 'frozen', 'stays live') |
       | expect(node?.status).not.toBe('reviewed')         |
     When the source is linted
     Then every carried line is flagged as "unearned-absence"

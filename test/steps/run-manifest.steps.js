@@ -290,7 +290,7 @@ module.exports = (reg) => {
   reg.define(/^no line of the account contains an absolute path$/, (w) => {
     for (const line of w.readerLines) {
       assert.ok(!line.includes(ROOT), `no line leaks the checkout path: ${line}`);
-      // step-lint: allow unearned-absence -- premise scan: the byte-identity scenarios assert the exact relative "file" bytes these lines must keep
+      // step-lint: allow unearned-absence -- guarded: the preceding And parses every row, proves rows exist, and resolves each file path positively
       assert.ok(!/"\//.test(line), `no field opens with a rooted path: ${line}`);
     }
   });

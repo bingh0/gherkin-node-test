@@ -1022,7 +1022,7 @@ const STEP_LINT_NEGATION_FORMS = [
   /assert\.doesNotMatch\([^,]*,\s*["'`/]/,
   /\.ok\(\s*!.*\.(?:includes|match|test)\(\s*["'`]/,
   /\.ok\(\s*!\s*\/.*\/[a-z]*\.test\(/,
-  /assert\.notStrictEqual\([^,]*,\s*["'`][^"'`]*["'`]\s*\)/,
+  /assert\.notStrictEqual\([^,]*,\s*["'`][^"'`]*["'`]\s*[,)]/,
   /\?\..*\.not\.toBe\(\s*["'`]/,
 ];
 
@@ -1053,7 +1053,11 @@ const STEP_LINT_MARKER = /step-lint:\s*allow\s+([a-z-]+)(?:\s*--\s*(\S.*))?/;
  * silently evaporates is the exact silence this lint exists to refuse.
  * Comment-shaped lines are exempt from scanning per the line-shape lesson
  * (lexing without parser context desyncs; this lint's false-positive path
- * is loud).
+ * is loud). Two known misreads, both loud-direction: the interior lines of
+ * a multi-line template literal scan as code (a negation in template TEXT
+ * false-fires visibly), and a keyword-preceded regex (`return /x/.test(y)`)
+ * reads as division, which can merge statements but never silently pass
+ * one that carries no marker.
  * @param {string} text
  * @returns {{ statements: { line: number, code: string, markers: { rule: string, reason: string | null, line: number }[] }[],
  *             orphans: { rule: string, reason: string | null, line: number }[] }}

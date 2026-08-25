@@ -146,9 +146,9 @@ machines cover before trusting them with any of it: the runner refuses two
 *adjacent* mechanical classes — dead definitions (`unused-definition`) and
 discarded parameterization (`args-consumption`) — and the taxonomy's
 text-detectable core is `lintStepDefinitionSource`'s beat: warn-class
-findings on literal-needle negations, each cleared only by a
-statement-attached marker naming its prover (see
-[lint-admission.md](lint-admission.md)). What no machine reads — semantic
+findings on literal-needle negations, cleared by earning the absence —
+or sanctioning it with a statement-attached marker naming its prover
+(see [lint-admission.md](lint-admission.md)). What no machine reads — semantic
 vacuousness, needle quality, whether a named prover actually proves — is
 this asymmetry's human remainder, and the sanctioned lines plus their
 stated reasons are that review's checklist.
