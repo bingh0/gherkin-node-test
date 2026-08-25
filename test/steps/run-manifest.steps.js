@@ -16,7 +16,7 @@ const accountDefs = {
     // The @todo scenario's step: bound AND failing — declared debt that
     // still fails is the tag's green state under the xfail inversion.
     r.define(/^a bound step that still fails$/, () => { throw new Error('still fails, as declared'); });
-    r.define(/^case (\d+) of two runs$/, () => {});
+    r.define(/^case (?:\d+) of two runs$/, () => {});
     r.define(/^the outcome is visible$/, () => {});
   },
 };
@@ -157,7 +157,7 @@ module.exports = (reg) => {
         mixed: (/** @type {any} */ r) => {
           r.define(/^a bound step$/, () => {});
           r.define(/^a bound step that still fails$/, () => {});
-          r.define(/^case (\d+) of two runs$/, () => {});
+          r.define(/^case (?:\d+) of two runs$/, () => {});
           r.define(/^the outcome is visible$/, () => {});
         },
       };

@@ -166,12 +166,16 @@ and gct's own runner refusal supplies the `cargo test` phrasing at run time.
 4. **Loudness**: strict-only by construction — the reviewer-facing default
    stays quiet; a repo opts its builder surfaces into the red.
 
-### `args-consumption` — stub, unshipped (0.11.0 target, gh#4 item (a))
+### `args-consumption` — 0.11.0, error (invoke-time runner refusal, gh#4 item (a))
 
-*Anchor scenarios live in `features/args-consumption.feature`, held whole in
-the wip register until the guard is built. This entry is a stub: it names
-which admission test each scenario pins, and it is completed when the guard
-ships. The convention it enforces was ratified 2026-08-24 on census evidence
+*Anchor scenarios live in `features/args-consumption.feature`. They entered
+as a wip-held stub with this entry and cleared from the wip register when
+the guard landed — the stub's own promise, kept, one day old. The check
+runs per invocation in `executeSteps`, before the step body (a refused
+binding must not half-execute); the signature is read once per definition
+and cached, and an unreadable source (native or bound functions) fails
+open rather than guessing. The convention it enforces was ratified
+2026-08-24 on census evidence
 (six corpora, 2,656 definitions: zero rest, zero defaults, zero
 over-declarations, zero dual table/no-table; ten under-consumptions, every
 one the motivating defect): a step callback declares exactly what the

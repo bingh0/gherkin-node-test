@@ -19,6 +19,7 @@ const path = require('node:path');
 const { runFeatures } = require('../index.js');
 
 runFeatures(path.join(__dirname, '..', 'features'), {
+  'args-consumption': require('./steps/args-consumption.steps'),
   'parse-surface': require('./steps/parse-surface.steps'),
   'dialect-gate': require('./steps/dialect-gate.steps'),
   'honest-run': require('./steps/honest-run.steps'),
@@ -26,10 +27,6 @@ runFeatures(path.join(__dirname, '..', 'features'), {
   'run-manifest': require('./steps/run-manifest.steps'),
 }, {
   wip: [
-    // The args-consumption guard — invoke-time produced-vs-declared (gh#4
-    // item (a); convention ratified 2026-08-24). Contract leads the code;
-    // the whole feature clears when the guard lands (0.11.0).
-    'args-consumption',
     { feature: 'honest-run', scenarios: [
       // Enforced by CI running this suite under every runtime; a scenario
       // cannot spawn all four from inside one of them.

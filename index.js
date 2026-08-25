@@ -1011,15 +1011,144 @@ class StepRegistry {
 
   /**
    * @param {string} text
-   * @returns {{ fn: StepFn<W>, args: string[] } | null}
+   * @returns {{ fn: StepFn<W>, args: string[], re: RegExp } | null}
    */
   find(text) {
     for (const s of this.steps) {
       const m = text.match(s.re);
-      if (m) return { fn: s.fn, args: m.slice(1) };
+      if (m) return { fn: s.fn, args: m.slice(1), re: s.re };
     }
     return null;
   }
+}
+
+// --- The args-consumption guard ----------------------------------------------
+//
+// The ratified convention (2026-08-24, gh#4 item (a)): a step callback
+// declares exactly what its sentence produces — the world, then one plain
+// positional parameter per capture and per data table. Rest-form is the
+// sanctioned "I take whatever" (exempt here, sighted by the companion lint);
+// a non-capturing group is the sanctioned "varies but unconsumed"; defaults
+// have no place in a step signature. The check runs at INVOKE time — tables
+// are appended only then, and `Function.length` lies for rest-style callbacks
+// — which also means its reach follows execution: a body that never runs
+// (@skip, an execution filter, an unbound todo) is never checked.
+
+/** @type {WeakMap<Function, { rest: boolean, dflt: string | null, declared: number } | null>} */
+const signatureCache = new WeakMap();
+
+/**
+ * Parse a step callback's parameter list from its source. Returns null when
+ * the source is unreadable (native/bound functions) — the guard fails open
+ * there rather than guessing. `declared` counts step parameters (world
+ * excluded); `dflt` is the first defaulted parameter's name, because a
+ * default makes `Function.length` stop counting: an honest signature would
+ * read as under-consuming, and on a zero-capture step the default hides
+ * entirely — which is why defaults are refused on sight, not counted.
+ * @param {Function} fn
+ * @returns {{ rest: boolean, dflt: string | null, declared: number } | null}
+ */
+function analyzeSignature(fn) {
+  if (signatureCache.has(fn)) return signatureCache.get(fn) ?? null;
+  const src = String(fn);
+  /** @type {{ rest: boolean, dflt: string | null, declared: number } | null} */
+  let result = null;
+  if (!src.includes('[native code]')) {
+    /** @type {string[] | null} */
+    let params = null;
+    const paren = src.indexOf('(');
+    const arrow = src.indexOf('=>');
+    if (arrow !== -1 && (paren === -1 || arrow < paren)) {
+      // Bare-identifier arrow: `w => …` — one parameter, no default, no rest.
+      const name = src.slice(0, arrow).replace(/^async\s+/, '').trim();
+      params = name ? [name] : [];
+    } else if (paren !== -1) {
+      let depth = 0;
+      let end = -1;
+      for (let i = paren; i < src.length; i++) {
+        const c = src[i];
+        if (c === '(') depth++;
+        else if (c === ')') { depth--; if (depth === 0) { end = i; break; } }
+        else if (c === '/' && src[i + 1] === '*') i = src.indexOf('*/', i) + 1;
+        else if (c === '/' && src[i + 1] === '/') i = src.indexOf('\n', i);
+        else if (c === "'" || c === '"' || c === '`') {
+          const q = c;
+          for (i++; i < src.length && src[i] !== q; i++) if (src[i] === '\\') i++;
+        }
+      }
+      if (end !== -1) {
+        const span = src.slice(paren + 1, end)
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/\/\/[^\n]*/g, '');
+        params = [];
+        let cur = '';
+        let d = 0;
+        for (const ch of span) {
+          if ('([{'.includes(ch)) d++;
+          else if (')]}'.includes(ch)) d--;
+          if (ch === ',' && d === 0) { params.push(cur.trim()); cur = ''; continue; }
+          cur += ch;
+        }
+        if (cur.trim()) params.push(cur.trim());
+      }
+    }
+    if (params) {
+      let rest = false;
+      /** @type {string | null} */
+      let dflt = null;
+      for (const p of params) {
+        if (p.startsWith('...')) { rest = true; continue; }
+        let d = 0;
+        for (let i = 0; i < p.length; i++) {
+          const c = p[i];
+          if ('([{'.includes(c)) d++;
+          else if (')]}'.includes(c)) d--;
+          else if (c === '=' && d === 0 && p[i + 1] !== '>' && p[i + 1] !== '='
+            && p[i - 1] !== '=' && p[i - 1] !== '!' && p[i - 1] !== '<' && p[i - 1] !== '>') {
+            if (!dflt) dflt = p.slice(0, i).trim();
+            break;
+          }
+        }
+      }
+      result = { rest, dflt, declared: Math.max(0, params.length - 1) };
+    }
+  }
+  signatureCache.set(fn, result);
+  return result;
+}
+
+/**
+ * The refusal message for one invocation, or null. `produced` is what this
+ * invocation carries (captures, plus its data table as one argument).
+ * @param {Step} step
+ * @param {{ fn: Function, re: RegExp }} found
+ * @param {number} produced
+ * @returns {string | null}
+ */
+function consumptionError(step, found, produced) {
+  const sig = analyzeSignature(found.fn);
+  if (!sig) return null; // unreadable source — fail open, never guess
+  if (sig.dflt) {
+    return `step "${step.text}": definition ${found.re} defaults parameter "${sig.dflt}" — a step `
+      + 'argument always arrives, so a default only hides drift (and Function.length stops counting '
+      + 'at it); declare the parameter plainly, or take rest (w, ...args)';
+  }
+  if (sig.rest) return null; // the sanctioned "I take whatever" — lint-sighted, not refused
+  if (produced === sig.declared) return null;
+  if (produced > sig.declared) {
+    // The table is appended last, so an under-consuming table step always
+    // drops it — the worst variant, named as such.
+    const table = step.table
+      ? (produced - sig.declared === 1 ? ' — its data table would be silently dropped'
+        : ' — including its data table, silently dropped')
+      : '';
+    return `step "${step.text}" produced ${produced} argument(s) but definition ${found.re} declares `
+      + `${sig.declared} parameter(s) after the world${table}; consume what the sentence `
+      + 'parameterizes, make the unconsumed group(s) non-capturing (?:…), or declare rest (w, ...args)';
+  }
+  return `step "${step.text}" produced ${produced} argument(s) but definition ${found.re} declares `
+    + `${sig.declared} parameter(s) after the world — the extra parameter(s) would be undefined on `
+    + 'every run; remove them, or capture in the pattern what they should receive';
 }
 
 // --- Snippets ----------------------------------------------------------------
@@ -1119,6 +1248,11 @@ async function executeSteps(steps, registry, world = {}) {
         throw new Error(`Undefined step: ${step.text}\nDefine it with:\n${buildSnippet(step.text)}`);
       }
       const args = step.table ? [...found.args, new DataTable(step.table)] : found.args;
+      // The args-consumption guard, per invocation: what this step produced
+      // against what the signature declares (see consumptionError). Checked
+      // before the body runs — a refused binding must not half-execute.
+      const refusal = consumptionError(step, found, args.length);
+      if (refusal) throw new Error(refusal);
       await found.fn(world, ...args);
     }
   } catch (e) {

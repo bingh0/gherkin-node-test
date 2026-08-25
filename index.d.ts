@@ -278,11 +278,12 @@ export class StepRegistry<W = Record<string, any>> {
     define(pattern: RegExp | string, fn: StepFn<W>): this;
     /**
      * @param {string} text
-     * @returns {{ fn: StepFn<W>, args: string[] } | null}
+     * @returns {{ fn: StepFn<W>, args: string[], re: RegExp } | null}
      */
     find(text: string): {
         fn: StepFn<W>;
         args: string[];
+        re: RegExp;
     } | null;
 }
 /**
