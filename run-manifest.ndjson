@@ -70,6 +70,8 @@
 {"file":"features/step-lint.feature","title":"a bare marker sanctions nothing","status":"passed"}
 {"file":"features/step-lint.feature","title":"a comment about a negation is not a negation","status":"passed"}
 {"file":"features/step-lint.feature","title":"a custom pattern enters with its reason","status":"passed"}
+{"file":"features/step-lint.feature","title":"a detached marker is loud","status":"passed"}
+{"file":"features/step-lint.feature","title":"a failure message is not a needle","status":"passed"}
 {"file":"features/step-lint.feature","title":"a marker whose rule no longer fires is a stale ruling","status":"passed"}
 {"file":"features/step-lint.feature","title":"a needle the suite produced is not the default's business","status":"passed"}
 {"file":"features/step-lint.feature","title":"a positive-form rewrite is outside the default","status":"passed"}
@@ -78,3 +80,5 @@
 {"file":"features/step-lint.feature","title":"a wrapped negation still fires","status":"passed"}
 {"file":"features/step-lint.feature","title":"every negation dialect is sighted","status":"passed"}
 {"file":"features/step-lint.feature","title":"re-wrapping cannot detach a marker","status":"passed"}
+{"file":"features/step-lint.feature","title":"the canonical definer shape keeps sanctions local","status":"passed"}
+{"file":"features/step-lint.feature","title":"the house's own steps pass their own lint","status":"passed"}

@@ -1016,85 +1016,176 @@ const STRICT_TAG_MESSAGE = {
 // the matcher argument — an identifier-only needle never matches.
 const STEP_LINT_NEGATION_FORMS = [
   /\.not\.(?:toContain|toMatch)\(\s*["'`/]/,
-  /assert\.doesNotMatch\(/,
+  // Literal second argument only: an identifier needle is a value the
+  // suite produced, and a trailing string is a failure MESSAGE, not a
+  // needle (adversarial review 2026-08-25, findings 3 and 4).
+  /assert\.doesNotMatch\([^,]*,\s*["'`/]/,
   /\.ok\(\s*!.*\.(?:includes|match|test)\(\s*["'`]/,
   /\.ok\(\s*!\s*\/.*\/[a-z]*\.test\(/,
-  /assert\.notStrictEqual\([^;]*?,\s*["'`]/,
+  /assert\.notStrictEqual\([^,]*,\s*["'`][^"'`]*["'`]\s*\)/,
   /\?\..*\.not\.toBe\(\s*["'`]/,
 ];
 
-const STEP_LINT_REST_FORM = /\.define(?:_exact)?\s*\([^)]*\(\s*[^)]*\.\.\.[^)]*\)\s*=>/;
+// Any parameter list carrying a rest parameter after the world, followed by
+// an arrow or a function body — define-call, function-form, and
+// wrapper-defined rest all sight (adversarial review 2026-08-25, finding 7;
+// spread-call false positives are structurally unlikely: a call's argument
+// list is not followed by `=>` or `{`).
+const STEP_LINT_REST_FORM = /\(\s*[\w$]+\s*,[^()]*\.\.\.[^()]*\)\s*(?:=>|\{)/;
 
 const STEP_LINT_MARKER = /step-lint:\s*allow\s+([a-z-]+)(?:\s*--\s*(\S.*))?/;
 
 /**
- * Group source lines into logical statements: a line joins its successor
- * while its parens stay unbalanced, and a continuation line starting with
- * `.` rejoins its chain TIGHT (no separator) so `.not\n.toContain(` cannot
- * evade a joined pattern. Comment-shaped lines (the line-shape exemption —
- * lexing without parser context desyncs on template-literal types and
- * regex literals, and this lint's false-positive path is loud) carry no
- * code but stay attached to the statement below as marker carriers.
+ * Group source lines into logical statements — the sanctioning unit.
+ *
+ * Braces are CONTAINERS, never joiners: a line that opens a block is a
+ * complete header statement and resets the continuation carry, so the
+ * canonical `module.exports = (reg) => { … }` wrapper can never collapse a
+ * definer body into one statement (adversarial review 2026-08-25, the
+ * CRITICAL finding — a marker anywhere in the body sanctioned everything).
+ * Continuation depth counts parens and brackets only; string and template
+ * state carries across lines; regex literals and trailing comments are
+ * skipped by the standard preceded-by heuristic. Markers are read from
+ * COMMENT text only — a marker inside a string literal is fixture data,
+ * not a ruling — and a reasoned marker that ends up attached to nothing
+ * (a blank line between it and its statement, or nothing following) is
+ * returned as an orphan so the caller can say so loudly: a sanction that
+ * silently evaporates is the exact silence this lint exists to refuse.
+ * Comment-shaped lines are exempt from scanning per the line-shape lesson
+ * (lexing without parser context desyncs; this lint's false-positive path
+ * is loud).
  * @param {string} text
- * @returns {{ line: number, code: string, markers: { rule: string, reason: string | null }[] }[]}
+ * @returns {{ statements: { line: number, code: string, markers: { rule: string, reason: string | null, line: number }[] }[],
+ *             orphans: { rule: string, reason: string | null, line: number }[] }}
  */
 function stepLintStatements(text) {
   const lines = text.split('\n');
-  /** @type {{ line: number, code: string, markers: { rule: string, reason: string | null }[] }[]} */
+  /** @type {{ line: number, code: string, markers: { rule: string, reason: string | null, line: number }[] }[]} */
   const statements = [];
-  /** @type {{ rule: string, reason: string | null }[]} */
+  /** @type {{ rule: string, reason: string | null, line: number }[]} */
+  const orphans = [];
+  /** @type {{ rule: string, reason: string | null, line: number }[]} */
   let pendingMarkers = [];
+  /** @type {{ line: number, code: string, markers: { rule: string, reason: string | null, line: number }[] } | null} */
   let current = null;
   let depth = 0;
-  const balance = (/** @type {string} */ s) => {
+  let quote = '';
+  const flush = () => { if (current) { statements.push(current); current = null; } };
+
+  // One line's code portion and structure: trailing-comment text split off,
+  // paren/bracket delta, brace opens/closes, quote state carried in/out.
+  const scan = (/** @type {string} */ raw) => {
     let d = 0;
-    let q = '';
-    for (let i = 0; i < s.length; i++) {
-      const c = s[i];
-      if (q) { if (c === '\\') i++; else if (c === q) q = ''; continue; }
-      if (c === "'" || c === '"' || c === '`') q = c;
-      else if ('([{'.includes(c)) d++;
-      else if (')]}'.includes(c)) d--;
+    let opens = 0;
+    let closes = 0;
+    let codeEnd = raw.length;
+    let trailing = '';
+    let prev = '';
+    /** @type {[number, number][]} */
+    const excised = [];
+    for (let i = 0; i < raw.length; i++) {
+      const c = raw[i];
+      if (quote) {
+        if (c === '\\') { i++; continue; }
+        if (c === quote) quote = '';
+        continue;
+      }
+      if (c === "'" || c === '"' || c === '`') { quote = c; continue; }
+      if (c === '/' && raw[i + 1] === '/') { codeEnd = i; trailing = raw.slice(i); break; }
+      if (c === '/' && raw[i + 1] === '*') {
+        const e = raw.indexOf('*/', i + 2);
+        if (e === -1) { codeEnd = i; break; }
+        // Excised from the scanned code: an inline block comment (a JSDoc
+        // param annotation, typically) must not break a form's shape — a
+        // JSDoc'd rest parameter is still a rest parameter.
+        excised.push([i, e + 2]);
+        i = e + 1;
+        continue;
+      }
+      if (c === '/' && (prev === '' || /[=(\[{,;:!&|?+\-*%~^<>]/.test(prev))) {
+        let inClass = false;
+        for (i++; i < raw.length; i++) {
+          const r = raw[i];
+          if (r === '\\') { i++; continue; }
+          if (inClass) { if (r === ']') inClass = false; continue; }
+          if (r === '[') inClass = true;
+          else if (r === '/') break;
+        }
+        prev = '/';
+        continue;
+      }
+      if ('(['.includes(c)) d++;
+      else if (')]'.includes(c)) d--;
+      else if (c === '{') opens++;
+      else if (c === '}') closes++;
+      if (!/\s/.test(c)) prev = c;
     }
-    return d;
+    if (quote === "'" || quote === '"') quote = ''; // plain strings never span lines
+    let codeStr = raw.slice(0, codeEnd);
+    for (let k = excised.length - 1; k >= 0; k--) {
+      const [from, to] = excised[k];
+      if (from < codeEnd) codeStr = codeStr.slice(0, from) + ' ' + codeStr.slice(Math.min(to, codeEnd));
+    }
+    return { code: codeStr, trailing, delta: d, opens, closes };
   };
+
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const trimmed = raw.trimStart();
-    const isComment = trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*');
-    const marker = STEP_LINT_MARKER.exec(raw);
-    if (marker) {
-      const m = { rule: marker[1], reason: marker[2] ? marker[2].trim() : null };
-      if (current) current.markers.push(m);
-      else pendingMarkers.push(m);
+    const inTemplate = quote === '`';
+    const isComment = !inTemplate
+      && (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*'));
+    if (isComment) {
+      const m = STEP_LINT_MARKER.exec(raw);
+      if (m) {
+        const entry = { rule: m[1], reason: m[2] ? m[2].trim() : null, line: i + 1 };
+        if (current) current.markers.push(entry);
+        else pendingMarkers.push(entry);
+      }
+      continue;
     }
-    if (isComment) continue;
-    if (!trimmed) { if (!current) pendingMarkers = []; continue; }
-    if (current && (depth > 0 || trimmed.startsWith('.'))) {
-      current.code += trimmed.startsWith('.') ? trimmed : ` ${trimmed}`;
+    if (!trimmed) {
+      if (!current) {
+        for (const m of pendingMarkers) if (m.reason !== null) orphans.push(m);
+        pendingMarkers = [];
+      }
+      continue;
+    }
+    const { code, trailing, delta, opens, closes } = scan(raw);
+    const codeTrim = code.trim();
+    const joinsChain = codeTrim.startsWith('.');
+    if (current && (depth > 0 || joinsChain)) {
+      current.code += joinsChain ? codeTrim : ` ${codeTrim}`;
     } else {
-      if (current) statements.push(current);
-      current = { line: i + 1, code: trimmed, markers: pendingMarkers };
+      flush();
+      current = { line: i + 1, code: codeTrim, markers: pendingMarkers };
       pendingMarkers = [];
     }
-    depth = Math.max(0, depth + balance(trimmed));
-    if (depth === 0 && current && !current.code.endsWith('.')) {
+    const tm = trailing ? STEP_LINT_MARKER.exec(trailing) : null;
+    if (tm && current) current.markers.push({ rule: tm[1], reason: tm[2] ? tm[2].trim() : null, line: i + 1 });
+    depth = Math.max(0, depth + delta);
+    if (opens !== closes) {
+      // Block boundary: the header (or closer) is complete, and inner lines
+      // start fresh — the container never joins its contents.
+      flush();
+      depth = 0;
+    } else if (depth === 0) {
       const next = lines[i + 1];
-      if (!(next && next.trimStart().startsWith('.'))) {
-        statements.push(current);
-        current = null;
-      }
+      if (!(next && next.trimStart().startsWith('.'))) flush();
     }
   }
-  if (current) statements.push(current);
-  return statements;
+  flush();
+  for (const m of pendingMarkers) if (m.reason !== null) orphans.push(m);
+  return { statements, orphans };
 }
 
 /**
  * Lint step-definition source for hollow-binding text shapes. Same finding
  * shape as lintFeature — `{ rule, severity, line, message }[]`, sorted by
- * line, all warn-class. `config.rules` adds `{ pattern, reason }` pairs
- * (rule name `custom`) with the same marker semantics.
+ * line, all warn-class. `config.rules` adds `{ pattern, reason }` pairs;
+ * all config rules share the rule name `custom`, so one `allow custom`
+ * marker sanctions every config rule firing on that statement — a
+ * documented granularity limit.
  * @param {string} text step-definition source
  * @param {string} [filename] used only to prefix messages
  * @param {{ rules?: { pattern: RegExp | string, reason: string }[] }} [config]
@@ -1107,7 +1198,16 @@ function lintStepDefinitionSource(text, filename = '<steps>', config = {}) {
     pattern: r.pattern instanceof RegExp ? r.pattern : new RegExp(r.pattern),
     reason: r.reason,
   }));
-  for (const stmt of stepLintStatements(text)) {
+  const { statements, orphans } = stepLintStatements(text);
+  for (const m of orphans) {
+    findings.push({
+      rule: 'stale-marker', severity: 'warn', line: m.line,
+      message: `${filename}:${m.line}: marker names "${m.rule}" but sanctions nothing — a blank line `
+        + '(or the end of the file) separates it from any statement; attach it to the statement it '
+        + 'rules, or delete it. A ruling that silently evaporates is the silence this lint refuses',
+    });
+  }
+  for (const stmt of statements) {
     /** @type {Set<string>} */
     const fired = new Set();
     const sanctioned = (/** @type {string} */ rule) =>
@@ -1151,8 +1251,8 @@ function lintStepDefinitionSource(text, filename = '<steps>', config = {}) {
     for (const m of stmt.markers) {
       if (m.reason !== null && !fired.has(m.rule)) {
         findings.push({
-          rule: 'stale-marker', severity: 'warn', line: stmt.line,
-          message: `${filename}:${stmt.line}: marker names "${m.rule}" but the rule does not fire on `
+          rule: 'stale-marker', severity: 'warn', line: m.line,
+          message: `${filename}:${m.line}: marker names "${m.rule}" but the rule does not fire on `
             + 'this statement — the ruling has outlived its subject; delete the marker, or restore '
             + 'what it sanctioned',
         });

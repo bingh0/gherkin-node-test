@@ -77,3 +77,25 @@ Feature: The step-definition lint
     And the honest negation it replaces in a second source as the control
     When both sources are linted
     Then the control is flagged and the rewrite is not
+
+  Scenario: the canonical definer shape keeps sanctions local
+    Given a definer module whose body carries a sanctioned negation and an unsanctioned one
+    When the source is linted
+    Then only the unsanctioned negation is flagged
+    And its finding names its own line
+
+  Scenario: a failure message is not a needle
+    Given a two-value negation whose third argument is a message string
+    And a literal-needle variant of it as the control
+    When both sources are linted
+    Then the control is flagged and the message-bearing line is not
+
+  Scenario: a detached marker is loud
+    Given a reasoned marker separated from its statement by a blank line
+    When the source is linted
+    Then the marker is flagged as "stale-marker"
+
+  Scenario: the house's own steps pass their own lint
+    Given every step-definition source in this repository
+    When each is linted
+    Then no finding is emitted anywhere

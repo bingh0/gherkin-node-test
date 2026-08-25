@@ -144,12 +144,14 @@ The runner's own contract practices this: the unused-definition guard's
 red inside its Given before asserting the clean one green. Know what the
 machines cover before trusting them with any of it: the runner refuses two
 *adjacent* mechanical classes — dead definitions (`unused-definition`) and
-discarded parameterization (`args-consumption`), see
-[lint-admission.md](lint-admission.md) — while the taxonomy's
-text-detectable core (negation forms demanding a written prover) is the
-companion lint's beat, unshipped and gated on a pre-registered measurement
-(gh#4). Until that ships, nothing mechanical watches a negative assertion:
-this asymmetry is read by humans or not at all.
+discarded parameterization (`args-consumption`) — and the taxonomy's
+text-detectable core is `lintStepDefinitionSource`'s beat: warn-class
+findings on literal-needle negations, each cleared only by a
+statement-attached marker naming its prover (see
+[lint-admission.md](lint-admission.md)). What no machine reads — semantic
+vacuousness, needle quality, whether a named prover actually proves — is
+this asymmetry's human remainder, and the sanctioned lines plus their
+stated reasons are that review's checklist.
 
 ## What this workflow does not close
 

@@ -6,6 +6,8 @@
 // never contains a matchable form — the lint must be able to dogfood its
 // own steps without sanctions.
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 const { lintStepDefinitionSource } = require('../../index.js');
 
 const NOT = '.not.';
@@ -22,7 +24,11 @@ module.exports = (reg) => {
     });
 
   reg.define(/^a negation whose needle is a value the suite produced$/, (w) => {
-    w.src = `expect(ids)${NOT}toContain(nodeId)`;
+    // One per dialect that takes a needle argument — the doesNotMatch
+    // identifier case is the shape adversarial review found unpinned.
+    w.src = `expect(ids)${NOT}toContain(nodeId)\n`
+      + 'assert.doesNotMatch(out, warningRegex);\n'
+      + 'assert.notStrictEqual(data.state, expected);';
   });
 
   reg.define(/^the same negation with a literal needle as the control$/, (w) => {
@@ -82,6 +88,39 @@ module.exports = (reg) => {
 
   reg.define(/^the honest negation it replaces in a second source as the control$/, (w) => {
     w.src2 = `${OK_BANG}frame.includes('% left'))`;
+  });
+
+  reg.define(/^a definer module whose body carries a sanctioned negation and an unsanctioned one$/, (w) => {
+    // The canonical consumer shape — the CRITICAL counterexample from the
+    // 2026-08-25 pre-release review: under brace-counting grouping this
+    // whole body was ONE statement and A's marker sanitized B.
+    w.src = 'module.exports = (reg) => {\n'
+      + `  // step-lint: al${'low'} unearned-absence -- guarded: the sibling positive proves the needle\n`
+      + `  ${OK_BANG}w.msgs.includes('forbidden'));\n`
+      + `  ${OK_BANG}w.msgs.includes('unsanctioned'));\n`
+      + '};';
+    w.expectedLine = 4;
+  });
+
+  reg.define(/^a two-value negation whose third argument is a message string$/, (w) => {
+    w.src = "assert.notStrictEqual(w.worlds[0], w.worlds[1], 'two scenarios, two worlds');";
+  });
+
+  reg.define(/^a literal-needle variant of it as the control$/, (w) => {
+    w.src2 = 'assert.notStrictEqual(data.state,' + " 'contested');";
+  });
+
+  reg.define(/^a reasoned marker separated from its statement by a blank line$/, (w) => {
+    w.src = `// step-lint: al${'low'} unearned-absence -- guarded: the prover\n\n`
+      + `expect(rows)${NOT}toContain('ROI');`;
+  });
+
+  reg.define(/^every step-definition source in this repository$/, (w) => {
+    const dir = path.join(__dirname);
+    w.sources = fs.readdirSync(dir)
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => ({ name: f, text: fs.readFileSync(path.join(dir, f), 'utf8') }));
+    assert.ok(w.sources.length >= 6, 'the whole step layer is on the bench');
   });
 
   // --- Whens ----------------------------------------------------------------
@@ -172,5 +211,35 @@ module.exports = (reg) => {
     assert.ok(w.findings2.some((/** @type {any} */ f) => f.rule === 'unearned-absence'),
       'the control proves the rule can fire');
     assert.deepStrictEqual(w.findings, [], JSON.stringify(w.findings));
+  });
+
+  reg.define(/^only the unsanctioned negation is flagged$/, (w) => {
+    assert.strictEqual(w.findings.length, 1, JSON.stringify(w.findings, null, 1));
+    assert.strictEqual(w.findings[0].rule, 'unearned-absence');
+  });
+
+  reg.define(/^its finding names its own line$/, (w) => {
+    assert.strictEqual(w.findings[0].line, w.expectedLine,
+      'the finding points at the offending line, not the enclosing blob');
+  });
+
+  reg.define(/^the control is flagged and the message-bearing line is not$/, (w) => {
+    assert.ok(w.findings2.some((/** @type {any} */ f) => f.rule === 'unearned-absence'),
+      'the control proves the rule can fire');
+    assert.deepStrictEqual(w.findings, [], JSON.stringify(w.findings));
+  });
+
+  reg.define(/^each is linted$/, (w) => {
+    w.byFile = w.sources.map((/** @type {any} */ s) => ({
+      name: s.name,
+      findings: lintStepDefinitionSource(s.text, s.name),
+    }));
+  });
+
+  reg.define(/^no finding is emitted anywhere$/, (w) => {
+    const dirty = w.byFile.filter((/** @type {any} */ f) => f.findings.length > 0);
+    assert.deepStrictEqual(
+      dirty.map((/** @type {any} */ f) => ({ name: f.name, findings: f.findings })),
+      [], 'the house passes its own lint');
   });
 };

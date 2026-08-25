@@ -290,6 +290,7 @@ module.exports = (reg) => {
   reg.define(/^no line of the account contains an absolute path$/, (w) => {
     for (const line of w.readerLines) {
       assert.ok(!line.includes(ROOT), `no line leaks the checkout path: ${line}`);
+      // step-lint: allow unearned-absence -- premise scan: the byte-identity scenarios assert the exact relative "file" bytes these lines must keep
       assert.ok(!/"\//.test(line), `no field opens with a rooted path: ${line}`);
     }
   });
@@ -338,6 +339,7 @@ module.exports = (reg) => {
   reg.define(/^the file on disk is replaced by the new full account$/, (w) => {
     const bytes = fs.readFileSync(w.manifest, 'utf8');
     assert.notStrictEqual(bytes, w.doctored, 'the hand edit is gone');
+    // step-lint: allow unearned-absence -- guarded: the Given wrote the forged row to disk verbatim, and the notStrictEqual above proves the hand edit was really there to remove
     assert.ok(!bytes.includes('forged.feature'), 'no doctored row survives');
     assert.strictEqual(readRows(w.manifest).length, 7,
       'the replacement is the FULL account, not an empty or truncated one');

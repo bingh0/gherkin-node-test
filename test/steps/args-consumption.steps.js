@@ -42,6 +42,7 @@ module.exports = (reg) => {
   });
 
   reg.define(/^a definition taking the world and a rest parameter$/, (w) => {
+    // step-lint: allow rest-signature -- the anchor's own subject: this rest-form is exactly what the scenario proves exempt
     w.define = (/** @type {any} */ r) => r.define(/^cargo$/, (/** @type {any} */ sw, /** @type {any[]} */ ...args) => { sw.count = args.length; });
   });
 

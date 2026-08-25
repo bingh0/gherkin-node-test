@@ -467,6 +467,7 @@ module.exports = (reg) => {
     // call runs untouched, and refusal fires BEFORE the second call's
     // validation — if the second call's empty definers ever surface an
     // unbound-step failure, refusal ordering has regressed.
+    // step-lint: allow unearned-absence -- guarded: runner.test.js asserts this exact refusal text positively where it must appear
     assert.ok(!w.spawned.out.includes('unbound steps would register'),
       `refusal precedes validation:\n${w.spawned.out}`);
     // The first call ran untouched: its two guards and one scenario are the
