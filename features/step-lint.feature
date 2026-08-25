@@ -96,7 +96,7 @@ Feature: The step-definition lint
     When the source is linted
     Then the marker is flagged as "stale-marker"
 
-  Scenario: the house's own steps pass their own lint
-    Given every step-definition source in this repository
+  Scenario: the house passes its own lint whole
+    Given every step-definition source in this repository, and the runner's own file
     When each is linted
     Then no finding is emitted anywhere

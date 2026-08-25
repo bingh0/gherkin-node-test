@@ -115,12 +115,19 @@ module.exports = (reg) => {
       + `expect(rows)${NOT}toContain('ROI');`;
   });
 
-  reg.define(/^every step-definition source in this repository$/, (w) => {
+  reg.define(/^every step-definition source in this repository, and the runner's own file$/, (w) => {
     const dir = path.join(__dirname);
     w.sources = fs.readdirSync(dir)
       .filter((f) => f.endsWith('.js'))
       .map((f) => ({ name: f, text: fs.readFileSync(path.join(dir, f), 'utf8') }));
-    assert.ok(w.sources.length >= 6, 'the whole step layer is on the bench');
+    // The runner itself rides along: its own documentation shows the
+    // marker grammar, and showing the grammar must not trip the grammar
+    // (pre-release review, finding 9).
+    w.sources.push({
+      name: 'index.js',
+      text: fs.readFileSync(path.join(dir, '..', '..', 'index.js'), 'utf8'),
+    });
+    assert.ok(w.sources.length >= 7, 'the whole step layer and the runner are on the bench');
   });
 
   // --- Whens ----------------------------------------------------------------

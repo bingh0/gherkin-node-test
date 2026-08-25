@@ -1035,6 +1035,13 @@ const STEP_LINT_REST_FORM = /\(\s*[\w$]+\s*,[^()]*\.\.\.[^()]*\)\s*(?:=>|\{)/;
 
 const STEP_LINT_MARKER = /step-lint:\s*allow\s+([a-z-]+)(?:\s*--\s*(\S.*))?/;
 
+// A marker RULES only as a comment's own leading content; the same text
+// nested inside another comment marker, or quoted anywhere, is MENTION —
+// documentation showing the grammar must not trip the grammar (pre-release
+// review, finding 9: the lint could not document itself).
+const STEP_LINT_MARKER_USE = /^\s*(?:\/\/|\/\*|\*)\s*step-lint:/;
+const STEP_LINT_TRAILING_USE = /^\/\/\s*step-lint:/;
+
 /**
  * Group source lines into logical statements — the sanctioning unit.
  *
@@ -1140,7 +1147,7 @@ function stepLintStatements(text) {
     const isComment = !inTemplate
       && (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*'));
     if (isComment) {
-      const m = STEP_LINT_MARKER.exec(raw);
+      const m = STEP_LINT_MARKER_USE.test(raw) ? STEP_LINT_MARKER.exec(raw) : null;
       if (m) {
         const entry = { rule: m[1], reason: m[2] ? m[2].trim() : null, line: i + 1 };
         if (current) current.markers.push(entry);
@@ -1165,7 +1172,7 @@ function stepLintStatements(text) {
       current = { line: i + 1, code: codeTrim, markers: pendingMarkers };
       pendingMarkers = [];
     }
-    const tm = trailing ? STEP_LINT_MARKER.exec(trailing) : null;
+    const tm = trailing && STEP_LINT_TRAILING_USE.test(trailing) ? STEP_LINT_MARKER.exec(trailing) : null;
     if (tm && current) current.markers.push({ rule: tm[1], reason: tm[2] ? tm[2].trim() : null, line: i + 1 });
     depth = Math.max(0, depth + delta);
     if (opens !== closes) {

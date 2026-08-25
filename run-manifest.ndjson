@@ -81,4 +81,4 @@
 {"file":"features/step-lint.feature","title":"every negation dialect is sighted","status":"passed"}
 {"file":"features/step-lint.feature","title":"re-wrapping cannot detach a marker","status":"passed"}
 {"file":"features/step-lint.feature","title":"the canonical definer shape keeps sanctions local","status":"passed"}
-{"file":"features/step-lint.feature","title":"the house's own steps pass their own lint","status":"passed"}
+{"file":"features/step-lint.feature","title":"the house passes its own lint whole","status":"passed"}
