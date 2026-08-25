@@ -97,6 +97,60 @@ The refinement — the signal works in exactly one direction:
   this whole toolchain exists to prevent. Interrogate the gaps; do not
   reward their closure.
 
+## The assertion asymmetry
+
+*Provenance: Larkin Lowrey (@llowrey), from the step-fidelity audit behind
+gh#4 — adopted 2026-08-24 as doctrine, control-arm recipe included. The
+best one-line statement of hollow bindings we have seen:*
+
+**Positive assertions fail loud; negative assertions fail silent; absence
+must be earned.**
+
+The two directions are not mirror images. A positive assertion built on a
+wrong needle fails immediately and names itself — the author fixes the
+needle at write time. A negative assertion built on a wrong needle passes
+forever: the search finds nothing, the step goes green, and the thing it
+denies may be present the whole time under different words. Two shapes of
+this recur, both found in the wild in carefully written code:
+
+- **Unfalsifiable prose negation.** `assert.ok(!messages.includes('x'))`
+  is only ever red while the world matches the author's exact wording; in
+  the originating audit, one of these was papering over a genuine
+  enforcement gap — asserting the *absence of the enforcement* as expected
+  behavior.
+- **Vacuous negation over an optional lookup.** A chain that can produce
+  `undefined` feeds a `not`-assertion that `undefined` satisfies: the
+  lookup dies, the step stays green. Negating a positive over an optional
+  path is a one-way trap.
+
+Absence is *earned* by a **control** — the same predicate proven able to
+fire, in the same suite, before its silence is trusted:
+
+```js
+// The control arm: an absence is admitted only beside proof that the
+// needle can find. Mutation-checking miniaturized to a single assertion —
+// one hand-built mutant, executed on every run. `query` is whatever
+// extracts the finding being denied (yours to write); the discipline is
+// that BOTH runs go through the same one.
+function expectAbsentWithControl(query, absentRun, controlRun) {
+  assert.ok(query(controlRun).length > 0,
+    'the control run proves this query CAN find');
+  assert.deepStrictEqual(query(absentRun), []);
+}
+```
+
+The runner's own contract practices this: the unused-definition guard's
+*an unused definition is cleared explicitly* anchor runs the dirty definer
+red inside its Given before asserting the clean one green. Know what the
+machines cover before trusting them with any of it: the runner refuses two
+*adjacent* mechanical classes — dead definitions (`unused-definition`) and
+discarded parameterization (`args-consumption`), see
+[lint-admission.md](lint-admission.md) — while the taxonomy's
+text-detectable core (negation forms demanding a written prover) is the
+companion lint's beat, unshipped and gated on a pre-registered measurement
+(gh#4). Until that ships, nothing mechanical watches a negative assertion:
+this asymmetry is read by humans or not at all.
+
 ## What this workflow does not close
 
 Two gaps remain open, named so they are not mistaken for covered:
@@ -105,8 +159,16 @@ Two gaps remain open, named so they are not mistaken for covered:
   correctness, not a ceiling on behavior; an agent can build branches no
   feature demands. Coverage interrogation (above) is the cheap probe;
   the honest tier is mutation testing (a doctored implementation must
-  flip a real verdict — e.g. StrykerJS, cargo-mutants), which we treat
-  as an active experiment, not a shipped practice.
+  flip a real verdict — e.g. StrykerJS, cargo-mutants), run periodically
+  as a discovery instrument, never a gate. Its reach and the lint's
+  barely overlap: mutation frameworks mutate the system under test, not
+  the test side, so most of the hollow-binding families are out of their
+  reach by construction — point-linting is not redundant with mutation
+  at any corpus size — and *"a surviving mutant whose survival has a
+  textual shape becomes the next lint rule"* (Larkin Lowrey, gh#4,
+  adopted verbatim). The control arm above is the same idea at unit
+  scale, and the guards' own anchor sets are verified the same way:
+  implant a broken implementation, watch the owning anchor go red.
 - **Spec quality has no machine floor.** The linter rejects structural
   vacuousness, not semantic vacuousness — "the pane shows the working
   tree" sails through. The authoring bar stays human: every Then names

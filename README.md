@@ -667,6 +667,24 @@ runner, and it proves a world key is spelled consistently — never that a
 step has assigned it. Keep `W`'s fields optional; a required field on a
 world that is born `{}` is a type-level claim no `Given` has made true yet.
 
+The run-time half — *assigned* is a fact no type can promise — has a
+recipe, not a guarantee: a throwing accessor, used wherever a Then reads
+what a Given should have set (from the gh#4 step-fidelity audit —
+@llowrey):
+
+```ts
+// Every unset-read becomes an immediate, explanatory failure — instead of
+// an `undefined` coasting through a negative assertion, where it passes.
+const required = <T,>(value: T | undefined, what: string): T => {
+  if (value === undefined) throw new Error(`world.${what} read before any step set it`);
+  return value;
+};
+
+reg.define(/^the count is (\d+)$/, (w, n) => {
+  assert.strictEqual(required(w.count, 'count'), Number(n));
+});
+```
+
 Why it exists at all: the practice of [auditing agent-written step
 code](docs/workflow.md#auditing-the-step-layer) — the field report behind
 this feature was a reviewer drowning in `as MyWorld` casts while checking
