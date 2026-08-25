@@ -986,6 +986,182 @@ const STRICT_TAG_MESSAGE = {
   '@only': 'tag "@only" has no place in reviewed output — focus is a per-run flag (--test-name-pattern / -t / --filter), never a committed edit; remove the tag',
 };
 
+// --- The step-definition lint -------------------------------------------------
+//
+// lintFeature's companion, aimed at the other side of the contract: the step
+// definition source. One default rule, `unearned-absence` (ratified
+// 2026-08-25 on the six-corpus measurement — see docs/lint-admission.md),
+// fires on absence assertions whose needle is a string or regex LITERAL:
+// the unfalsifiable class, where a wrong needle goes green forever. A
+// needle the suite itself produced (an identifier) is structurally
+// controlled and stays out of the default. `rest-signature` rides along per
+// its own ruling: the runner exempts rest-form callbacks from the
+// args-consumption guard, so the lint records each one as a sighting.
+//
+// Sanction is a statement-attached marker naming its rule and its prover:
+//   // step-lint: allow unearned-absence -- guarded: the positive assertion above proves the needle
+// A marker without a reason sanctions nothing; a marker whose rule does not
+// fire on its statement is itself a finding (`stale-marker`). Markers
+// attach to STATEMENTS, not lines — the scan joins wrapped statements
+// (method-chain continuations rejoin tight) so a formatter's re-wrapping
+// can neither detach a marker nor hide a negation.
+//
+// Pure text-in/findings-out, warn-class, never a gate. Scan-root coverage
+// is the caller's job — the one field incident behind this rule came from
+// negation lines OUTSIDE the lint's roots, so scan everything your steps
+// import.
+
+// The unearned-absence forms: literal-needle negations across every
+// assertion dialect in use. `LIT` requires a quote or a regex literal in
+// the matcher argument — an identifier-only needle never matches.
+const STEP_LINT_NEGATION_FORMS = [
+  /\.not\.(?:toContain|toMatch)\(\s*["'`/]/,
+  /assert\.doesNotMatch\(/,
+  /\.ok\(\s*!.*\.(?:includes|match|test)\(\s*["'`]/,
+  /\.ok\(\s*!\s*\/.*\/[a-z]*\.test\(/,
+  /assert\.notStrictEqual\([^;]*?,\s*["'`]/,
+  /\?\..*\.not\.toBe\(\s*["'`]/,
+];
+
+const STEP_LINT_REST_FORM = /\.define(?:_exact)?\s*\([^)]*\(\s*[^)]*\.\.\.[^)]*\)\s*=>/;
+
+const STEP_LINT_MARKER = /step-lint:\s*allow\s+([a-z-]+)(?:\s*--\s*(\S.*))?/;
+
+/**
+ * Group source lines into logical statements: a line joins its successor
+ * while its parens stay unbalanced, and a continuation line starting with
+ * `.` rejoins its chain TIGHT (no separator) so `.not\n.toContain(` cannot
+ * evade a joined pattern. Comment-shaped lines (the line-shape exemption —
+ * lexing without parser context desyncs on template-literal types and
+ * regex literals, and this lint's false-positive path is loud) carry no
+ * code but stay attached to the statement below as marker carriers.
+ * @param {string} text
+ * @returns {{ line: number, code: string, markers: { rule: string, reason: string | null }[] }[]}
+ */
+function stepLintStatements(text) {
+  const lines = text.split('\n');
+  /** @type {{ line: number, code: string, markers: { rule: string, reason: string | null }[] }[]} */
+  const statements = [];
+  /** @type {{ rule: string, reason: string | null }[]} */
+  let pendingMarkers = [];
+  let current = null;
+  let depth = 0;
+  const balance = (/** @type {string} */ s) => {
+    let d = 0;
+    let q = '';
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (q) { if (c === '\\') i++; else if (c === q) q = ''; continue; }
+      if (c === "'" || c === '"' || c === '`') q = c;
+      else if ('([{'.includes(c)) d++;
+      else if (')]}'.includes(c)) d--;
+    }
+    return d;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trimStart();
+    const isComment = trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*');
+    const marker = STEP_LINT_MARKER.exec(raw);
+    if (marker) {
+      const m = { rule: marker[1], reason: marker[2] ? marker[2].trim() : null };
+      if (current) current.markers.push(m);
+      else pendingMarkers.push(m);
+    }
+    if (isComment) continue;
+    if (!trimmed) { if (!current) pendingMarkers = []; continue; }
+    if (current && (depth > 0 || trimmed.startsWith('.'))) {
+      current.code += trimmed.startsWith('.') ? trimmed : ` ${trimmed}`;
+    } else {
+      if (current) statements.push(current);
+      current = { line: i + 1, code: trimmed, markers: pendingMarkers };
+      pendingMarkers = [];
+    }
+    depth = Math.max(0, depth + balance(trimmed));
+    if (depth === 0 && current && !current.code.endsWith('.')) {
+      const next = lines[i + 1];
+      if (!(next && next.trimStart().startsWith('.'))) {
+        statements.push(current);
+        current = null;
+      }
+    }
+  }
+  if (current) statements.push(current);
+  return statements;
+}
+
+/**
+ * Lint step-definition source for hollow-binding text shapes. Same finding
+ * shape as lintFeature — `{ rule, severity, line, message }[]`, sorted by
+ * line, all warn-class. `config.rules` adds `{ pattern, reason }` pairs
+ * (rule name `custom`) with the same marker semantics.
+ * @param {string} text step-definition source
+ * @param {string} [filename] used only to prefix messages
+ * @param {{ rules?: { pattern: RegExp | string, reason: string }[] }} [config]
+ * @returns {{ rule: string, severity: 'warn', line: number, message: string }[]}
+ */
+function lintStepDefinitionSource(text, filename = '<steps>', config = {}) {
+  /** @type {{ rule: string, severity: 'warn', line: number, message: string }[]} */
+  const findings = [];
+  const custom = (config.rules || []).map((r) => ({
+    pattern: r.pattern instanceof RegExp ? r.pattern : new RegExp(r.pattern),
+    reason: r.reason,
+  }));
+  for (const stmt of stepLintStatements(text)) {
+    /** @type {Set<string>} */
+    const fired = new Set();
+    const sanctioned = (/** @type {string} */ rule) =>
+      stmt.markers.some((m) => m.rule === rule && m.reason !== null);
+    const excerpt = stmt.code.length > 60 ? `${stmt.code.slice(0, 60)}…` : stmt.code;
+    if (STEP_LINT_NEGATION_FORMS.some((re) => re.test(stmt.code))) {
+      fired.add('unearned-absence');
+      if (!sanctioned('unearned-absence')) {
+        findings.push({
+          rule: 'unearned-absence', severity: 'warn', line: stmt.line,
+          message: `${filename}:${stmt.line}: absence over a literal needle — \`${excerpt}\` is `
+            + 'unfalsifiable when the needle is wrong: the search finds nothing, the line stays green, '
+            + 'and what it denies may be present under different words. Prove the needle can fire (a '
+            + 'control run, a same-scope positive, or a typed predicate), rewrite in the positive '
+            + 'direction, or sanction: // step-lint: allow unearned-absence -- <what proves the needle>',
+        });
+      }
+    }
+    if (STEP_LINT_REST_FORM.test(stmt.code)) {
+      fired.add('rest-signature');
+      if (!sanctioned('rest-signature')) {
+        findings.push({
+          rule: 'rest-signature', severity: 'warn', line: stmt.line,
+          message: `${filename}:${stmt.line}: rest-form step callback — the runner exempts it from the `
+            + 'args-consumption guard (Function.length lies for rest), so this signature no longer '
+            + 'declares what it consumes. Record the ruling: // step-lint: allow rest-signature -- '
+            + '<why this step takes whatever arrives>',
+        });
+      }
+    }
+    for (const c of custom) {
+      if (!c.pattern.test(stmt.code)) continue;
+      fired.add('custom');
+      if (sanctioned('custom')) continue;
+      findings.push({
+        rule: 'custom', severity: 'warn', line: stmt.line,
+        message: `${filename}:${stmt.line}: \`${excerpt}\` — ${c.reason} Sanction: `
+          + '// step-lint: allow custom -- <what makes this instance sound>',
+      });
+    }
+    for (const m of stmt.markers) {
+      if (m.reason !== null && !fired.has(m.rule)) {
+        findings.push({
+          rule: 'stale-marker', severity: 'warn', line: stmt.line,
+          message: `${filename}:${stmt.line}: marker names "${m.rule}" but the rule does not fire on `
+            + 'this statement — the ruling has outlived its subject; delete the marker, or restore '
+            + 'what it sanctioned',
+        });
+      }
+    }
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}
+
 // --- Step registry ----------------------------------------------------------
 
 /**
@@ -1927,6 +2103,7 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
 }
 
 module.exports = {
-  parseFeature, lintFeature, StepRegistry, executeSteps, runFeature, runFeatureFile, runFeatures,
+  parseFeature, lintFeature, lintStepDefinitionSource, StepRegistry, executeSteps,
+  runFeature, runFeatureFile, runFeatures,
   bindRunner, DataTable, buildSnippet, GherkinSyntaxError,
 };

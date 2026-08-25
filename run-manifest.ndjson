@@ -67,14 +67,14 @@
 {"file":"features/run-manifest.feature","title":"opting out writes nothing","status":"passed"}
 {"file":"features/run-manifest.feature","title":"the account speaks for itself","status":"passed"}
 {"file":"features/run-manifest.feature","title":"the bytes do not depend on the runtime","status":"unbound"}
-{"file":"features/step-lint.feature","title":"a bare marker sanctions nothing","status":"unbound"}
-{"file":"features/step-lint.feature","title":"a comment about a negation is not a negation","status":"unbound"}
-{"file":"features/step-lint.feature","title":"a custom pattern enters with its reason","status":"unbound"}
-{"file":"features/step-lint.feature","title":"a marker whose rule no longer fires is a stale ruling","status":"unbound"}
-{"file":"features/step-lint.feature","title":"a needle the suite produced is not the default's business","status":"unbound"}
-{"file":"features/step-lint.feature","title":"a positive-form rewrite is outside the default","status":"unbound"}
-{"file":"features/step-lint.feature","title":"a reasoned marker sanctions its statement","status":"unbound"}
-{"file":"features/step-lint.feature","title":"a rest-form signature is sighted, not refused","status":"unbound"}
-{"file":"features/step-lint.feature","title":"a wrapped negation still fires","status":"unbound"}
-{"file":"features/step-lint.feature","title":"every negation dialect is sighted","status":"unbound"}
-{"file":"features/step-lint.feature","title":"re-wrapping cannot detach a marker","status":"unbound"}
+{"file":"features/step-lint.feature","title":"a bare marker sanctions nothing","status":"passed"}
+{"file":"features/step-lint.feature","title":"a comment about a negation is not a negation","status":"passed"}
+{"file":"features/step-lint.feature","title":"a custom pattern enters with its reason","status":"passed"}
+{"file":"features/step-lint.feature","title":"a marker whose rule no longer fires is a stale ruling","status":"passed"}
+{"file":"features/step-lint.feature","title":"a needle the suite produced is not the default's business","status":"passed"}
+{"file":"features/step-lint.feature","title":"a positive-form rewrite is outside the default","status":"passed"}
+{"file":"features/step-lint.feature","title":"a reasoned marker sanctions its statement","status":"passed"}
+{"file":"features/step-lint.feature","title":"a rest-form signature is sighted, not refused","status":"passed"}
+{"file":"features/step-lint.feature","title":"a wrapped negation still fires","status":"passed"}
+{"file":"features/step-lint.feature","title":"every negation dialect is sighted","status":"passed"}
+{"file":"features/step-lint.feature","title":"re-wrapping cannot detach a marker","status":"passed"}

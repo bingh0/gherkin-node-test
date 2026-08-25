@@ -166,18 +166,20 @@ and gct's own runner refusal supplies the `cargo test` phrasing at run time.
 4. **Loudness**: strict-only by construction — the reviewer-facing default
    stays quiet; a repo opts its builder surfaces into the red.
 
-### `unearned-absence` / `lintStepDefinitionSource` — stub, unshipped (0.11.0 target, gh#4 §4.2)
+### `unearned-absence` / `lintStepDefinitionSource` — 0.11.0, warn (step-source lint, gh#4 §4.2)
 
-*Anchor scenarios live in `features/step-lint.feature`, held whole in the
-wip register until the lint is built. This entry is a stub: it names which
-admission test each scenario pins, and it is completed when the lint
-ships. The default was ratified 2026-08-25 on the pre-registered
-measurement (six corpora, 2,689 definitions, burden ≤3.3% against the
-2.4% field reference — `docs/notes/step-lint-measurement-2026-08-25.md`):
-one default rule, warn-class, firing on literal-needle negations across
-every assertion dialect in use; the companion `rest-signature` sighting
-rides with it per its own prior ruling. Pure text-in/findings-out — never
-a gate.*
+*Anchor scenarios live in `features/step-lint.feature`. They entered as a
+wip-held stub with this entry and cleared from the wip register when the
+lint landed — the stub's promise, kept same-day. The default was ratified
+2026-08-25 on the pre-registered measurement (six corpora, 2,689
+definitions, burden ≤3.3% against the 2.4% field reference —
+measurement note in the maintainers' records): one default rule,
+warn-class, firing on literal-needle negations across every assertion
+dialect in use; the companion `rest-signature` sighting rides with it per
+its own prior ruling, and a sanction marker whose rule no longer fires is
+itself sighted (`stale-marker`). Statements, not lines, are the unit —
+wrapped chains rejoin tight, so a formatter can neither detach a marker
+nor hide a negation. Pure text-in/findings-out — never a gate.*
 
 1. **Unique remedy**: pinned by *every negation dialect is sighted* — each
    finding names the rule, the line, and the exact marker that would

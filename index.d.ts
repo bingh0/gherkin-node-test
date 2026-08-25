@@ -260,6 +260,28 @@ export function lintFeature(text: string, filename?: string, opts?: {
     strict?: boolean;
 }): LintFinding[];
 /**
+ * Lint step-definition source for hollow-binding text shapes — the
+ * companion to lintFeature, aimed at the other side of the contract.
+ * One default rule, `unearned-absence` (literal-needle negations across
+ * every assertion dialect), plus `rest-signature` sighting; sanction is a
+ * statement-attached `// step-lint: allow <rule> -- <reason>` marker, and
+ * a marker whose rule no longer fires is itself a `stale-marker` finding.
+ * Pure text-in/findings-out, all warn-class, never a gate. Scan-root
+ * coverage is the caller's job: scan everything your steps import.
+ * @returns sorted by line
+ */
+export function lintStepDefinitionSource(text: string, filename?: string, config?: {
+    rules?: {
+        pattern: RegExp | string;
+        reason: string;
+    }[];
+}): {
+    rule: string;
+    severity: 'warn';
+    line: number;
+    message: string;
+}[];
+/**
  * @template [W=Record<string, any>] the world this registry's steps share —
  *   see StepFn for what `W` does and does not prove
  */
