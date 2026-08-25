@@ -1,4 +1,12 @@
 {"run-manifest":1}
+{"file":"features/args-consumption.feature","title":"a defaulted parameter is refused wherever it hides","status":"unbound"}
+{"file":"features/args-consumption.feature","title":"a definition declaring a parameter the sentence never produces is red","status":"unbound"}
+{"file":"features/args-consumption.feature","title":"a definition that drops its step's table is red","status":"unbound"}
+{"file":"features/args-consumption.feature","title":"a definition that ignores a capture is red","status":"unbound"}
+{"file":"features/args-consumption.feature","title":"a non-capturing group produces nothing to consume","status":"unbound"}
+{"file":"features/args-consumption.feature","title":"a rest-form definition consumes whatever arrives","status":"unbound"}
+{"file":"features/args-consumption.feature","title":"the guard's reach follows execution","status":"unbound"}
+{"file":"features/args-consumption.feature","title":"the refusal is local to the consuming scenario","status":"unbound"}
 {"file":"features/binding-ratchet.feature","title":"a declaration naming nothing is red","status":"passed"}
 {"file":"features/binding-ratchet.feature","title":"a declared scenario's ambiguous step is still red","status":"passed"}
 {"file":"features/binding-ratchet.feature","title":"a definition no scenario consumes is red","status":"passed"}

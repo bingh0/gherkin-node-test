@@ -166,6 +166,46 @@ and gct's own runner refusal supplies the `cargo test` phrasing at run time.
 4. **Loudness**: strict-only by construction — the reviewer-facing default
    stays quiet; a repo opts its builder surfaces into the red.
 
+### `args-consumption` — stub, unshipped (0.11.0 target, gh#4 item (a))
+
+*Anchor scenarios live in `features/args-consumption.feature`, held whole in
+the wip register until the guard is built. This entry is a stub: it names
+which admission test each scenario pins, and it is completed when the guard
+ships. The convention it enforces was ratified 2026-08-24 on census evidence
+(six corpora, 2,656 definitions: zero rest, zero defaults, zero
+over-declarations, zero dual table/no-table; ten under-consumptions, every
+one the motivating defect): a step callback declares exactly what the
+sentence produces — world, then one plain positional parameter per capture
+and per data table; rest-form is the sanctioned "I take whatever"
+(runner-exempt, lint-sighted); a non-capturing group is the sanctioned
+"varies but unconsumed"; defaults have no place in a step signature; the
+guard refuses both directions, per invocation.*
+
+1. **Unique remedy**: pinned by the three red anchors — the failure names
+   the definition's pattern and counts produced against declared (the
+   dropped table named when a table is what was dropped); the fix is
+   derivable from the finding alone: consume the argument, make the group
+   non-capturing, or declare rest.
+2. **Cheapest legal move**: consume the argument or de-parameterize the
+   pattern — both reviewed diffs, one in the signature (the most-reviewed
+   line of a definition), one in the pattern (the contract's own text).
+   The rest-form evasion is priced by ruling (gh#4): visible in the
+   signature, exempt in the runner, sighted warn-class by the companion
+   lint with marker semantics — pinned by *a rest-form definition consumes
+   whatever arrives*.
+3. **Subset, never divergence**: nothing in Gherkin is reinterpreted — the
+   guard reads produced arguments and the callback's declared parameters,
+   never the feature text; no scenario pins feature grammar because none
+   is touched.
+4. **Loudness stays rare**: the 2026-08-24 census puts the fire rate at
+   10 of 2,656 in-house definitions (0.38%), every one a genuine finding.
+   The refusal is local — it lands on the consuming scenario while
+   siblings still run (pinned) — and the guard's reach follows execution:
+   a @skip'd scenario's bindings are never invoked, so they are never
+   checked (pinned honestly by *the guard's reach follows execution*;
+   registration-time checking is impossible here — tables exist only at
+   invoke, which is the ruling that relocated this guard).
+
 ### `unused-definition` — 0.11.0, error (always-on runner refusal, gh#5)
 
 *Anchor scenarios live in `features/binding-ratchet.feature` (the ratchet's
