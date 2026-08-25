@@ -26,7 +26,13 @@ reaffirmation or reversal updates the date in place.
   the only historian. Extended to derivatives: a clerk-produced diff is
   caller material and never judgment evidence, however deliberately it is
   handed over. Guarded by: "a diff handed back as evidence is refused"
-  (2026-08-12; extended to derivatives 2026-08-23)
+  (2026-08-12; extended to derivatives 2026-08-23; reaffirmed 2026-08-24
+  with the price known — field run #1 cost ~908k tokens over 408 units,
+  and a stateless run #2 re-pays it in full. The owner's ruling: the
+  price is paid because statelessness protects the judgment from
+  outdated information; the sanctioned mitigations are the clerk's
+  archive-and-diff on the caller's side and the corpus recording its
+  acceptances in its own reviewed artifacts — never judge memory.)
 - **Conduct findings in the traveling registry.** The machine-readable
   caller-facing form is readiness-only, structurally; conduct lives in the
   human prose render, and the local archive keeps the full record.
@@ -50,6 +56,13 @@ reaffirmation or reversal updates the date in place.
   audience proves too ambitious, the agent surface migrates first to the
   clerk registry, second to gt through gt's own gate. (2026-08-11;
   destination re-pointed 2026-08-23)
+- **Fence-grammar ownership.** Three instruments read fences by three
+  date grammars — this one by the latest date in the entry's own text,
+  the change-watcher by trailing parentheticals, the host runner by its
+  own heading scheme — and on the first field corpus no two agreed. v1
+  answers with disclosure only (the grammar-mismatch scenario); a single
+  owner — gt, a clerk, or one ratified shared grammar — reopens on field
+  run #2's measured re-flag rate and interop cost. (2026-08-24)
 
 ## Named assumptions
 
@@ -59,11 +72,22 @@ reaffirmation or reversal updates the date in place.
   All evidence is from cooperative single-agent settings. The steering
   sighting, changelog corroboration, and register divergence findings
   bound the hostile surface; they do not discharge this assumption.
-  (2026-08-12; bounded 2026-08-23)
+  Amendment #5 widens the trusted surface to dated owner rulings in
+  feature text (acknowledgment only) — the same assumption covers that
+  widening: feature files are owner territory by convention, and where a
+  change-watcher is present, an unsanctioned edit adding such a ruling
+  is its sighting to make. Honestly: on the one corpus audited so far
+  the watcher was absent, and where it exists it parses none of that
+  corpus's house-style fences — today the guard is the date convention
+  and owner review alone. (2026-08-12; bounded 2026-08-23; widened
+  2026-08-24)
 - **The modification register does not exist yet.** Register rulings are
   contingent grammar — live only where gt ships one. (2026-08-23)
-- **Skill-era cost is unmeasured.** The tetrahedron's cost on a real
-  corpus is unknown until the first field runs price it. (2026-08-23)
+- **Skill-era cost has one price point.** Field run #1 (treecontext,
+  408 units, bare invocation register): ~908k subagent tokens, 181 tool uses,
+  ≈7 min wall with nine concurrent batches, ≈2.2k tokens per unit — one
+  corpus, one register; the curve stays unknown until more runs land.
+  (2026-08-23; first specimen 2026-08-24)
 
 ## Roads not taken
 

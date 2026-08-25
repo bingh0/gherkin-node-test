@@ -20,6 +20,25 @@ Feature: Reporting to callers
     Then the 5 findings render as one cluster naming that ruling
     And the cluster states that one ruling clears 5 findings
 
+  Scenario: roll-up arithmetic reconciles with the headline
+    Given a grading whose 26 flags render as clusters of 14, 5, 4, and 3
+    When the report renders
+    Then the cluster counts sum to the headline's 26
+    And a roll-up whose parts sum short of or past its total never renders
+
+  Scenario: an acceptance-shaped remedy teaches the crediting grammar
+    Given a flagged unit whose ranked remedy is recording an acceptance rather than changing code
+    When the needs-work list renders
+    Then the remedy names the reviewed-artifact entry or the marker grammar the next pass would credit
+    And the remedy states where that record lives
+
+  Scenario: the conformance entry prices the loop, not only the pass
+    Given a ratified run whose human reports two further sessions spent on response and review
+    When the conformance entry is appended
+    Then the entry records the pass cost and the two-session cycle cost
+    And a cycle cost the human does not report is recorded as unknown, never omitted
+    And a cycle cost learned later enters by the human's amendment, never the judge's
+
   Scenario: the drill spells out one finding with its rationale
     Given a human reader drilling into one flagged unit
     When the drill renders

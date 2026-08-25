@@ -48,7 +48,12 @@ files bind.
   original "structured layer beneath the narrative" named the means.)
   Evidence: spawned by the evidence-pointer ruling ("otherwise ambiguous,
   can't generate statistics"). Means, ruled: a structured layer beneath
-  the narrative; declared formats from birth on both machine artifacts. Coverage: `scenario` — clerk-era-artifacts.feature; `partial`
+  the narrative; declared formats from birth on both machine artifacts.
+  Amended 2026-08-24 (field run #1 forensics): the report's counts must
+  reconcile with themselves — run #1's public note clustered 25 of a
+  26-flag headline, unjoinable without stable keys. Coverage:
+  `scenario` — clerk-era-artifacts.feature,
+  reporting-to-callers.feature (roll-up arithmetic); `partial`
   in the skill era by the era ruling — pre-clerk runs are report-only,
   and the report's counts are the era's whole statistical surface.
   Primary status: `scenario`, with that era note.
@@ -61,10 +66,16 @@ files bind.
   absent. Coverage: `scenario` — edges-of-the-tetrahedron.feature.
 - **N9** (owner, wt 3) — *I need accepted debt to stay visible without
   being re-shouted at every pass.* Evidence: domain sweep (2026-08-23),
-  selected for drilling from the interviewer's genre priors. Means,
-  ruled: distinct acknowledged vocabulary on the overrule mechanism;
-  never silenced, rank-demoted, staleness dated. Coverage: `scenario` —
-  reporting-to-callers.feature.
+  selected for drilling from the interviewer's genre priors. Amended
+  2026-08-24 (field run #1 forensics): the judge's statelessness makes
+  the corpus's own reviewed artifacts the *only* channel through which
+  an acceptance survives to the next run — the run-#1 response recorded
+  its acceptances as prose comments, which no grammar credits, so run #2
+  would have re-shouted every one. Means, ruled: distinct acknowledged
+  vocabulary on the overrule mechanism; never silenced, rank-demoted,
+  staleness dated; a crediting grammar the report itself teaches.
+  Coverage: `scenario` — reporting-to-callers.feature,
+  the-faces-and-the-guards.feature.
 
 Tensions: N1 is capped by N0 — the agent's self-audit surface is
 deliberately smaller than the human's (readiness face only), because an

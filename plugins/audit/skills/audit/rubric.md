@@ -133,6 +133,17 @@ Two trust levels, never merged:
 - **Acknowledged** — accepted debt, recorded in a reviewed artifact:
   stays in the list, marked, demoted, aged from its entry date. Never
   silenced.
+- **Credited** — the grammars an acceptance survives the stateless judge
+  through, and the only ones: a fence or ledger entry (suppression or
+  acknowledgment), a binding-line sanction marker (self-sanction, its
+  own row), and a **dated owner ruling in feature text** — acknowledgment
+  only, cited with the feature line and the ruling's date; never a
+  suppression. An undated feature-text ruling is sighted, never
+  credited. Prose acceptance in a binding never credits: the finding
+  stands at full rank and the sighting names the grammars above. The
+  discriminator against steering: imperative-toward-the-auditor is
+  steering regardless of date; a ruling is a dated declarative decision
+  about the corpus that names what it accepts.
 - **Self-sanctioned** — a binding-line marker `<tool>: allow -- <reason>`,
   written by the party being judged: the finding stays visible under its
   own heading with the reason inline, demoted, never counted as
@@ -159,7 +170,9 @@ Two trust levels, never merged:
   citation vs. journal; a **ruling landed elsewhere** (a constraint
   falsified by an amendment recorded in a companion note); a **deferral
   whose named reopening condition has been met** while the entry stands
-  unrevised; a binding or register comment claiming a scenario is unbound
+  unrevised; a **deferral stale at birth** — its named condition was
+  already met when the entry was recorded, both dates shown: the entry
+  never described a live deferral; a binding or register comment claiming a scenario is unbound
   when the manifest shows it passed; a **contract delta recorded in a
   fence** (a positive addition where the fence's own header says it holds
   declined answers) — reported, never re-filed; an **amendment reversing

@@ -47,6 +47,12 @@ Feature: Evidence and degradation
     Then each such entry's effective date is the heading's
     And the evidence basis states how many entries carry heading-inherited dates that a trailing-parenthetical reader would read as undated
 
+  Scenario: a fence the co-present watcher parses none of is a named grammar mismatch
+    Given a fence holding 40 dated entries the audit reads and a change-watcher present that parses 0 of them
+    When the evidence basis renders
+    Then the basis carries both counts, 40 read here and 0 read by the watcher
+    And the watcher's empty ruling picture reads as a grammar mismatch, never as a fence with no rulings
+
   Scenario: a pre-clerk run names its own era
     Given a pass run before any clerk exists
     When the report renders

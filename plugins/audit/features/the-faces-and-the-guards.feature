@@ -67,6 +67,24 @@ Feature: The faces and the guards
     Then the entry is sighted as unconditioned
     And its suppression still stands
 
+  Scenario: a dated owner ruling in feature text is a reviewed artifact
+    Given a feature file comment carrying a dated owner ruling that accepts a finding class as design debt
+    When the judgment pass reads the rulings
+    Then the finding renders acknowledged, citing the feature line and the ruling's date
+    And an undated ruling in feature text is sighted, never credited
+
+  Scenario: a prose acceptance in a binding is sighted, not credited
+    Given a binding comment accepting a flagged assertion in prose with no sanction marker
+    When the judgment pass grades that binding
+    Then the finding stands at full rank
+    And the sighting names the marker and fence grammars that would credit the acceptance
+
+  Scenario: a deferral overtaken before it was recorded is stale at birth
+    Given a fence deferral recorded on 2026-07-27 whose named condition was already met on 2026-07-25
+    When the judgment pass reads the rulings
+    Then a divergence finding reads stale at birth, showing both dates
+    And the finding states the entry never described a live deferral
+
   Scenario: regressed and unbound units are readiness rows an agent may see
     Given an agent-invoked pass over a corpus with 1 regressed unit and 2 units held in the wip register
     When the registry renders

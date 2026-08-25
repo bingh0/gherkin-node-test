@@ -69,6 +69,23 @@ Feature: Judging claimed-done
     Then the unit is flagged blind
     And the flag names the unwatched surface
 
+  Scenario: a cannot-fail flag ships the observable that would fail
+    Given a unit flagged thin for an assertion with no failing world while the watched surface exposes an index count the binding never reads
+    When the report renders
+    Then the why-line names the unread count as the observable a rebuilt binding would read
+
+  Scenario: a cannot-fail flag with a constant producer names the honest moves
+    Given a unit flagged thin whose asserted value is a constant the product never varies
+    When the report renders
+    Then the why-line states that no failing world exists while the producer is constant
+    And the remedy names a varying producer or a recorded acceptance, never a reworded assertion
+
+  Scenario: a dated tier declaration in feature text moves the unit to the design block
+    Given a scenario whose feature text carries a dated owner ruling declaring it design tier
+    When the units are enumerated
+    Then the unit renders in the design-tier block, outside the headline counts
+    And the tier block cites the feature line and the ruling's date
+
   Scenario: every flag in a grading carries an evidence pointer
     Given a grading that produced 32 flags across 244 claimed units
     When the report renders

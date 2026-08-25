@@ -68,7 +68,32 @@ archive assembly — is clerking, and the clerk is not the judge.
   when the prover its reason names can no longer be sighted; a recorded
   ruling that cites external state names its resight condition — the
   observable whose change reopens it — and one that names none is
-  sighted as unconditioned while its suppression stands. [ruled: N0]
+  sighted as unconditioned while its suppression stands. A deferral
+  whose named condition was already met when the entry was recorded is
+  stale at birth — it never described a live deferral. [ruled: N0]
+- Because the judge is stateless, response work survives to the next run
+  only through the corpus's own reviewed artifacts. A dated owner ruling
+  in feature text is a reviewed artifact **for acknowledgment only** —
+  it records accepted debt, never a suppression; overrules live in the
+  fence or ledger (an undated ruling is sighted, never credited). The
+  discriminator against steering: text imperative toward the auditor is
+  steering regardless of its date; a ruling is a dated declarative
+  decision about the corpus, and it names what it accepts. Prose in a
+  binding never credits — the sighting names the grammar that would;
+  and the report's acceptance-shaped remedies teach that grammar, so a
+  run's findings can be honestly recorded in a form the next run reads.
+  [ruled: N9, N0]
+- Report arithmetic is part of the contract: every roll-up sums to its
+  itemization, and a cannot-fail flag ships the observable that would
+  fail where the judge can name one — or says no failing world exists
+  while the producer is constant, naming the honest moves. [ruled: N7,
+  N3]
+- The conformance entry prices the loop: pass cost at append; cycle
+  cost (response and review) as the human reports it at ratification,
+  or "unknown", never omitted. The judge appends without reading the
+  record, so a cycle cost learned later enters only by the human's own
+  amendment — the entry is the human's file the moment it is written.
+  [ruled: N2]
 
 ## Chosen (agent's calls, lower bar to revisit)
 
@@ -124,3 +149,27 @@ cost is stated before the pass spends it, and an unmeasured cost says so.)
   states; heading-inherited fence dates read with the basis named;
   instrument line names delegated batches. Nine scenarios added, one
   reworded, one extended. audit 0.1.1.
+- 2026-08-24 — amendment #5 (owner directive, from the independent
+  forensic pass over field run #1's downstream work — notes in
+  agent-bdd-research, `notes-audit-field-run-1-forensics-20260824.md`):
+  the crediting grammar for acceptances (dated owner rulings in feature
+  text are reviewed artifacts; binding prose is sighted with the grammar
+  named; acceptance-shaped remedies teach it — without this, a stateless
+  run #2 re-flags every honest acceptance); design-tier declarations in
+  feature text reach enumeration; cannot-fail flags ship their failing
+  observable or name the honest moves; roll-up arithmetic reconciles;
+  stale-at-birth deferrals; watcher-fence grammar mismatch disclosed;
+  the conformance entry prices the loop. Statelessness reaffirmed in the
+  fence at its now-known price. Ten scenarios added.
+- 2026-08-24 — amendment #5 adversarially reviewed by an independent
+  instance (1 blocking, 5 should-fix, 3 nits; the substance-level attack
+  lines — self-sanction contradiction, unfalsifiability, overreach —
+  were attempted and refuted). All findings applied: design-tier block
+  named apart from the design edge's block; feature-text crediting
+  restricted to acknowledgment with a steering discriminator; the
+  no-watcher exposure disclosed in the fence; the loop-pricing mechanism
+  given its human-amendment path; N7/N9 coverage lines trued; the
+  over-sum clause closed; fence-grammar ownership recorded as a deferred
+  v2 candidate. Ratified by the owner 2026-08-24 as audit 0.1.2
+  (SKILL.md steps 6 and 9, rubric.md's credited definition and
+  stale-at-birth divergence row, README and grounding counts bumped).
