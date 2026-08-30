@@ -46,7 +46,8 @@
     "test": "node --test",
     "test:vitest": "vitest run",
     "typecheck": "tsc -p fixtures/typecheck",
-    "typecheck:ts5": "npx -y -p typescript@5 tsc -p fixtures/typecheck"
+    "typecheck:ts5": "npx -y -p typescript@5 tsc -p fixtures/typecheck",
+    "typecheck:js": "npx -y -p typescript@5 tsc -p fixtures/typecheck/tsconfig.checkjs.json"
   },
   "keywords": [
     "gherkin",

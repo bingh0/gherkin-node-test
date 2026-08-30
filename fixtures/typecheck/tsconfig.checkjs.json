@@ -1,0 +1,30 @@
+// The implementation lane: strict checkJs over index.js itself. The sibling
+// tsconfig.json checks the hand-written index.d.ts against a consumer; nothing
+// there ever puts index.js in a program, so JSDoc that doesn't typecheck ships
+// silently — found by the first vendoring consumer who type-checks the .js
+// (ccr, 2026-08-30). This lane pins that class of bug.
+//
+// What it does NOT pin, stated plainly: agreement between index.js's JSDoc and
+// the hand-written index.d.ts. Both are source (see the d.ts header, gh#2);
+// this lane checks the JSDoc's self-consistency only, and drift between the
+// two remains a review concern, not a mechanical one.
+//
+// Run under typescript@5 ONLY (typecheck:js in package.json). The tsc 7
+// native preview does not yet narrow on a JSDoc @returns {never} closure
+// (fail() in the parser), so it reports strict-null false positives at sites
+// TS5 proves guarded. Compiler limitation, not policy — when tsgo learns
+// never-narrowing, fold this lane into the both-majors pair.
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "allowJs": true,
+    "checkJs": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "files": ["../../index.js"]
+}

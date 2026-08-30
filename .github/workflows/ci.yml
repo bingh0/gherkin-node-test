@@ -92,3 +92,9 @@ jobs:
       # gated) — one lane per major keeps that class caught.
       - run: npm run typecheck
       - run: npm run typecheck:ts5
+      # Strict checkJs over index.js itself — the consumer lanes above never
+      # put the .js in a program, so JSDoc that doesn't typecheck ships
+      # silently to vendoring consumers (found by ccr, 2026-08-30). TS5-only
+      # for now: see fixtures/typecheck/tsconfig.checkjs.json for what this
+      # lane does and does not pin, and why tsc 7 is excluded.
+      - run: npm run typecheck:js
