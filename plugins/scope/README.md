@@ -17,14 +17,14 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 4.2.0**, grounded against **gherkin-node-test 0.11.0 and docketry
+**scope 5.0.0**, grounded against **gherkin-node-test 0.11.0 and docketry
 0.1.0**.
 
 The two numbers are independent, and deliberately so. Earlier releases pinned
 the plugin version to the dialect version it targeted (0.6.0, then 0.7.0);
 that scheme broke the first time two protocol revisions landed against one
 dialect release, because there was no second number to bump. So the skill now
-carries its own major line — the 4.x line is the fourth release of the
+carries its own major line — the 5.x line is the fifth release of the
 protocol — and
 names the dialect it is grounded against separately, here and in `SKILL.md`.
 
@@ -33,7 +33,7 @@ The grounding is not decoration: strict mode, `dropped-prose`, and
 *silently*. The skill therefore probes the linter's behavior rather than
 trusting a version string, and refuses to certify output it could not check.
 
-The second grounding is the docket. From 4.2.0 the interview keeps a ruling
+The second grounding is the docket. From 5.0.0 the interview keeps a ruling
 record — `features/DOCKET.md`, one entry per ruling as it is made, the fifth
 surface beside the fence, the ledger and `DESIGN.md` — under the closed
 grammar of [docketry](https://github.com/bingh0/docketry), whose lint is the
@@ -46,13 +46,57 @@ docketry's `GRAMMAR.md`, pointed at by version and never copied.
 
 | | |
 | :--- | :--- |
-| Skill-only change (protocol, grammar notes, wording) | 4.0.x / 4.x.0 |
+| Skill-only change (protocol, grammar notes, wording) | 5.0.x / 5.x.0 |
 | Re-grounding onto a new dialect release | new major, pin restated |
+| A new required surface, or a new refusal in the validation script | new major |
 
 The number that governs is the one in the plugin's own `plugin.json`: Claude
 Code resolves a plugin's version from `plugin.json` first, the marketplace
-entry second, and the source commit SHA last. Both files carry `4.2.0` here,
+entry second, and the source commit SHA last. Both files carry `5.0.0` here,
 and `claude plugin tag plugins/scope --dry-run` checks that they still agree.
+
+### Migrating a 4.x project to 5.0.0
+
+5.0.0 is a major on both of the table's counts at once. The grounding moved
+two dialect releases (0.9.0 → 0.11.0), and the validation script gained a
+required surface and a refusal with it: it now refuses any scoped repository
+that has no `features/DOCKET.md`. A project scoped under 4.x therefore stops
+passing the script until its docket exists.
+
+The migration is a transcription, not a second interview — the rulings were
+already made, they were just never written down in one place. Read the three
+surfaces the project already has and write one docket entry per ruling
+recorded in them:
+
+- one entry per fence entry in `OUT-OF-SCOPE.md`, resolving to the kind its
+  section names (`fence-declined`, `fence-deferred`, `fence-assumption`;
+  entries under *Out of reach by construction* and *Roads not taken* cite
+  rulings of any kind in effect);
+- one entry per `ruled` constraint in `DESIGN.md`, resolving to `structural`
+  or `means`;
+- one `N` entry per need in `USER-NEEDS.md`.
+
+Date each entry with the **original** date — the fence's trailing
+parenthetical, the `DESIGN.md` changelog line, the interview record — never
+today's: dates never decrease in file order, and a docket redated to the
+migration says the project was scoped in an afternoon. Tag provenance
+honestly: `[I>V]` where the visionary accepted the drafted text as written,
+`[?]` where provenance is lost. A transcription that tags everything `[V]`
+has laundered the record and disarmed the instrument that was the point of
+keeping it.
+
+Then run the lint in default mode and repair by its findings — default mode
+lists every finding and exits 0, so it costs nothing to run repeatedly:
+
+```sh
+npx docketry lint features/DOCKET.md --corpus features
+```
+
+Its coverage and traceability layers are the queue: scenarios carrying no
+ruling-id tag, needs no ruling serves, kind-strict fence sections citing
+nothing of their kind, ledger rows with no `Evidence:` ids. Work it down,
+then re-run the validation script in `SKILL.md` — its fifth refusal runs the
+same lint with `--strict`, where those findings exit 1.
 
 ## What gets installed
 
@@ -112,7 +156,7 @@ This repo is itself a Claude Code plugin marketplace: the catalog lives at
 
 4. **Verify.** Type `/` and look for `scope`, or ask *"what skills are
    available?"* The plugin's own tab (`/plugin` → **Installed** → `scope`)
-   lists what it contributes and should report **4.2.0** — that number comes
+   lists what it contributes and should report **5.0.0** — that number comes
    from the plugin's own `plugin.json`, so a stale reading there is the tell
    that an update didn't take.
 
@@ -161,7 +205,7 @@ restart once. Invoke it with `/scope`.
 Project skills load from `.claude/skills/` in your working directory and every
 parent up to the repo root.
 
-A plain-skill copy carries no version metadata — nothing reports `4.2.0` back
+A plain-skill copy carries no version metadata — nothing reports `5.0.0` back
 to you. Record the commit you cloned if you need to know later what the
 interview was grounded on; `SKILL.md` names the dialect pin either way.
 
@@ -234,7 +278,7 @@ control if entries name private projects.
 | `/scope` doesn't appear in Claude Code | `/plugin` → **Errors** tab. If skills are missing entirely: `rm -rf ~/.claude/plugins/cache`, restart, reinstall. |
 | `Marketplace "gherkin-node-test" not found` | Run the `/plugin marketplace add` step first, then retry the install. |
 | Plugin not found in the catalog | `/plugin marketplace update gherkin-node-test`, then retry. |
-| Installed tab shows an older version than 4.2.0 | The marketplace refresh didn't reach the install. `/plugin marketplace update gherkin-node-test`, then uninstall and reinstall. |
+| Installed tab shows an older version than 5.0.0 | The marketplace refresh didn't reach the install. `/plugin marketplace update gherkin-node-test`, then uninstall and reinstall. |
 | Skill silently missing in VS Code | Directory name must equal the frontmatter `name` (`scope`), lowercase, no prefixes. Check with `/skills`. |
 | Interview starts, then stalls or invents grammar | `grammar.md`, `layers.md`, `needs.md`, or `docket.md` weren't copied. Copy the whole directory. |
 | Interview drifts into stacks and frameworks | Not an install problem — say so; the protocol is required to fence stack topics into the out-of-scope list and steer back to behavior. Technology preferences have a sanctioned home at the *end* of the interview (the opt-in design-electives step), never in the middle. |

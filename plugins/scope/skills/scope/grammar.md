@@ -118,6 +118,16 @@ design. Consequences:
 
 ## Tags
 
+- **Every scenario and scenario outline in `/scope` output carries at least
+  one ruling-id tag** — `@D41`, naming the docket entry the scenario proves.
+  The id is the join key in both directions: a scenario with no ruling-id
+  tag is a docketry traceability finding, and the SKILL.md validation
+  script's fifth refusal fails on it. A **failure-case** scenario cites an
+  *unwanted* entry — one marked `!` in the docket — never the wanted
+  entry's id, whose tag covers wanted behavior only (D80). To this parser a
+  ruling id is an ordinary tag: it sits in the allowed tag positions below
+  like any other, and it changes nothing about the semantic tags that
+  follow.
 - `@skip` (skipped, steps must still bind), `@todo` (registered placeholder,
   never gates), `@only`. Mutually exclusive — a *combination* is a parse
   error, and a near-miss (`@Skip`, `@SKIP`, `@Only`) is a parse error too.

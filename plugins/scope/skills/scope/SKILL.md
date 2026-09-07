@@ -303,30 +303,54 @@ declined (a collision surfaced there can amend a ratified ruling, so nothing
 is drafted while that door is open):
 
 - `features/*.feature` — in the `grammar.md` subset, drafted inside the
-  conservative intersection it describes.
+  conservative intersection it describes. Every scenario and scenario
+  outline carries at least one **ruling-id tag** — `@D41`, the docket
+  entry it proves — and a failure-case scenario carries the tag of an
+  *unwanted* entry instead (`grammar.md`, Tags; D80); an untagged
+  scenario is a docketry traceability finding, so the fifth refusal
+  fails on it.
 - `OUT-OF-SCOPE.md` — the fence, living beside the feature files it fences
   (`features/OUT-OF-SCOPE.md`): each declined/deferred item with one line on
-  why, in the visionary's terms, and **an ISO date in a trailing
-  parenthetical — the date that entry was ratified** (`… (2026-08-21)`); a
-  reaffirmation or a reversal updates that date in place rather than
-  appending a second one beside it. The date is not provenance decoration:
-  a fence-reading consumer derives an entry's effective date from the
-  latest date in that trailing parenthetical (a date quoted in the reason
-  prose never counts — citing a roadmap must not read as reaffirming the
-  ruling), and pressure detection — the reconsider
+  why, in the visionary's terms, and **one trailing parenthetical, the
+  entry's last text — the ruling id or ids it came from, then the ISO
+  date that entry was ratified** (`… (D41, 2026-09-06)`; where the chain
+  matters, `… (D96, D19 reversed by D20, 2026-09-04)`). One
+  parenthetical, never two: a reaffirmation or a reversal updates it in
+  place rather than appending a second one beside it. Neither half is
+  decoration. The ids are the join key docketry reads (D77, D88) — a
+  fence entry citing an id that is missing, or a reversed id without its
+  reverser named beside it, is a traceability finding, and the fifth
+  refusal fails on it. The date is what a
+  fence-reading consumer derives an entry's effective date from — the
+  latest date in that trailing parenthetical; a date quoted in the reason
+  prose never counts, since citing a roadmap must not read as reaffirming
+  the ruling. And pressure detection — the reconsider
   bell that rings when a fenced topic re-enters discussion — cannot run at
   all for an undated entry, so an undated fence is a fence with that alarm
   quietly disconnected (first field consumer gherkin-trace, whose own fence
   carried eight undated entries that could not fire — 2026-08-21 review).
+  The fence carries six section headings: `## Declined`, `## Deferred`,
+  `## Named assumptions`, `## Out of reach by construction`, `## Roads
+  not taken` — the five docketry reads as destinations — and, when a
+  ruling touches a bound scenario, `## Sanctioned changes` (below). The
+  first three are
+  **kind-strict**: every entry under them cites at least one ruling whose
+  effective resolution kind is that section's — `fence-declined`,
+  `fence-deferred`, `fence-assumption` — and an entry under a kind-strict
+  heading that cites no ruling of its kind is a traceability finding
+  (D88). Out of reach by construction and Roads not taken may cite any
+  ruling in effect; Sanctioned changes is existence-only, its citations
+  read and never kind-checked.
   A **Deferred** or **Named assumption** entry carries the trigger of the
   ruling it came from as its reopening condition — the condition that
   reopens the question, written into the entry rather than left in the
   interviewer's head (D160).
   A **Declined** entry may also name the scenarios that *enforce* it —
   `Guarded by: "<title>", "<title>"` in the entry body, **before** the
-  date parenthetical: the parenthetical is where a reader looks for the
-  date, so it stays the entry's final text, and a `Guarded by:` line
-  written after it leaves the entry reading as undated — the reconsider
+  trailing parenthetical: the parenthetical is where a reader looks for
+  the ids and the date, so it stays the entry's final text, and a
+  `Guarded by:` line
+  written after it leaves the entry reading as uncited and undated — the reconsider
   bell disconnected on exactly the entries ruled important enough to
   carry guardians (the ordering a faithful transcription produced on
   first try, 2026-08-22 verification run — which is why it is now
@@ -338,7 +362,7 @@ is drafted while that door is open):
   guardian instead. Unlisted lookalikes still fire: the exemption is a
   ruling, never an inference, and the safe default holds for every scenario
   the entry does not name (ruled gherkin-trace D2, 2026-08-11).
-  The fence closes with a **Roads not taken** section: for
+  **Roads not taken** carries, for
   each contested ruling, the options the visionary rejected, with one line
   on why. Declined scope fences the outside; rejected options pin the
   inside. Both exist so a later agent finds a decision where it would
@@ -346,13 +370,18 @@ is drafted while that door is open):
   `cino:decision` — this section is its catch, in the deliverable itself).
 - `USER-NEEDS.md` — the needs ledger, living beside the fence: per need,
   the first-person statement, its beneficiary (user, operator, business,
-  or a named role), weight, evidence, the chosen means where
-  rule 5 recorded one, tension links, and one primary coverage
+  or a named role), weight, evidence **with its ruling ids**, the chosen
+  means where rule 5 recorded one, tension links, and one primary coverage
   status — `scenario` (naming the files), `structural`, `absence`
   (naming the fence entries), `partial` (naming the accepted trade-off
   and the need that caps it), or `fenced` — plus a free-prose coverage
-  note where one word cannot carry the truth. Format, statuses, and the
-  bidirectional check are defined in `needs.md`. Reconciled from the
+  note where one word cannot carry the truth. The evidence clause is a
+  citation before it is prose — `Evidence: D12, D41` — and names every
+  in-effect ruling that resolves to this need and any ruling that serves
+  it; docketry checks each row for them (D136), and a row citing a ruling
+  that neither resolves to nor serves the need is the mis-cite. Format,
+  statuses, the row shape, and the bidirectional check are defined in
+  `needs.md`. Reconciled from the
   whole interview record against the Phase-1½ baseline; ratified by the
   visionary at review. **The ledger explains and prioritizes; it never
   specifies.** At build, only the feature files bind: a `partial` status
@@ -430,8 +459,10 @@ bindings for every scenario a ruling touches, and states its result —
 rule 6). When a ruling will change the text or verdict of a bound scenario
 at build, the fence gains a **Sanctioned changes** section: per scenario —
 file, title, **direction** (one or more of `drops` / `rewords` / `adds` /
-`deletes-scenario`), what changes, and the sanctioning ruling — written
-before build. This is the ratification record the `cino:spec`
+`deletes-scenario`), what changes, and the sanctioning ruling **by its
+docket id** — written before build. It is the fence's sixth section, and
+the one whose citations docketry reads for existence alone, never
+kind-checked. This is the ratification record the `cino:spec`
 discriminator requires; without it, a sanctioned flip and a silent
 weakening leave the same history. Direction is required, not decoration
 (amendment ruled 2026-08-06, probe-survived; first field consumer
@@ -593,7 +624,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-4.2.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
+5.0.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
 (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why

@@ -118,9 +118,23 @@ After drafting, `USER-NEEDS.md` is reconciled from the whole interview
 record against the Phase-1½ baseline and ratified by the visionary as
 part of the review. Per need: the first-person statement, beneficiary,
 weight,
-evidence (what was said, fought over, or corrected), the chosen means
+evidence (what was said, fought over, or corrected) **with its ruling
+ids**, the chosen means
 where rule 5 recorded one, tension links, and one primary coverage
-status with its prose note where needed. Then
+status with its prose note where needed. The row, by example:
+
+    - **N2** (user, wt 4) — *I need to find any document again when I
+      actually need it.* Evidence: D12, D41 — the retrieval argument,
+      corrected twice. Means, ruled: a folder tree (D41). Coverage:
+      `scenario` — filing.feature, retrieval.feature.
+
+`Evidence:` is a citation clause before it is prose: it opens with the
+ids and lets the prose that made them evidence follow. It names every
+in-effect ruling that resolves to this need — `need` or `means` — and any
+ruling that *serves* it. The docket lint checks each row for them
+(docketry D136): a row that cites no ruling resolving to its need is a
+traceability finding, and a row citing a ruling that neither resolves to
+nor serves the need is the mis-cite. Then
 the check runs in both directions:
 
 - every need carries a status — an uncovered need is a finding;

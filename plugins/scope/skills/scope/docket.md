@@ -57,9 +57,10 @@ in a scenario tagged with its id; `need` and `means` in that need's ledger
 row; `fence-declined`, `fence-deferred` and `fence-assumption` in their
 fence sections; `structural` and `means` in `DESIGN.md` as a `[ruled: D41]`
 tag; `boundary` has no destination and is listed as not counted. The id is
-the only join key, both directions (D77): an untagged scenario, or a fence
-entry, ledger row or `ruled` tag citing a missing or reversed id, is a
-traceability finding. Electives are no second numbering — where a docket
+the only join key, both directions (D77, D88): an untagged scenario, or a
+fence entry, ledger row or `ruled` tag citing an id that is missing — or a
+reversed id without its reverser named beside it — is a traceability
+finding. Electives are no second numbering — where a docket
 exists an elective is a ruling resolving to `means`, its id is the docket
 id, and `E1`, `E2` survive as prose aliases, never keys (D117). A Deferred
 or Named-assumption fence entry carries its ruling's trigger as the
