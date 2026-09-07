@@ -2,8 +2,9 @@
 
 A structured scoping interview that turns a project idea into lint-clean
 `.feature` files in the [gherkin-node-test](https://github.com/bingh0/gherkin-node-test)
-dialect, plus three companion documents: an explicit out-of-scope fence, a
-needs ledger mapping every need to what covers it, and `DESIGN.md` — the
+dialect, plus four companion documents: an explicit out-of-scope fence, a
+needs ledger mapping every need to what covers it, `DOCKET.md` — the ruling
+record the interviewer keeps as the interview runs — and `DESIGN.md`, the
 high-altitude orienting document the build agent works under (with an
 opt-in moment at the end of the interview for you to put technology
 preferences into it). You are the visionary; the agent interviews you and
@@ -16,7 +17,8 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 4.1.2**, grounded against **gherkin-node-test 0.10.0**.
+**scope 4.2.0**, grounded against **gherkin-node-test 0.11.0 and docketry
+0.1.0**.
 
 The two numbers are independent, and deliberately so. Earlier releases pinned
 the plugin version to the dialect version it targeted (0.6.0, then 0.7.0);
@@ -31,6 +33,17 @@ The grounding is not decoration: strict mode, `dropped-prose`, and
 *silently*. The skill therefore probes the linter's behavior rather than
 trusting a version string, and refuses to certify output it could not check.
 
+The second grounding is the docket. From 4.2.0 the interview keeps a ruling
+record — `features/DOCKET.md`, one entry per ruling as it is made, the fifth
+surface beside the fence, the ledger and `DESIGN.md` — under the closed
+grammar of [docketry](https://github.com/bingh0/docketry), whose lint is the
+validation script's fifth refusal: `npx docketry lint features/DOCKET.md
+--corpus features --strict` must exit 0. Install it beside the dialect
+(`npm i -D @bingh/docketry@0.1.0`); the script probes for it and prints that
+line rather than proceeding without it. The skill's `docket.md` is the
+interviewer's guide to keeping the record — the grammar itself stays in
+docketry's `GRAMMAR.md`, pointed at by version and never copied.
+
 | | |
 | :--- | :--- |
 | Skill-only change (protocol, grammar notes, wording) | 4.0.x / 4.x.0 |
@@ -38,7 +51,7 @@ trusting a version string, and refuses to certify output it could not check.
 
 The number that governs is the one in the plugin's own `plugin.json`: Claude
 Code resolves a plugin's version from `plugin.json` first, the marketplace
-entry second, and the source commit SHA last. Both files carry `4.1.2` here,
+entry second, and the source commit SHA last. Both files carry `4.2.0` here,
 and `claude plugin tag plugins/scope --dry-run` checks that they still agree.
 
 ## What gets installed
@@ -46,6 +59,7 @@ and `claude plugin tag plugins/scope --dry-run` checks that they still agree.
 ```
 scope/
 ├── SKILL.md      # the interview protocol (entry point)
+├── docket.md     # the ruling record kept during the interview (grammar: docketry)
 ├── grammar.md    # the Gherkin subset the output must lint clean against
 ├── layers.md     # the failure-mode map the protocol routes against
 ├── needs.md      # the needs ledger + quality checklist the interview fills
@@ -54,8 +68,9 @@ scope/
 
 Copy the **whole directory**, not just `SKILL.md`. The protocol reads
 `grammar.md` before writing any feature file, routes against `layers.md`
-during the interview, and keeps the needs ledger defined in `needs.md`;
-without them the interview still starts and then stalls.
+during the interview, keeps the needs ledger defined in `needs.md`, and
+keeps the ruling record `docket.md` describes; without them the interview
+still starts and then stalls.
 
 ---
 
@@ -97,7 +112,7 @@ This repo is itself a Claude Code plugin marketplace: the catalog lives at
 
 4. **Verify.** Type `/` and look for `scope`, or ask *"what skills are
    available?"* The plugin's own tab (`/plugin` → **Installed** → `scope`)
-   lists what it contributes and should report **4.1.2** — that number comes
+   lists what it contributes and should report **4.2.0** — that number comes
    from the plugin's own `plugin.json`, so a stale reading there is the tell
    that an update didn't take.
 
@@ -146,7 +161,7 @@ restart once. Invoke it with `/scope`.
 Project skills load from `.claude/skills/` in your working directory and every
 parent up to the repo root.
 
-A plain-skill copy carries no version metadata — nothing reports `4.1.2` back
+A plain-skill copy carries no version metadata — nothing reports `4.2.0` back
 to you. Record the commit you cloned if you need to know later what the
 interview was grounded on; `SKILL.md` names the dialect pin either way.
 
@@ -219,9 +234,9 @@ control if entries name private projects.
 | `/scope` doesn't appear in Claude Code | `/plugin` → **Errors** tab. If skills are missing entirely: `rm -rf ~/.claude/plugins/cache`, restart, reinstall. |
 | `Marketplace "gherkin-node-test" not found` | Run the `/plugin marketplace add` step first, then retry the install. |
 | Plugin not found in the catalog | `/plugin marketplace update gherkin-node-test`, then retry. |
-| Installed tab shows an older version than 4.1.2 | The marketplace refresh didn't reach the install. `/plugin marketplace update gherkin-node-test`, then uninstall and reinstall. |
+| Installed tab shows an older version than 4.2.0 | The marketplace refresh didn't reach the install. `/plugin marketplace update gherkin-node-test`, then uninstall and reinstall. |
 | Skill silently missing in VS Code | Directory name must equal the frontmatter `name` (`scope`), lowercase, no prefixes. Check with `/skills`. |
-| Interview starts, then stalls or invents grammar | `grammar.md`, `layers.md`, and `needs.md` weren't copied. Copy the whole directory. |
+| Interview starts, then stalls or invents grammar | `grammar.md`, `layers.md`, `needs.md`, or `docket.md` weren't copied. Copy the whole directory. |
 | Interview drifts into stacks and frameworks | Not an install problem — say so; the protocol is required to fence stack topics into the out-of-scope list and steer back to behavior. Technology preferences have a sanctioned home at the *end* of the interview (the opt-in design-electives step), never in the middle. |
 | Interview claims output is clean but names no files | The lint gate never ran, or ran elsewhere. The report carries a `corpus:` line naming every file that earned the verdict — no line, no verdict. |
 

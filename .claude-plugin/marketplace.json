@@ -9,8 +9,8 @@
     {
       "name": "scope",
       "source": "./plugins/scope",
-      "description": "Structured scoping interview that turns a project idea into lint-clean Gherkin feature files in the gherkin-node-test dialect, plus an explicit out-of-scope fence.",
-      "version": "4.1.2",
+      "description": "Structured scoping interview that turns a project idea into lint-clean Gherkin feature files in the gherkin-node-test dialect, plus an explicit out-of-scope fence, over a docketry-grammar record of every ruling.",
+      "version": "4.2.0",
       "license": "MIT",
       "homepage": "https://github.com/bingh0/gherkin-node-test"
     },

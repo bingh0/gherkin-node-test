@@ -1,6 +1,6 @@
 ---
 name: scope
-description: Conduct a structured scoping interview that turns a project idea into reviewable Gherkin feature files. Use when the user wants to scope, spec, or define acceptance criteria for a new project, or for a new feature inside an existing one — before the code for it exists. The user is the visionary; the interview stays in behavior space (with one opt-in technology-preferences step at its end) and delivers lint-clean .feature files, an explicit out-of-scope fence, a needs ledger, and a DESIGN.md orienting document, all for human review.
+description: Conduct a structured scoping interview that turns a project idea into reviewable Gherkin feature files. Use when the user wants to scope, spec, or define acceptance criteria for a new project, or for a new feature inside an existing one — before the code for it exists. The user is the visionary; the interview stays in behavior space (with one opt-in technology-preferences step at its end) and delivers lint-clean .feature files, an explicit out-of-scope fence, a needs ledger, a DESIGN.md orienting document, and a docket of every ruling in the docketry grammar, all for human review.
 ---
 
 # /scope — the structured scoping interview
@@ -10,7 +10,10 @@ exist and why; they do not write feature files, and technology stays out of
 the conversation until the one sanctioned moment at its end (Phase 5½). Your
 job is to extract a testable contract from them, then write it down in the
 Gherkin subset defined in `grammar.md` (in this skill's directory — read it
-before writing any feature file).
+before writing any feature file). Three companions sit beside it in the same
+directory: `needs.md` (the needs sketch, its checklist, and the ledger),
+`layers.md` (the failure-mode map), and `docket.md` (the ruling record you
+keep as you go — its entry shape, and the lint that reads it).
 
 The interview is not done until its output passes the output contract at the
 bottom of this file.
@@ -160,7 +163,9 @@ X — does this touch it?"), never silently baked in as a proposal — that is
 the rule-4 line between informing a question and leading one. (This axis was added after a
 run in which the visionary had to ask it himself and the answers became two
 of five feature files; a missing scenario is the one failure review cannot
-catch — `layers.md`: `blind:surface`.) Value spreads
+catch — `layers.md`: `blind:surface`.) Every surface ruling is written to the
+docket as it is made, never batched at the end (`docket.md`; dates never
+decrease in file order, D147). Value spreads
 become `Scenario Outline` + `Examples` rows (extremes included); failure and
 misuse answers become their own scenarios. It is the visionary's call whether
 an edge case is in scope — but the question must be asked, and a declined case
@@ -190,7 +195,10 @@ enters the sketch with an honest coverage status (`needs.md` defines
 them); a declined category goes on the fence. The sweep closes with one
 domain question — "what do systems of this kind commonly need that
 never came up?" — provenance: the interviewer's own priors, named as
-such; the ledger reconciliation keeps the backstop. (This phase exists because
+such; the ledger reconciliation keeps the backstop. A need the sweep
+surfaces enters the docket as an `N` entry the moment it is sketched, in the
+order the answers arrive — never grouped into a block afterwards
+(`docket.md`). (This phase exists because
 the protocol was reactive here: in the run that seeded the checklist,
 three ops needs arrived unprompted in the visionary's own final sweep,
 the run's most decision-shaping need — low operational burden — was
@@ -221,8 +229,9 @@ visionary *declined* is as load-bearing as scope they accepted.
 the fence, and the needs sketch — each need with where it will land
 (scenario, structural, absence, partial, fence). Ask once: "walking the vision end to end, is anything missing?"
 The behavior interview stops when this sweep produces no new scenarios and
-the visionary confirms the fence. Do not reopen settled phases without
-cause.
+the visionary confirms the fence. Anything the readback settles is a ruling:
+record it as a docket entry now, before moving on. Do not reopen settled
+phases without cause.
 
 **Phase 5½ — Design electives (opt-in — unlike the default-on passes,
 this one runs only if taken).** After the readback closes, one offer in
@@ -232,8 +241,11 @@ preferences — a stack, a platform, a favored service — this is the
 sanctioned place to state them. "Make it so" is a complete answer and
 costs nothing; rule 3's deferred stack notes, if any, are read back as
 the opening queue rather than re-elicited. If taken: one preference at a
-time (rule 1), each recorded as a **ruled** design constraint numbered
-`E1`, `E2`, … in order of ruling — the ID the doc's `ruled` tags cite —
+time (rule 1), each recorded as a **ruled** design constraint — where the
+interview keeps a docket, an elective *is* a docket ruling resolving to
+`means`, its docket id is the ID the doc's `ruled` tags cite, and `E1`,
+`E2`, … remain a prose alias, never a join key (D117); a run with no docket
+numbers them `E1`, `E2`, … in order of ruling —
 and laddered
 to the need it serves where one exists (rule 5) — and preference with no
 need under it is a legitimate why, recorded as such; the drill stops at
@@ -246,6 +258,7 @@ vs a ratified behavior ruling ("iOS and Android" against a web-only
 framework preference) — is put back as a decision point, never absorbed
 silently. Electives land in `DESIGN.md` (output contract below), not in
 feature files: behavior stays the contract; electives bound the build.
+Record each one as a docket entry as it is ruled, not in a batch at the end.
 (This phase reverses a 2026-08-12 ruling that the design conversation
 must be a sibling protocol — reversed on the pro team's multi-prototype
 evidence that an orienting design document improves build convergence;
@@ -278,9 +291,16 @@ what the behavior *is*. Three rules carry the variant:
 
 ## Output contract
 
-The deliverable, produced only after Phase 5½ closes — taken or declined
-(a collision surfaced there can amend a ratified ruling, so nothing is
-drafted while that door is open):
+One surface is not drafted at the end. `features/DOCKET.md` — the ruling
+record — is written **during** the interview, one entry per ruling as it is
+made, and stands beside the fence, the ledger and the design doc as the
+fifth surface of the deliverable (D31). `docket.md` in this skill's
+directory is the interviewer's guide to keeping it; the grammar itself is
+docketry's, and `docket.md` points at it by version rather than restating it.
+
+The rest of the deliverable, produced only after Phase 5½ closes — taken or
+declined (a collision surfaced there can amend a ratified ruling, so nothing
+is drafted while that door is open):
 
 - `features/*.feature` — in the `grammar.md` subset, drafted inside the
   conservative intersection it describes.
@@ -298,6 +318,10 @@ drafted while that door is open):
   all for an undated entry, so an undated fence is a fence with that alarm
   quietly disconnected (first field consumer gherkin-trace, whose own fence
   carried eight undated entries that could not fire — 2026-08-21 review).
+  A **Deferred** or **Named assumption** entry carries the trigger of the
+  ruling it came from as its reopening condition — the condition that
+  reopens the question, written into the entry rather than left in the
+  interviewer's head (D160).
   A **Declined** entry may also name the scenarios that *enforce* it —
   `Guarded by: "<title>", "<title>"` in the entry body, **before** the
   date parenthetical: the parenthetical is where a reader looks for the
@@ -359,20 +383,23 @@ drafted while that door is open):
   reads *them* is that protocol's own ruling to make. `DESIGN.md`
   itself is always an audit vertex: it is the plan leg of the
   triangulation the handoff states. Every constraint carries one of two tags:
-  **`ruled`** — the visionary's, citing its source (a Phase-5½ elective
-  by its `E` number, or a ledger means/`structural`/tension row by its
-  `N` number: those rows are the doc's
+  **`ruled`** — the visionary's, citing its source (where the run keeps a
+  docket, the docket id of the ruling — `[ruled: D41]` — since the docket
+  id is the only join key a consumer resolves, D77; otherwise a Phase-5½
+  elective by its `E` number, or a ledger means/`structural`/tension row by
+  its `N` number: those rows are the doc's
   seed, `needs.md` records the role) — or **`chosen`**, the agent's own
   call. The doc closes with a **Changelog**, seeded with one line for
   the initial draft. The shape, by example (an example because the
   format has consumers — the post-draft pass and a downstream audit
   resolve these tags mechanically):
 
-      - Persistent store: SQLite, one file, no server. [ruled: E2]
+      - Persistent store: SQLite, one file, no server. [ruled: D41]
       - Sync engine isolated from rendering. [chosen]
 
       ## Changelog
-      - 2026-08-14 — initial draft (scope interview; electives E1–E3). Edit doctrine, stated in the doc itself: nobody
+      - 2026-08-14 — initial draft (scope interview; docket D1–D41;
+        electives D39–D41, aliased E1–E3). Edit doctrine, stated in the doc itself: nobody
   edits this file outside a discussion — human and agent iterate, the
   agent holds the pen, and every change appends one changelog line
   naming the ruling that sanctioned it; changing a `ruled` constraint is
@@ -444,6 +471,16 @@ nameable failing world is bait for a binding that observes nothing
 (`layers.md`: `cino:binding`). Apply it while drafting; it is deliberately
 judgment, not a lint.
 
+The script refuses once per surface, and the fifth refusal is the docket's:
+`npx docketry lint features/DOCKET.md --corpus features --strict` must exit
+0 (D31). Its exits are a family of three — **0 ran, 1 strict findings, 2
+could not run** — and 2 is never a pass: a docket the lint could not read
+produced no verdict to quote. The script probes for docketry before it
+lints anything and prints the one-line install rather than proceeding
+without it (`npm i -D @bingh/docketry@0.1.0`, D143); the docket lint's own
+report is printed at the end, because the handoff reads its counted lines
+aloud.
+
 Run the script, and trust the exit code, not the absence of output:
 
 ```bash
@@ -455,6 +492,12 @@ const probe = lintFeature(
   "probe", { strict: true });
 if (!probe.some((f) => f.rule === "strict-tag")) {
   console.error("linter too old: no strict-tag under {strict:true} — this contract needs gherkin-node-test >= 0.9.0");
+  process.exit(1);
+}
+try {
+  require.resolve("@bingh/docketry/package.json");
+} catch (e) {
+  console.error("docketry not installed — the docket is the fifth surface and its lint the fifth refusal: npm i -D @bingh/docketry@0.1.0");
   process.exit(1);
 }
 const files = process.argv.slice(1);
@@ -472,23 +515,40 @@ const dir = path.dirname(files[0]);
 const fence = [path.join(dir, "OUT-OF-SCOPE.md"), path.join(dir, "..", "OUT-OF-SCOPE.md")]
   .find((p) => fs.existsSync(p) && fs.readFileSync(p, "utf8").trim().length > 0);
 if (!fence) {
-  console.error(`fence missing or empty (looked beside the files and one level up) — the fence is a quarter of the deliverable, and a clean report without it is vacuous`);
+  console.error(`fence missing or empty (looked beside the files and one level up) — the fence is a fifth of the deliverable, and a clean report without it is vacuous`);
   process.exit(1);
 }
 const ledger = [path.join(dir, "USER-NEEDS.md"), path.join(dir, "..", "USER-NEEDS.md")]
   .find((p) => fs.existsSync(p) && fs.readFileSync(p, "utf8").trim().length > 0);
 if (!ledger) {
-  console.error(`needs ledger missing or empty (looked beside the files and one level up) — the ledger is a quarter of the deliverable, and a clean report without it is vacuous`);
+  console.error(`needs ledger missing or empty (looked beside the files and one level up) — the ledger is a fifth of the deliverable, and a clean report without it is vacuous`);
   process.exit(1);
 }
 const design = [path.join(dir, "DESIGN.md"), path.join(dir, "..", "DESIGN.md")]
   .find((p) => fs.existsSync(p) && fs.readFileSync(p, "utf8").trim().length > 0);
 if (!design) {
-  console.error(`design doc missing or empty (looked beside the files and one level up) — DESIGN.md is a quarter of the deliverable, and a clean report without it is vacuous`);
+  console.error(`design doc missing or empty (looked beside the files and one level up) — DESIGN.md is a fifth of the deliverable, and a clean report without it is vacuous`);
   process.exit(1);
 }
 if (!/^#{1,6}\s*Changelog\b/im.test(fs.readFileSync(design, "utf8"))) {
   console.error(`design doc has no Changelog heading (${design}) — the edit doctrine hangs on the changelog, and a doc born without one starts life indistinguishable from drift`);
+  process.exit(1);
+}
+const docket = [path.join(dir, "DOCKET.md"), path.join(dir, "..", "DOCKET.md")]
+  .find((p) => fs.existsSync(p) && fs.readFileSync(p, "utf8").trim().length > 0);
+if (!docket) {
+  console.error(`docket missing or empty (looked beside the files and one level up) — the docket is a fifth of the deliverable, and a clean report without it is vacuous`);
+  process.exit(1);
+}
+const docketLint = require("child_process").spawnSync(
+  "npx", ["--no-install", "docketry", "lint", docket, "--corpus", dir, "--strict"],
+  { encoding: "utf8" });
+if (docketLint.status !== 0) {
+  process.stdout.write(docketLint.stdout || "");
+  process.stderr.write(docketLint.stderr || "");
+  console.error(docketLint.status === 1
+    ? "docket lint: findings under --strict (exit 1) — the docket is not handoff-clean"
+    : `docket lint: could not run (exit ${docketLint.status}) — no verdict was produced, so none may be quoted`);
   process.exit(1);
 }
 let bad = 0, plain = 0, outlines = 0;
@@ -513,7 +573,10 @@ console.log("corpus: " + files.map((f) => path.resolve(f)).join(" "));
 console.log("fence: " + path.resolve(fence));
 console.log("ledger: " + path.resolve(ledger));
 console.log("design: " + path.resolve(design));
+console.log("docket: " + path.resolve(docket));
 console.log(`stats: ${files.length} feature files, ${plain} scenarios, ${outlines} scenario outlines`);
+console.log("docket lint (strict, exit 0) — read these counted lines aloud at handoff:");
+process.stdout.write(docketLint.stdout);
 ' -- features/*.feature
 ```
 
@@ -530,14 +593,15 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-4.1.2**, grounded against **gherkin-node-test 0.10.0** (strict mode,
+4.2.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
+(strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
 the script probes for `strict-tag` behavior and refuses to proceed rather
 than trusting a version string; a clean report from an older linter has not
 checked what this contract requires). If `gherkin-node-test` is not installed
 where the interview runs, install the pinned dialect
-(`npm install --no-save gherkin-node-test@0.10.0`) or point `GNT` at a
+(`npm install --no-save gherkin-node-test@0.11.0`) or point `GNT` at a
 checkout's `index.js` — this plugin ships inside the gherkin-node-test
 repository, so the checkout that provided the plugin has `index.js` at its
 root. If neither resolves, say so explicitly in the handoff — never claim
@@ -577,9 +641,10 @@ bidirectional coverage check runs (`needs.md`) — an uncovered need or an
 orphan feature file is a finding, routed per the mode like any other.
 And the pass verifies `DESIGN.md` — the deliverable whose human read is
 optional gets a machine-side leg instead: every `ruled` tag's citation is
-checked against the record (a citation is a checkable claim under rule 6;
-a mis-cited or distorted ruling is a drafting defect), and every `chosen`
-constraint is checked for collision with ratified rulings per rule 7 —
+checked against the record (a citation is a checkable claim under rule 6,
+and where the run keeps a docket the check is mechanical against `DOCKET.md`,
+D77; a mis-cited or distorted ruling is a drafting defect), and every
+`chosen` constraint is checked for collision with ratified rulings per rule 7 —
 findings routed per the mode like any other.
 Derivable gaps are
 drafted and flagged; genuine unknowns are asked, never silently defaulted.
@@ -593,6 +658,22 @@ Present the feature files, the fence, and the ledger to the visionary as
 **the contract** — `DESIGN.md` travels alongside it, under its own edit
 doctrine, without being part of it.
 The visionary has two jobs, different in kind, and the handoff states both.
+
+**Before either job, read the docket's counted lines aloud.** The strict
+docket lint has already exited 0 by the time the contract is presented; that
+says the record is well formed, not that it is honest. So quote the report's
+counted lines verbatim — the provenance distribution (`provenance: V 6, I>V
+3, I+V 0, I 1, ? 0`), no sibling by reason, covered by inferred, fenced
+needs, spread unverified, ratified, visionary-tagged relations, de-triggered,
+and not counted — because under an interviewer optimizing for a clean report
+those lines are the lint's whole residual defence, and the visionary is their
+only reader (D157). Then state the limit: a sib-none reason, a sibling entry,
+a wanted parent and a `serves` edge are claims the lint counts and never
+judges, since it reads no meaning from prose — so whether a named failure
+case is a real one, whether a mirror is really the mirror, whether a ruling
+serves the need it names, and whether an `I>V` tag records an acceptance or
+a nod are the visionary's to read here, and they travel on to the audit skill
+as checklist lines (D158).
 
 **The first job is the scope gate — once, at review:** read the needs
 ledger first — it is the standard the scenarios are judged against,
@@ -672,11 +753,11 @@ audit surface for how the build was actually conducted, on the same terms
 the interview's journal is stated below — captured at event time, not
 narrated afterward, and the mechanism stays the installation's own choice,
 which is why this contract names no tool for it. A change-watching
-consumer, where the installation has one, reads all four surfaces at
-once — the feature files, the fence, the manifest, and the journal —
-which is what makes the fence's entry grammar above machine-read rather
+consumer, where the installation has one, reads all five surfaces at
+once — the feature files, the fence, the docket, the manifest, and the
+journal — which is what makes the fence's entry grammar above machine-read rather
 than decorative: directions, dates, `Guarded by:`. The contract does
-not require such a consumer to exist: the four surfaces stand on their
+not require such a consumer to exist: the five surfaces stand on their
 own, and the grammar costs nothing unread. (First such consumer:
 `gherkin-trace` — private beta, unreleased; named here as provenance,
 not as a dependency, because a public contract must not send its reader

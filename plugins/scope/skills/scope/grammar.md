@@ -1,7 +1,7 @@
 # The target dialect — gherkin-*-test supported grammar
 
 Feature files produced by `/scope` must parse under gherkin-node-test /
-gherkin-cargo-test (pinned dialect, **0.9.0**) and pass the SKILL.md
+gherkin-cargo-test (pinned dialect, **0.11.0**) and pass the SKILL.md
 validation script with zero findings. This file is authoring guidance
 verified against the parser source (`index.js`: `parseFeature`,
 `lintFeature`); the code is the authority when prose disagrees.
