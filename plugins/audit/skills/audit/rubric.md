@@ -102,7 +102,7 @@ fence are binding records, not ratifications.
 
 | Edge | What is judged | Dark when |
 |---|---|---|
-| needs↔features | coverage: needs with scenarios, uncovered needs by id, orphan files | no `USER-NEEDS.md` |
+| needs↔features | coverage: needs with scenarios, uncovered needs by id, orphan files; **needs validated by proxy** — persona not the visionary, evidence citing no reading, run, or feedback from that persona — listed by id, never a verdict (the 2026-09-07 beta reading is the specimen: N11's reviewer need was ratified by the visionary alone until a reviewer read the ledger) | no `USER-NEEDS.md` |
 | features↔code | the flags above, per unit | no bindings at all (then every unit is `has-contract`) |
 | design↔code | one repo-level block: ruled constraints against the build; changelog against git; citations against the journal where one is present and bound. A **pre-v4 doc** (no `ruled`/`chosen` tags, no changelog) is judged **in prose mode** — each constraint a numbered sentence with its line — and the evidence basis says so and names the checks that were impossible. States per constraint: *honored* · *honored, overstated* (two mechanisms described as one; a sentence broader than the contract it cites) · *contradicted* · *uncheckable* (a stance about consumers, not a code fact). A constraint falsified by a ruling recorded only in a companion note is a contradiction that **names the ruling's home** and states the doc was never back-propagated. Companion documents (an ARCHITECTURE file) are read for staleness and reported beside the edge, never as the edge | no `DESIGN.md` |
 | needs↔design | citation fidelity where `[ruled: N#]` links exist; heavyweight needs with no constraint | no links in the doc |

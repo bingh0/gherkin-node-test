@@ -183,3 +183,12 @@ regex, not your concern while scoping) and non-English keywords.
 - Given = world state, When = the action under test (ideally one), Then = the
   observable outcome. The visionary must be able to read every line aloud and
   recognize their own words.
+- Name the observer in every Then: "the reader sees…", "the foreign
+  runner receives…", never "it shows…". A pronoun is a cross-reference
+  that resolves to whatever the binding finds easiest to observe, which is
+  the near-side pull `layers.md` names `cino:assertion`; writing the
+  observer asks the far-side question at drafting time (INCOSE GtWR R24,
+  R2). This composes with the failing-world test in SKILL.md and does not
+  replace it — "the reader sees the working tree" names an observer and
+  still fails nowhere nameable. Judgment, not a lint; its counter is the
+  audit's `cino:assertion` sightings.

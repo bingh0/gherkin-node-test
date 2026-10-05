@@ -89,7 +89,10 @@ the functionality interview. Each row carries a lens tag: the graft
 point where a fork may one day seat an interviewer role (a second
 interview style); this skill walks every row as one interviewer. Every
 question names its provenance: "this is a checklist category, not
-derived from anything you said."
+derived from anything you said" — and for the two rows that entered on a
+standard's lens rather than a field specimen, the standard is named. The
+specimen column says which rows those are; the sweep's earn-its-keep
+number in the run record judges whether they stay.
 
 The sweep opens with a single multi-select triage over these rows —
 the protocol's one sanctioned exception to rule 1 — then walks only the
@@ -107,6 +110,8 @@ re-probed. Mechanics in `SKILL.md`, Phase 3¼.
 | Ops burden | ops | How long must this run unattended? What maintenance will the operator *not* commit to? | shaped more decisions than any other stated need; arrived only because that visionary volunteered it |
 | Diagnosability | ops | When it breaks, what must the operator be able to find out without guessing? | raised unprompted in the visionary's own final sweep |
 | Evolvability | ops | What will change shape over time, and what must survive the change? | schema evolution + fail-fast config — both unprompted, final sweep |
+| Lifecycle | ops | How does this arrive, get upgraded or migrated, and leave? What must survive its retirement — exports, migrations, what a successor reads? | *(standard's lens, no aBDD specimen yet: the ISO/IEC/IEEE 15288 lifecycle stages — concept, development, production, utilization, support, retirement — as the INCOSE NRM §2.2.2 takes them; entered 2026-09-09)* |
+| Compliance | product | What must this comply with — regulations, standards, house rules — and who checks? | *(standard's lens, no aBDD specimen yet: INCOSE's five-category completeness lens, function / fit / form / quality / compliance — GtWR R42, GtNR p. 38; entered 2026-09-09)* |
 
 A scenario-able answer leaves this file immediately — it gets Phase-2/3
 treatment and lands in a feature file. What stays here is the need

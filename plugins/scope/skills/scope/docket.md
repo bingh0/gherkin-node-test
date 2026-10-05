@@ -22,6 +22,7 @@ answers arrive.
       pre:   a reader keeps more than one list [V]
       trig:  a reader asks for two lists merged [I+V]
       resp:  merging waits for the second release; until then a reader exports and re-imports [I+V]
+      why:   the second release is the roadmap's next milestone, set by the visionary on day one [I>V]
       sib:   D42
       ->     fence-deferred list-merging
       serves: N2
@@ -29,7 +30,11 @@ answers arrive.
     # roads not taken: merging behind a flag; merging as a one-way import
 
 Header: id, ISO date, provenance tag, an optional `!` marking an unwanted
-entry, an optional relation. Slots are one line each, one tag each. `sib`
+entry, an optional relation. Slots are one line each, one tag each; `why`
+is the origin of a quantity in the entry's own slots — what the number was
+derived from, or who set it and on what — required where a braced quantity
+sits in a slot tagged below `V`: your numbers owe it, the visionary's do
+not, and a missing one is counted, never a finding (D225). `sib`
 names the failure case (`D42` here is that unwanted entry); `->` is the
 resolution; `serves` names the needs served; `touches` is rule 7's set
 written down. A `#` line inside an entry is a note on it; between entries a
@@ -39,7 +44,13 @@ A quantity is a braced island — `{2 seconds}` — an enumeration a braced
 pipe list — `{empty | one | many}` — so coverage can ask whether either was
 spread; a bare digit run outside braces is a near-miss finding. A literal
 rather than a quantity — a filename, a flag, a version — goes in backticks,
-which the lint never reads (D121, D173).
+which the lint never reads (D121, D173). `{TBD minutes}` and `{1 minute
+TBR}` are unresolved quantities — `TBD` a value nobody has yet, `TBR` a
+stated value held with low confidence; counted, never a finding, and their
+spread is never cleared while the token stands; the owner and date of the
+resolution go in the Deferred fence entry (D220, D221). Write `TBD` rather
+than invent a number: an invented number tagged `I>V` is the quiet lie the
+why slot exists to expose.
 
 ## Provenance — five tags, one per slot
 
@@ -68,7 +79,7 @@ reopening condition (D160).
 
 ## Changing a ruling
 
-Nothing is edited in place. Four relations, all pointing backwards:
+Nothing is edited in place. Five relations, all pointing backwards:
 
 - `amends` — a **new** entry restating the whole effective shape of the
   chain in full, never the root alone; that restatement is what every layer
@@ -81,7 +92,14 @@ Nothing is edited in place. Four relations, all pointing backwards:
 - `ratifies` — silences provenance on the target's chain, and only from an
   entry tagged `[V]`: an interviewer cannot ratify their own inference
   (D72). An amends or reverses entry tagged below its target is a
-  consistency finding — you may not rewrite the visionary (D146).
+  consistency finding — you may not rewrite the visionary (D146). Any
+  target tag may be ratified (D222).
+- `signs` — a `[V]` entry naming the last entry in effect at the moment the
+  visionary read the contract; every entry in effect as of its date is the
+  signed state, and the as-of parse at that date is its fingerprint. Only
+  `[V]` may sign; a signs entry under any other tag is a consistency
+  finding and signs nothing (D223). Written by the handoff after the read,
+  never before.
 
 ## The two lines easiest to fake
 
@@ -95,8 +113,10 @@ derives a sibling from it (D14, D110).
 ## Running the lint
 
 Default mode during the interview: it lists every finding and exits 0, so
-it costs nothing to run every few rulings, and its coverage layer is your
-question queue. Finding keys are the entry id and the slot word, `R13
+it costs nothing to run, and its coverage layer is your question queue.
+Run it every chat cycle, not only at handoff: a continuous-integration
+test of the record, run as often as the record changes (docketry N9,
+D218). Finding keys are the entry id and the slot word, `R13
 resp`, and every finding names the line, what was found, and the one
 correct form (D22, D33). At handoff run it strict with the corpus — the
 validation script's fifth refusal (D31). Exits: 0 ran, 1 strict findings, 2
@@ -109,8 +129,9 @@ could not run.
 
 Every report carries lines that are counts, not findings: the provenance
 distribution, no sibling by reason, covered by inferred, fenced needs,
-spread unverified, ratified, visionary-tagged relations, de-triggered, not
-counted. The handoff reads them aloud — under an interviewer optimizing for
+spread unverified, unresolved quantities, quantities without why, ratified,
+signed, visionary-tagged relations, de-triggered, not counted. The handoff
+reads them aloud — under an interviewer optimizing for
 a clean report they are the lint's whole residual defence, and the visionary
 is their only reader (D157). What the lint counts but cannot judge — a
 sib-none reason, a sibling, a `serves` edge, an `I>V` tag — is judgment:

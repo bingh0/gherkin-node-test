@@ -100,13 +100,30 @@ skimmed.
 Run the phases in order. Announce transitions briefly so the visionary knows
 where they are.
 
+Every phase boundary the journal checkpoints (1½, 3, 3¼, 3½, 5) closes
+with one **boundary question**: "of what you've told me so far, what are
+you assuming to be true?" An assumption is a proposition taken as true
+without evidence, and a need resting on a false one may not be a need
+(INCOSE NRM, p. 103); rule 6 polices the interviewer's assumptions and
+this question is its mirror for the visionary's. Each answer lands the
+moment it is given as a `fence-assumption` ruling in the docket — the
+statement tagged `[V]`, its reopening condition the interviewer's `[I]`
+until ratified (D160 renders it) — and the run record counts assumptions
+surfaced, split by phase: that count is this question's earn-its-keep
+number, and a run of "nothing" answers is the evidence that would
+demote it. The performative answer is "nothing"; the boundary is asked
+anyway, because the alternative is that the visionary's assumptions
+surface at build or never. (Ruled 2026-09-09 after the INCOSE review;
+no field specimen yet.)
+
 **Phase 0 — Vision.** Before the open question, disclose the protocol in one
 short paragraph — the visionary is the interview's only live witness, and a
 witness who doesn't know the rules cannot police them: expect one question
 at a time; options, never silent defaults; a running sketch of the needs
 behind their answers, read back for a yes before scenario work begins;
 every quantity probed to its extremes; every declined case recorded on
-the fence; every ruling checked against the record before it lands; and,
+the fence; every ruling checked against the record before it lands; at each
+phase boundary, one question about what they are assuming; and,
 after coverage, a checklist sweep for the needs their answers never
 volunteered, then an adversarial pass against the corpus — each of which
 runs unless they decline it; and, after the readback, one offer to state
@@ -177,7 +194,7 @@ declines. The sweep runs **once per run, at whole-system altitude** — a
 category drills into a specific behavior area only when an answer names
 one. It opens with the protocol's one sanctioned exception to rule 1: a
 single structured multi-select triage over the checklist categories in
-`needs.md` ("which of these matter for this system?") — eight sequential
+`needs.md` ("which of these matter for this system?") — ten sequential
 questions is the wrong price at this scale; categories left unselected
 are recorded to the fence in bulk, declined-with-provenance. Each
 selected category then gets its own question, one at a time again, every
@@ -227,7 +244,11 @@ visionary *declined* is as load-bearing as scope they accepted.
 
 **Phase 5 — Readback and stop.** Summarize: N feature files, M scenarios,
 the fence, and the needs sketch — each need with where it will land
-(scenario, structural, absence, partial, fence). Ask once: "walking the vision end to end, is anything missing?"
+(scenario, structural, absence, partial, fence). Ask twice, corpus first, then protocol: "walking the vision end to end, is anything
+missing?" and then "what should we have asked that we didn't?" — the
+second aims at the questions, not the corpus, which is the one thing the
+Phase 0 disclosure made the visionary a witness to (INCOSE NRM, p. 99);
+its answers are protocol critiques, counted in the run record.
 The behavior interview stops when this sweep produces no new scenarios and
 the visionary confirms the fence. Anything the readback settles is a ruling:
 record it as a docket entry now, before moving on. Do not reopen settled
@@ -624,7 +645,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-5.0.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
+5.1.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
 (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
@@ -695,16 +716,26 @@ docket lint has already exited 0 by the time the contract is presented; that
 says the record is well formed, not that it is honest. So quote the report's
 counted lines verbatim — the provenance distribution (`provenance: V 6, I>V
 3, I+V 0, I 1, ? 0`), no sibling by reason, covered by inferred, fenced
-needs, spread unverified, ratified, visionary-tagged relations, de-triggered,
-and not counted — because under an interviewer optimizing for a clean report
-those lines are the lint's whole residual defence, and the visionary is their
-only reader (D157). Then state the limit: a sib-none reason, a sibling entry,
+needs, spread unverified, unresolved quantities, quantities without why,
+ratified, signed, visionary-tagged relations, de-triggered, and not counted —
+because under an interviewer optimizing for a clean report those lines are
+the lint's whole residual defence, and the visionary is their only reader
+(D157). Say the unresolved quantities in words: each `TBD` is a number the
+build will meet without a value, and each quantity without a why is a number
+of yours whose origin the record does not carry (D220, D225). Then state the limit: a sib-none reason, a sibling entry,
 a wanted parent and a `serves` edge are claims the lint counts and never
 judges, since it reads no meaning from prose — so whether a named failure
 case is a real one, whether a mirror is really the mirror, whether a ruling
 serves the need it names, and whether an `I>V` tag records an acceptance or
 a nod are the visionary's to read here, and they travel on to the audit skill
 as checklist lines (D158).
+
+**When the read closes, write the `signs` entry** — `[V]`, carrying `signs`
+and the id of the last entry in effect — and re-run the strict lint; the
+signed line is then read aloud with the counts. Corrections made during the
+read are rulings dated before the signature; anything ruled after it is a new
+dated entry the next read will meet (D223). Never write it before the read:
+a signature over an unread record is the laundering case.
 
 **The first job is the scope gate — once, at review:** read the needs
 ledger first — it is the standard the scenarios are judged against,
@@ -811,8 +842,11 @@ sweep (the sweep's earn-its-keep number), whether the Phase-5½ electives
 offer was taken and how many `ruled` constraints it produced (that
 phase's earn-its-keep number — a run of "make it so" answers is the
 evidence that would demote the offer, so record the declines too),
-corrections with their
-review-order positions, **the visionary's self-reported read depth**, and
+assumptions surfaced by the boundary question, split by phase (that
+question's earn-its-keep number); protocol critiques from Phase 5's
+second question; corrections with their
+review-order positions, whether the `signs` entry was written after the read
+and the chain hash the lint reported beside it, **the visionary's self-reported read depth**, and
 any protocol change the
 run motivated. Read depth is not optional colour: zero corrections after a
 skim and zero after a close reading are the same row without it, and the

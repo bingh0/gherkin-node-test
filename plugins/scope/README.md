@@ -17,8 +17,14 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 5.0.0**, grounded against **gherkin-node-test 0.11.0 and docketry
+**scope 5.1.0**, grounded against **gherkin-node-test 0.11.0 and docketry
 0.1.0**.
+
+5.1.0 is a skill-only revision: the INCOSE-review protocol additions (the
+boundary question at every phase checkpoint, Phase 5's second question, the
+observer named in every Then) and the docket companion's account of docketry
+0.1.0's `signs` relation, `why` slot and `TBD`/`TBR` quantities, with the
+handoff writing the signature after the read.
 
 The two numbers are independent, and deliberately so. Earlier releases pinned
 the plugin version to the dialect version it targeted (0.6.0, then 0.7.0);
@@ -86,7 +92,9 @@ has laundered the record and disarmed the instrument that was the point of
 keeping it.
 
 Then run the lint in default mode and repair by its findings — default mode
-lists every finding and exits 0, so it costs nothing to run repeatedly:
+lists every finding and exits 0, so it costs nothing to run. Run it every
+chat cycle, not only at handoff: a continuous-integration test of the
+record (docketry N9, D218):
 
 ```sh
 npx docketry lint features/DOCKET.md --corpus features
