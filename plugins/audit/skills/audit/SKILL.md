@@ -107,7 +107,7 @@ Two registers, and the report header states which one it read.
 
 **0. Cost ritual and instrument line.** Count what you are about to read.
 State the shape of the pass (rule 7). Assemble the instrument line: the
-model that is judging, `audit 0.1.3`, the clerk version or *no clerk*, the
+model that is judging, `audit 0.1.4`, the clerk version or *no clerk*, the
 runner dialect found (`gherkin-node-test` version from the host's
 `package.json` or checkout), the change-watcher version where present,
 and the timestamp — and, when grading is delegated to batches (step 3),
@@ -126,7 +126,7 @@ how a binding is *located*: match the scenario's step text against that
 module's patterns; a step whose binding you cannot locate is disclosed
 in the evidence basis, never guessed. Git. Then the optional substrate:
 
-- **Change-watcher.** (`gherkin-trace` — private beta, unreleased; named
+- **Change-watcher.** (`gherkin-trace` — public beta on npm; named
   as provenance, never as a dependency: this protocol conditions on its
   presence and asks no one to install it.) If `gt` resolves (on PATH or
   in the host's `node_modules/.bin`), run `gt attention --root <repo>` and read
@@ -136,8 +136,8 @@ in the evidence basis, never guessed. Git. Then the optional substrate:
   run `gt refresh` yourself**: it writes into the host, and this
   instrument is read-only toward the repo.
 - **Journal.** (Any event-time capture the installation keeps counts;
-  the first consumer is `treecontext` — private release candidate,
-  unreleased, named as provenance.) Its MCP tools count as a journal
+  the first consumer is `treecontext-mcp` — public beta on npm, named
+  as provenance.) Its MCP tools count as a journal
   only when its status call shows the store bound to the repo under audit;
   a store bound elsewhere is the wrong ground truth — journal *dark*,
   with that reason. Query, never write. Exclude by rule any hit that is
@@ -254,7 +254,7 @@ findable from this installation, the entry says so instead of guessing.
 
 ## Grounding
 
-This revision is **audit 0.1.3**, grounded against **gherkin-node-test
+This revision is **audit 0.1.4**, grounded against **gherkin-node-test
 0.11.0** (its manifest declaration, wip register shape, and typed-world
 binding idiom are what steps 1–3 read), and against the ratified contract
 at `plugins/audit/features/` (7 files, 99 scenarios; fence, ledger, and

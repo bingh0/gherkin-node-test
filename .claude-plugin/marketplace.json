@@ -10,7 +10,7 @@
       "name": "scope",
       "source": "./plugins/scope",
       "description": "Structured scoping interview that turns a project idea into lint-clean Gherkin feature files in the gherkin-node-test dialect, plus an explicit out-of-scope fence, over a docketry-grammar record of every ruling.",
-      "version": "5.1.0",
+      "version": "5.1.1",
       "license": "MIT",
       "homepage": "https://github.com/bingh0/gherkin-node-test"
     },
@@ -18,7 +18,7 @@
       "name": "audit",
       "source": "./plugins/audit",
       "description": "Judgment pass over a BDD corpus and its bindings — where are we really? Grades claimed-done against solid, places units on a state ladder, judges whether needs, feature files, design, and code describe one system. Never a gate.",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "license": "MIT",
       "homepage": "https://github.com/bingh0/gherkin-node-test"
     }

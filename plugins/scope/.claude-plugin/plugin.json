@@ -1,7 +1,7 @@
 {
   "name": "scope",
   "description": "Structured scoping interview: the user is the visionary, the interview stays in behavior space, and the output is lint-clean .feature files in the gherkin-node-test dialect plus an explicit out-of-scope list, over a docketry-grammar record of every ruling. Versioned independently of the dialect; this release is grounded against gherkin-node-test 0.11.0 and docketry 0.1.0.",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "author": {
     "name": "Bing Ho"
   },

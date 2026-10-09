@@ -27,7 +27,11 @@ Code) or `.github/skills/` (VS Code / Copilot). Keep the directory named
 
 ## Version
 
-**audit 0.1.3**, grounded against **gherkin-node-test 0.11.0**.
+**audit 0.1.4**, grounded against **gherkin-node-test 0.11.0**.
+
+0.1.4 corrects provenance status only: the change-watcher (`gherkin-trace`
+0.1.0) and the journal (`treecontext-mcp` 0.1.0-beta.1) are public on npm;
+both remain named as provenance, never as dependencies.
 
 0.1.3 is a docs-only revision. The needs↔features edge gains *needs
 validated by proxy* — a need whose persona is not the visionary and whose
@@ -70,7 +74,7 @@ up, which it reads once per run.
 
 Reads: `features/*.feature`, the fence, `USER-NEEDS.md`, `DESIGN.md`, the
 run manifest, the wip register, git; and — where the installation has
-them — a change-watcher's picture (`gherkin-trace`, private beta, named
+them — a change-watcher's picture (`gherkin-trace`, public beta on npm, named
 as provenance not dependency), a journal, a modification register.
 Absent sources are named with their cost in every report's evidence
 basis.

@@ -645,7 +645,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-5.1.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
+5.1.1**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
 (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
@@ -821,9 +821,8 @@ journal — which is what makes the fence's entry grammar above machine-read rat
 than decorative: directions, dates, `Guarded by:`. The contract does
 not require such a consumer to exist: the five surfaces stand on their
 own, and the grammar costs nothing unread. (First such consumer:
-`gherkin-trace` — private beta, unreleased; named here as provenance,
-not as a dependency, because a public contract must not send its reader
-to install what is not published.)
+`gherkin-trace` — public beta on npm; named here as provenance, not as
+a dependency, because the five surfaces must stand without it.)
 
 ## Run statistics — the run record
 

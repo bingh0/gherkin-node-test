@@ -17,8 +17,12 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 5.1.0**, grounded against **gherkin-node-test 0.11.0 and docketry
+**scope 5.1.1**, grounded against **gherkin-node-test 0.11.0 and docketry
 0.1.0**.
+
+5.1.1 corrects one provenance line: `gherkin-trace`, the first consumer of
+the fence grammar, is public on npm (0.1.0), still named as provenance and
+not as a dependency.
 
 5.1.0 is a skill-only revision: the INCOSE-review protocol additions (the
 boundary question at every phase checkpoint, Phase 5's second question, the
