@@ -27,7 +27,17 @@ Code) or `.github/skills/` (VS Code / Copilot). Keep the directory named
 
 ## Version
 
-**audit 0.1.2**, grounded against **gherkin-node-test 0.10.0**.
+**audit 0.1.3**, grounded against **gherkin-node-test 0.11.0**.
+
+0.1.3 is a docs-only revision. The needs↔features edge gains *needs
+validated by proxy* — a need whose persona is not the visionary and whose
+evidence cites no reading, run, or feedback from that persona — listed by
+id, never a verdict; the 2026-09-07 beta reading is the specimen. The
+grounding moves to gherkin-node-test 0.11.0, whose unused-definition and
+args-consumption guards and per-file registry consumption change what a
+red manifest row can mean, but not the manifest declaration, wip register
+shape, or typed-world idiom the pass reads; the rubric's mechanical-guard
+list now uses the runner's own names. The contract is untouched.
 
 The 0.x line is deliberate: this is the **skill era** of an instrument
 whose contract (`features/`, beside this file, with fence, needs ledger,

@@ -107,7 +107,7 @@ Two registers, and the report header states which one it read.
 
 **0. Cost ritual and instrument line.** Count what you are about to read.
 State the shape of the pass (rule 7). Assemble the instrument line: the
-model that is judging, `audit 0.1.2`, the clerk version or *no clerk*, the
+model that is judging, `audit 0.1.3`, the clerk version or *no clerk*, the
 runner dialect found (`gherkin-node-test` version from the host's
 `package.json` or checkout), the change-watcher version where present,
 and the timestamp — and, when grading is delegated to batches (step 3),
@@ -254,8 +254,8 @@ findable from this installation, the entry says so instead of guessing.
 
 ## Grounding
 
-This revision is **audit 0.1.2**, grounded against **gherkin-node-test
-0.10.0** (its manifest declaration, wip register shape, and typed-world
+This revision is **audit 0.1.3**, grounded against **gherkin-node-test
+0.11.0** (its manifest declaration, wip register shape, and typed-world
 binding idiom are what steps 1–3 read), and against the ratified contract
 at `plugins/audit/features/` (7 files, 99 scenarios; fence, ledger, and
 `DESIGN.md` beside them). The skill era is **report-only**: the archive,

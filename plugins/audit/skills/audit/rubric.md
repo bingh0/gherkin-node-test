@@ -18,7 +18,7 @@ whose scenarios all stand at `has-contract` reads as a contract without a
 build) and the **need** (the ledger's coverage map, which is how ranking
 finds centrality). The design tier (`features/design/`) has its own
 block and never enters the headline counts. The runner's mechanical
-guards — unbound, ambiguous, ignored-argument, unused-definition — are
+guards — unbound, ambiguous, args-consumption, unused-definition — are
 not units and not flags: they are the run's red, cited where it is red,
 never re-derived. A pre-v4 corpus may keep its features elsewhere
 (`tests/**`); the unit is the same, and the evidence basis names the

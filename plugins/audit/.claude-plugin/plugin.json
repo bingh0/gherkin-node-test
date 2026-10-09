@@ -1,7 +1,7 @@
 {
   "name": "audit",
-  "description": "Judgment pass over a BDD corpus and its bindings: where are we really? Grades claimed-done against solid, places every unit on a state ladder, judges whether needs, feature files, design, and code still describe one system. Never a gate. Versioned independently of the dialect; this release is grounded against gherkin-node-test 0.10.0.",
-  "version": "0.1.2",
+  "description": "Judgment pass over a BDD corpus and its bindings: where are we really? Grades claimed-done against solid, places every unit on a state ladder, judges whether needs, feature files, design, and code still describe one system. Never a gate. Versioned independently of the dialect; this release is grounded against gherkin-node-test 0.11.0.",
+  "version": "0.1.3",
   "author": {
     "name": "Bing Ho"
   },
