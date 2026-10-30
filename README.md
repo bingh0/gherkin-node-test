@@ -27,7 +27,7 @@ if you live in Vitest. This one exists for a different reason, and if the reason
 doesn't resonate, use those instead.
 
 This runner came out of an experiment in **agent-driven development with strict
-BDD**: a workflow where a human writes and owns the Gherkin feature files, and
+BDD** — aBDD, for short: a workflow where a human writes and owns the Gherkin feature files, and
 coding agents write essentially all of the implementation. In that workflow the
 feature files aren't documentation — they're the **control layer**. They're the
 one artifact the human actually reads, audits, and carries between
@@ -157,10 +157,26 @@ It is a plain `SKILL.md`, so it also loads in VS Code / GitHub Copilot by
 copying one directory. Full instructions for both, plus verification and
 troubleshooting: **[plugins/scope/README.md](plugins/scope/README.md)**.
 
-The skill versions on its own line — currently **scope 4.1.1**, grounded
-against **gherkin-node-test 0.9.0**. It probes the linter's behavior rather
+The skill versions on its own line — currently **scope 5.2.0**, grounded
+against **gherkin-node-test 0.11.0** and **docketry 0.1.0**. It probes the linter's behavior rather
 than trusting a version string, and refuses to certify output it could not
 check.
+
+## Why a green suite lies: the failure ladder
+
+The table under [Why another BDD tool](#why-another-bdd-tool) is the
+mechanical floor — the lies a runner can refuse. Above that floor a suite
+can be all green and still prove nothing, and it does so in a small number
+of specific ways. **[docs/failure-ladder.md](docs/failure-ladder.md)** is
+the map: two families — **hollow** (`cino:`, *completion in name only*:
+something exists, is green, and proves nothing) and **absent** (`blind:`:
+nothing was ever written) — each address naming the lie, the tell, the
+catch, and a dated specimen. The question that names every rung is *where
+does the lie live, and who wrote the ground truth?* Typing an address
+(`cino:binding`, `blind:surface`) is a complete instruction to a build
+agent; `/scope` routes its interview against the ladder and `/audit`
+grades with its addresses. One copy, versioned by its specimens; every
+other repository in the aBDD family links here.
 
 ## The binding ratchet
 

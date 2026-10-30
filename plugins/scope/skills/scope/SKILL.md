@@ -242,6 +242,22 @@ contract materially changed, twice reversing a central ruling.)
 declined, deferred, or deliberately excluded, and confirm the list. Scope the
 visionary *declined* is as load-bearing as scope they accepted.
 
+Then read the list once more for verbs — **the fence rule**: a fence may
+decline a *promise* but never a *writer*. An entry whose subject is code
+that will run — anything that writes to the store, the network, or the
+user's files — is not fencing a behavior out; it is keeping the code and
+fencing out its spec, and the fence has no honest entry for that. Such a
+path needs a scenario at *some* tier — the charter or the design tier —
+and the fence may say which, never "none". The filter is writers rather
+than every executing path because writes accumulate across runs and reads
+do not: an unspecced writer is where the failures that need N sessions to
+show up live, and nothing else on the ladder can see them. Ask the
+visionary, entry by entry: *does code run here?* If yes, the entry moves to
+a tier or the code leaves the build. This is the catch for `blind:fenced`
+(the failure ladder, `layers.md`); its specimen was a fence entry that said
+the mechanics "stay as working mechanics, unspecced by this suite" and
+left them writing for three months.
+
 **Phase 5 — Readback and stop.** Summarize: N feature files, M scenarios,
 the fence, and the needs sketch — each need with where it will land
 (scenario, structural, absence, partial, fence). Ask twice, corpus first, then protocol: "walking the vision end to end, is anything
@@ -645,7 +661,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-5.1.1**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
+5.2.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
 (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
@@ -758,10 +774,12 @@ time.
 
 **The second job begins after review and never ends — adversarial
 direction.** A ratified, green contract can still be hollow at every layer
-below its text. `layers.md` (in this skill's directory) is the map: five
-addresses for completion-in-name-only — `cino:code`, `cino:binding`,
-`cino:assertion`, `cino:spec`, `cino:decision` — plus the absence family
-(`blind:surface`, `blind:need`), each with its tell and its catch. Hand the visionary the
+below its text. The failure ladder (`docs/failure-ladder.md` in the
+gherkin-node-test repository; `layers.md` in this skill's directory points
+to it) is the map: five addresses for completion-in-name-only —
+`cino:code`, `cino:binding`, `cino:assertion`, `cino:spec`,
+`cino:decision` — plus the absence family (`blind:surface`, `blind:need`,
+and its candidates), each with its tell and its catch. Hand the visionary the
 vocabulary: suspecting a layer and naming its address is a complete,
 platform-independent instruction to the build agent, because the address
 dispatches the catch procedure. And state the two acceptance bars this

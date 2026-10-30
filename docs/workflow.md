@@ -175,3 +175,11 @@ Two gaps remain open, named so they are not mistaken for covered:
   vacuousness, not semantic vacuousness — "the pane shows the working
   tree" sails through. The authoring bar stays human: every Then names
   the concrete world in which it fails.
+
+Both gaps, and the ways a green suite lies above them, have addresses:
+[docs/failure-ladder.md](failure-ladder.md) is the map (hollow `cino:`
+rungs, absent `blind:` rungs, each with its tell and catch). The one
+process rule kept beside it — growth rate is severity — belongs to this
+workflow's triage, not to the runner; the fence rule (a fence may decline
+a promise but never a writer) is a scoping catch and lives in the `/scope`
+skill's Phase 4.

@@ -70,6 +70,12 @@ Copy the whole directory. The protocol reads `rubric.md` and `report.md`
 before grading; the contract it serves is the `features/` corpus one level
 up, which it reads once per run.
 
+The rubric's flag names — `cino:code`, `cino:binding`, `cino:assertion`,
+`cino:spec`, `blind` — are addresses on the failure ladder, the map of
+how a green suite lies: hollow (`cino:`, completion in name only) versus
+absent (`blind:`, never written). One canonical copy, versioned by its
+specimens: [docs/failure-ladder.md](../../docs/failure-ladder.md).
+
 ## What it reads, and what it never does
 
 Reads: `features/*.feature`, the fence, `USER-NEEDS.md`, `DESIGN.md`, the

@@ -17,8 +17,20 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 5.1.1**, grounded against **gherkin-node-test 0.11.0 and docketry
+**scope 5.2.0**, grounded against **gherkin-node-test 0.11.0 and docketry
 0.1.0**.
+
+5.2.0 is a skill-only revision: the failure ladder moves out of the skill
+to [`docs/failure-ladder.md`](../../docs/failure-ladder.md) at the repo
+root, one canonical copy with a stable address that every other repository
+links; `layers.md` here is now a pointer carrying the addresses and the
+dispatch question. The ladder gains a candidate rung, `blind:fenced` — a
+fence entry that declares a live, store-writing path "out of scope" and
+leaves it running — from one specimen dated 2026-10-30. Its catch is a new
+verb pass in Phase 4, the fence rule: a fence may decline a promise but
+never a writer; a path that writes needs a scenario at some tier. The
+triage rule from the same specimen (growth rate is severity) is recorded
+beside the ladder, not on it.
 
 5.1.1 corrects one provenance line: `gherkin-trace`, the first consumer of
 the fence grammar, is public on npm (0.1.0), still named as provenance and
@@ -117,14 +129,14 @@ scope/
 ├── SKILL.md      # the interview protocol (entry point)
 ├── docket.md     # the ruling record kept during the interview (grammar: docketry)
 ├── grammar.md    # the Gherkin subset the output must lint clean against
-├── layers.md     # the failure-mode map the protocol routes against
+├── layers.md     # pointer to the failure ladder (docs/failure-ladder.md, repo root)
 ├── needs.md      # the needs ledger + quality checklist the interview fills
 └── RUNS.md       # pointer to the run record (see "The run record" below)
 ```
 
 Copy the **whole directory**, not just `SKILL.md`. The protocol reads
-`grammar.md` before writing any feature file, routes against `layers.md`
-during the interview, keeps the needs ledger defined in `needs.md`, and
+`grammar.md` before writing any feature file, routes against the failure
+ladder `layers.md` points to during the interview, keeps the needs ledger defined in `needs.md`, and
 keeps the ruling record `docket.md` describes; without them the interview
 still starts and then stalls.
 
