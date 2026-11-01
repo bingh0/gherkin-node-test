@@ -663,7 +663,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-5.3.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
+5.3.1**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
 (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
@@ -934,7 +934,9 @@ question's earn-its-keep number); protocol critiques from Phase 5's
 second question; gate questions by route — put raw, settled from the
 record (that step's earn-its-keep number), returned — and the
 mid-interview questions that would have met the settling test (the
-evidence that would widen it); corrections with their
+evidence that would widen it); the model each agent pass ran on — the
+post-draft reviewers and both sides of the settle round — since the route
+counts compare across tiers only if the tier is written down; corrections with their
 review-order positions, whether the `signs` entry was written after the read
 and the chain hash the lint reported beside it, **the visionary's self-reported read depth**, and
 any protocol change the

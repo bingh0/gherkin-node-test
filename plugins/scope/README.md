@@ -17,8 +17,13 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 5.3.0**, grounded against **gherkin-node-test 0.11.0 and docketry
+**scope 5.3.1**, grounded against **gherkin-node-test 0.11.0 and docketry
 0.1.0**.
+
+5.3.1 adds one field to the run record: the model each agent pass ran
+on, the post-draft reviewers and both sides of the settle round, so the
+gate-question route counts can be compared across tiers. No protocol
+content.
 
 5.3.0 is a skill-only revision with protocol content: the record answers
 first. Every post-draft reviewer raises a gate question only with the
