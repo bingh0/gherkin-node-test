@@ -157,7 +157,7 @@ It is a plain `SKILL.md`, so it also loads in VS Code / GitHub Copilot by
 copying one directory. Full instructions for both, plus verification and
 troubleshooting: **[plugins/scope/README.md](plugins/scope/README.md)**.
 
-The skill versions on its own line — currently **scope 5.2.0**, grounded
+The skill versions on its own line — currently **scope 5.3.0**, grounded
 against **gherkin-node-test 0.11.0** and **docketry 0.1.0**. It probes the linter's behavior rather
 than trusting a version string, and refuses to certify output it could not
 check.

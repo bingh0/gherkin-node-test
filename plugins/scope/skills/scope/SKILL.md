@@ -125,8 +125,10 @@ every quantity probed to its extremes; every declined case recorded on
 the fence; every ruling checked against the record before it lands; at each
 phase boundary, one question about what they are assuming; and,
 after coverage, a checklist sweep for the needs their answers never
-volunteered, then an adversarial pass against the corpus — each of which
-runs unless they decline it; and, after the readback, one offer to state
+volunteered, then an adversarial pass against the corpus, and after
+drafting a second pass whose questions the record answers first — agents
+settling only what rulings in effect already settle, each derivation
+shown for a yes — each of which runs unless they decline it; and, after the readback, one offer to state
 technology preferences, which only runs if they take it. Invite them to
 call out any question that breaks the pattern. (This disclosure is
 capped at one paragraph: a protocol addition that cannot fit replaces a
@@ -661,7 +663,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-5.2.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
+5.3.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
 (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
@@ -690,7 +692,8 @@ and revealed only after the read completes; correction positions are valid
 data for the run record's attention question. *Interactive gate:* the
 pass's findings are put to the visionary as questions during the read — the
 stronger contract, and the positions are recorded as ratification order,
-excluded from the attention data. The mode decision must precede any audit
+excluded from the attention data. The same decision point carries, as one
+declinable line, the record-answers-first step below. The mode decision must precede any audit
 artifacts in the journal; an audit already run forces the interactive label
 — there is no retroactive cold gate. Severity override, either mode: a
 finding indicating live harm (a shipping bug, a security exposure, a broken
@@ -719,6 +722,71 @@ drafted and flagged; genuine unknowns are asked, never silently defaulted.
 (Two runs: sixteen pre-handoff findings in one; a live shipping bug and a
 directory tree deleted from the ruled layout in the other — a pass that
 only transcribes rulings would have shipped both.)
+Every reviewer's brief carries one rule: a question is raised only with
+the rulings in effect that bear on it cited by id — or the statement that
+none bears, itself the claim the round below tests — and a line on why
+they do not settle it; a question raised without that line goes back to
+the reviewer, never forward to the visionary. (One run, 2026-10-31: of
+the gate questions the record numbers, eight were put raw, six settled
+from rulings already in effect, four returned.)
+
+**Then, before any question from the pass reaches the visionary — the
+record answers first (default-on; declined, like the sweep and the
+pushback, at the gate-mode decision point above, which carries it as a
+line).** Each question the pass raises is tried against the record once,
+in one round: the reviewer that raised it argues it is open; a second
+reviewer argues that rulings in effect settle it; the interviewer judges,
+because the interviewer holds the record — and the judgment is itself an
+inference, which is why what it produces is tagged `[I]` until the
+visionary ratifies it. One round — objection, answer, judgment — never a
+debate: an objection that does not fall to a citation sends the question
+to the visionary. Where one agent is all the host has, the raise and the
+settle are two passes by that agent with the citations written down, and
+the run record says so. The test is restatement, not extension: a
+settlement may use only the nouns and quantities of the raised question
+and of rulings in effect the note cites by id; a noun or quantity from
+nowhere is an invention, and inventions return. A fact verified under
+rule 6 may refute a question's premise, which returns it, or ground a
+claim about an existing artifact inside a derivation; it never settles
+what should happen on its own. Five kinds return whatever the reviewers
+argue: a contradiction between rulings in effect (rule 7), an invented
+number or mechanism with no ruling under it, a premise rule 6 refuted, a
+need no ruling serves, and a settlement that would amend or reverse a
+ruling tagged above `[I]` — a rewrite of the visionary, never a
+restatement. Agreement between reviewers settles nothing — two agents
+share one set of priors — only a derivation does. A settled question
+lands as an agent-settled entry in the form `docket.md` gives: tagged
+`[I]`, no relation, its derivation and the raiser's objection in the
+note; a residual the settlement leaves open is a returned question, never
+a note. A question that returns is put at the visionary's altitude: plain
+words, the rulings it touches quoted, options per rule 2, one of them
+"discuss first" (one run's request, 2026-10-31, taken three times). The
+settled entries are then put to the visionary one at a time, derivation
+first, each as its own decision point — ratify, return, discuss first —
+never as a block: a yes becomes a `[V]` `ratifies` entry for that id; a
+return becomes a fresh decision point with options, and the ruling that
+follows reverses the `[I]` entry; an entry ratified unread is the
+laundering case the handoff names below. Order against the handoff:
+under an interactive gate the settled entries are written as they are
+settled and open the read, before the counted lines, so the strict lint
+the handoff reads aloud runs after their ratifies entries — until then
+the default-mode lint lists their `inferred` findings by id, the expected
+state, not a defect; under a cold gate the settled questions, entries and
+scenarios alike, are held with the contract-level findings, written after
+the scenario read, put then, and ratified before the re-lint that
+precedes the `signs` entry, and a correction landing on an agent-settled
+scenario is excluded from the attention data. The run record counts the
+settled entries (that step's earn-its-keep number), the returned, and the
+put raw. (D333 of treecontext's docket, 2026-10-31, ruled the review in
+the visionary's words after eight gate questions put raw drew "too
+technical for me without more context"; the round, the test and the
+return kinds are this text's. Of the six entries that run settled,
+D334–D339, three stand as specimens and three, each an `amends` of a
+visionary-tagged ruling, are what the fifth return kind returns; four
+questions were returned, D340–D343. One run, so the step is gate-only;
+the criterion is phase-independent, and the run record's count of
+mid-interview questions that would have met it is the evidence that
+would widen it.)
 
 ## Handoff
 
@@ -728,7 +796,9 @@ doctrine, without being part of it.
 The visionary has two jobs, different in kind, and the handoff states both.
 
 **Before either job, read the docket's counted lines aloud.** The strict
-docket lint has already exited 0 by the time the contract is presented; that
+docket lint has already exited 0 by the time the contract is presented —
+under an interactive gate, after the agent-settled entries that open the
+read are ratified; that
 says the record is well formed, not that it is honest. So quote the report's
 counted lines verbatim — the provenance distribution (`provenance: V 6, I>V
 3, I+V 0, I 1, ? 0`), no sibling by reason, covered by inferred, fenced
@@ -861,7 +931,10 @@ phase's earn-its-keep number — a run of "make it so" answers is the
 evidence that would demote the offer, so record the declines too),
 assumptions surfaced by the boundary question, split by phase (that
 question's earn-its-keep number); protocol critiques from Phase 5's
-second question; corrections with their
+second question; gate questions by route — put raw, settled from the
+record (that step's earn-its-keep number), returned — and the
+mid-interview questions that would have met the settling test (the
+evidence that would widen it); corrections with their
 review-order positions, whether the `signs` entry was written after the read
 and the chain hash the lint reported beside it, **the visionary's self-reported read depth**, and
 any protocol change the

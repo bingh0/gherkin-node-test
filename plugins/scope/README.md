@@ -17,8 +17,21 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 5.2.0**, grounded against **gherkin-node-test 0.11.0 and docketry
+**scope 5.3.0**, grounded against **gherkin-node-test 0.11.0 and docketry
 0.1.0**.
+
+5.3.0 is a skill-only revision with protocol content: the record answers
+first. Every post-draft reviewer raises a gate question only with the
+rulings in effect cited and a line on why they do not settle it; what
+survives is tried against the record once, in one round, and what the
+record settles lands as an agent-settled docket entry — tagged `[I]`, no
+relation, its derivation and the raiser's objection in the note, put to
+the visionary one at a time for ratification — while only what the record
+cannot settle reaches the visionary as a question, in plain words with
+the rulings it touches quoted. `docket.md` gains the entry's form; the
+run record counts gate questions by route. From one run, 2026-10-31, in
+which eight gate questions put raw were "too technical" and the visionary
+asked for the review.
 
 5.2.0 is a skill-only revision: the failure ladder moves out of the skill
 to [`docs/failure-ladder.md`](../../docs/failure-ladder.md) at the repo

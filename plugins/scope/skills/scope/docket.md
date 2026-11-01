@@ -101,6 +101,42 @@ Nothing is edited in place. Five relations, all pointing backwards:
   finding and signs nothing (D223). Written by the handoff after the read,
   never before.
 
+## An entry an agent settled
+
+At the gate (SKILL.md, "the record answers first") an agent may settle a
+question the record settles, and the entry carries how. The form, once:
+
+    D334 2026-10-31 [I]
+      trig:  a leg through the hooks door, sent back once, stops again with no checkpoint [I]
+      resp:  a leg that ended without a checkpoint after its one send-back is followed by a recovery leg of its role, as a cut leg is: the next leg's first moment says its predecessor ended without a checkpoint, names its lane and starts from the checkpoint still in effect [I]
+      sib:   none -- a twice-failed leg whose successor starts fresh with nothing telling it to read the trail is what this prevents, not a behaviour
+      serves: N27 N28 N29
+      touches: D279 D291 D316 D314 D326 D298
+    # settled from the record: gate question 9, raised by the legs reviewer; D316 and D291 each read "ended without a checkpoint" as leading to a recovery successor, and no ruling makes a successor non-recovery; D326 asks at a stop only for a key marked as the leg's own; "lane" is D298's word; verified: an unregistered stop retires nothing (`src/hooks/subagent-stop.ts:65`); objection: nothing says the successor is recovery rather than fresh -- falls to D316, "starts as a recovery leg under D279"; judged by the interviewer; awaiting ratification
+
+Seven rules. The tag is `[I]`: nobody above the agent saw it, and the lint
+counts it as a finding until a `[V]` entry ratifies it, one `ratifies` per
+settled entry. The entry carries no relation: a settlement that would amend
+or reverse a ruling tagged above `[I]` is a rewrite of the visionary (D146),
+not a restatement, and returns as a question. The note opens `settled from
+the record:` — the lint infers nothing from a note, so that prefix is the
+only trace a grep finds. The note names the question and who raised it,
+cites by id every ruling in effect it draws a noun or a quantity from —
+each cited id also in `touches` — and every fact with a pointer that
+decides it (rule 6); a noun or quantity the raised question lacks and no
+cited ruling carries is an invention, and the question returns. It carries
+the raiser's one objection — the strongest argument that the question is
+open, as put in the round — and what it fell to, or `no objection`, because
+an adversary that found nothing must be visible as such; a residual the
+settlement leaves open is a returned question, never a note. It names who
+judged. Nothing is edited in place: the ratifying entry points back, as
+every relation does, and `awaiting ratification` stays true as of the
+entry's date. (The specimen is treecontext's D334, 2026-10-31, edited: one
+trigger clause and one touched id dropped for length; D298 cited and added
+to `touches` where the entry drew "lane" from an uncited ruling; the
+objection line and the judge supplied, since the entry had neither; and
+its residual, which was never returned, dropped. The edits are the rules.)
+
 ## The two lines easiest to fake
 
 `sib:` names the unwanted entry that is this behaviour's failure case, or
