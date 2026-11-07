@@ -75,7 +75,13 @@ finding. Electives are no second numbering — where a docket
 exists an elective is a ruling resolving to `means`, its id is the docket
 id, and `E1`, `E2` survive as prose aliases, never keys (D117). A Deferred
 or Named-assumption fence entry carries its ruling's trigger as the
-reopening condition (D160).
+reopening condition (D160). A Declined entry that names guardians
+(`Guarded by: "<title>"`) also cites, beside its fence-declined ruling,
+the triggered, structural, or means ruling each guardian proves, and the
+guardian carries that ruling's tag: a fence id is never a scenario tag,
+and an entry citing only its fence ruling, naming a title the corpus
+lacks, or making the guard claim in one of the spellings SKILL.md lists
+outside that one form, is a traceability finding (D163, D234, D235, D236).
 
 ## Changing a ruling
 

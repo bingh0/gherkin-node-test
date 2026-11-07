@@ -17,8 +17,22 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 5.3.1**, grounded against **gherkin-node-test 0.11.0 and docketry
-0.1.0**.
+**scope 5.4.0**, grounded against **gherkin-node-test 0.11.0 and docketry
+0.2.0**.
+
+5.4.0 is a skill-only revision: the fence's guard contract, as docketry
+0.2.0 rules it (D234–D236). A Declined entry that names guardians also
+cites, beside its fence-declined ruling, the enforcing ruling each
+guardian proves, and the guardian carries that ruling's tag; a fence id
+is never a scenario tag. The guard phrase has one form, `Guarded by:`
+with straight-quoted titles, one comma or none between, before the
+parenthetical; a guardian title the corpus lacks, an entry citing only
+its decline, and a guard claim in any of the listed other spellings are
+docketry traceability findings. The paragraph on `OUT-OF-SCOPE.md` and
+`docket.md`'s "Where a ruling lands" state it, with where docketry and
+gherkin-trace read a fence differently. From one run, 2026-11-07, in
+which the drafter wrote the fence-only form first and the lint's own
+fix hint led into a second finding. No protocol content.
 
 5.3.1 adds one field to the run record: the model each agent pass ran
 on, the post-draft reviewers and both sides of the settle round, so the
@@ -79,7 +93,7 @@ surface beside the fence, the ledger and `DESIGN.md` — under the closed
 grammar of [docketry](https://github.com/bingh0/docketry), whose lint is the
 validation script's fifth refusal: `npx docketry lint features/DOCKET.md
 --corpus features --strict` must exit 0. Install it beside the dialect
-(`npm i -D @bingh/docketry@0.1.0`); the script probes for it and prints that
+(`npm i -D @bingh/docketry@0.2.0`); the script probes for it and prints that
 line rather than proceeding without it. The skill's `docket.md` is the
 interviewer's guide to keeping the record — the grammar itself stays in
 docketry's `GRAMMAR.md`, pointed at by version and never copied.

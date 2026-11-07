@@ -400,7 +400,31 @@ is drafted while that door is open):
   Naming it exempts it from that entry's breach tiers and has it cited as a
   guardian instead. Unlisted lookalikes still fire: the exemption is a
   ruling, never an inference, and the safe default holds for every scenario
-  the entry does not name (ruled gherkin-trace D2, 2026-08-11).
+  the entry does not name (ruled gherkin-trace D2, 2026-08-11). The
+  guardian joins the entry by id through the ruling that *enforces* the
+  decline, never through the fence-declined ruling itself, which no
+  scenario may carry: the parenthetical cites, beside the fence-declined
+  ruling, the triggered, structural, or means ruling the guardian proves,
+  and the guardian carries that ruling's tag — `Guarded by: "a wanted entry with a trigger
+  and no sib line is a coverage finding" (D92, D14, 2026-09-04)` with the
+  scenario tagged `@D14` is the form. An entry that cites only its fence
+  ruling is a docketry traceability finding whose fix names the citation
+  to add, and so is a guardian title the corpus lacks — the join is by
+  exact title, so a renamed scenario breaks its guard loudly — and so is
+  a guard claim in the listed other spellings — the phrase in another
+  case or whitespace, no colon or a space before it, double-curly,
+  single, single-curly, or backtick quotes, a semicolon, an `and`, or a
+  space before a comma between titles, or no quoted title at all —
+  while prose that merely says guarded by is no claim, and a single
+  quote followed by a letter or digit is an apostrophe, so a title that
+  holds one goes in straight double quotes. A Declined entry in the one
+  form on a bold-topic bullet, with one `Guarded by:` phrase and
+  single-spaced titles, reads the same in docketry and gherkin-trace;
+  outside it they differ, so a fence may pass one and fail or lose a
+  guardian in the other. Write one `Guarded by:` phrase per entry: a
+  second one is a second guardian in docketry and nothing in
+  gherkin-trace (docketry D234, D235, D236, 2026-11-07; the field
+  report is docketry's `docs/guard-untagged-vs-mis-kinded-2026-11-07.md`).
   **Roads not taken** carries, for
   each contested ruling, the options the visionary rejected, with one line
   on why. Declined scope fences the outside; rejected options pin the
@@ -547,7 +571,7 @@ The script refuses once per surface, and the fifth refusal is the docket's:
 could not run** — and 2 is never a pass: a docket the lint could not read
 produced no verdict to quote. The script probes for docketry before it
 lints anything and prints the one-line install rather than proceeding
-without it (`npm i -D @bingh/docketry@0.1.0`, D143); the docket lint's own
+without it (`npm i -D @bingh/docketry@0.2.0`, D143); the docket lint's own
 report is printed at the end, because the handoff reads its counted lines
 aloud.
 
@@ -567,7 +591,7 @@ if (!probe.some((f) => f.rule === "strict-tag")) {
 try {
   require.resolve("@bingh/docketry/package.json");
 } catch (e) {
-  console.error("docketry not installed — the docket is the fifth surface and its lint the fifth refusal: npm i -D @bingh/docketry@0.1.0");
+  console.error("docketry not installed — the docket is the fifth surface and its lint the fifth refusal: npm i -D @bingh/docketry@0.2.0");
   process.exit(1);
 }
 const files = process.argv.slice(1);
@@ -663,7 +687,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-5.3.1**, grounded against **gherkin-node-test 0.11.0 and docketry 0.1.0**
+5.4.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.2.0**
 (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
