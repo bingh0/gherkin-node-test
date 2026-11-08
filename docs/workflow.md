@@ -121,7 +121,11 @@ this recur, both found in the wild in carefully written code:
 - **Vacuous negation over an optional lookup.** A chain that can produce
   `undefined` feeds a `not`-assertion that `undefined` satisfies: the
   lookup dies, the step stays green. Negating a positive over an optional
-  path is a one-way trap.
+  path is a one-way trap. The path need not be optional in the type
+  system: a reader that *defaults* on a miss (`?? ''`, Rust's
+  `unwrap_or_default()`) reopens the trap after the compiler closed it —
+  in the Rust sibling's census (2026-11-07) an inspect reader defaulted a
+  missing key to `""`, and `"" != "host"` would pass forever.
 
 Absence is *earned* by a **control** — the same predicate proven able to
 fire, in the same suite, before its silence is trusted:
@@ -139,6 +143,14 @@ function expectAbsentWithControl(query, absentRun, controlRun) {
 }
 ```
 
+Earned is not controlled. A needle can appear in the source and still be
+unobservable on the path under test: the same census found an assertion
+that no `ready` line follows a connection the kernel refuses — the process
+never logs on that path, so the check cannot fail for the reason it
+states — and an interface-prefix negation no step ever saw a real
+interface carry. A search for the needle clears both; only the control
+arm, run through the same query, exposes them.
+
 The runner's own contract practices this: the unused-definition guard's
 *an unused definition is cleared explicitly* anchor runs the dirty definer
 red inside its Given before asserting the clean one green. Know what the
@@ -149,7 +161,10 @@ text-detectable core is `lintStepDefinitionSource`'s beat: warn-class
 findings on literal-needle negations, cleared by earning the absence —
 or sanctioning it with a statement-attached marker naming its prover
 (see [lint-admission.md](lint-admission.md)). What no machine reads — semantic
-vacuousness, needle quality, whether a named prover actually proves — is
+vacuousness, needle quality, whether a named prover actually proves, and
+the negations that live in predicates rather than assertions (a readiness
+wait's `!text.includes('…')` over another program's UI text, a filter),
+which no assertion-dialect lint sees at all — is
 this asymmetry's human remainder, and the sanctioned lines plus their
 stated reasons are that review's checklist.
 

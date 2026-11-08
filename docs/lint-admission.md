@@ -210,6 +210,15 @@ nor hide a negation. Pure text-in/findings-out — never a gate.*
    advisory carried in the docs: the field's one incident came from
    negation lines outside the lint's roots.
 
+*Rust sibling, 2026-11-07: gherkin-cargo-test measured the same default
+over two in-house Rust step corpora (884 definitions; 27 literal-needle
+fires, 3.2% and 2.8%) and still declines a default rule — the silent
+absences that mattered had earned needles and lacked a positive control,
+which no text rule sees. Its record is the `lintStepDefinitionSource` row
+of its [parity table](https://github.com/bingh0/gherkin-cargo-test#deviations-from-gherkin-node-test);
+the doctrine both sides point to is
+[the assertion asymmetry](workflow.md#the-assertion-asymmetry).*
+
 ### `args-consumption` — 0.11.0, error (invoke-time runner refusal, gh#4 item (a))
 
 *Anchor scenarios live in `features/args-consumption.feature`. They entered
