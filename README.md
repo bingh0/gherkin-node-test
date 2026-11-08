@@ -750,23 +750,52 @@ dialect — say, because they must stay portable to a second implementation, or
 because you want the spec-quality floor without changing runners. One guard
 test in your existing suite does it:
 
-```js
-// feature-guards.test.ts (vitest example)
+```ts
+// feature-guards.test.ts (vitest example) — every .feature under tests/ lints clean.
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { test, expect } from 'vitest';
 import { lintFeature } from 'gherkin-node-test';
+
+// Known debt, by [file, rule] — e.g. ['tests/legacy.feature', 'no-then'].
+// An entry that no longer fires fails the test, so the list can only shrink.
+const ALLOW: Array<[string, string]> = [];
 
 test('every feature file is in-dialect and non-vacuous', () => {
   const files = readdirSync('tests', { recursive: true, encoding: 'utf8' })
     .filter((f) => f.endsWith('.feature'))
-    .map((f) => join('tests', f));
-  const problems = files.flatMap((file) =>
-    lintFeature(readFileSync(file, 'utf8'), file)
-      .map((f) => `${file}:${f.line}: [${f.rule}] ${f.message}`));
+    .map((f) => join('tests', f).split(sep).join('/')); // keys match on Windows too
+  expect(files, 'no .feature files under tests/').not.toEqual([]);
+  const problems: string[] = [];
+  const used = new Set<string>();
+  for (const file of files) {
+    for (const f of lintFeature(readFileSync(file, 'utf8'), file)) {
+      const key = JSON.stringify([file, f.rule]);
+      if (ALLOW.some(([a, r]) => a === file && r === f.rule)) used.add(key);
+      else problems.push(`${file}:${f.line}: ${f.severity}[${f.rule}]: ${f.message}`);
+    }
+  }
+  for (const [file, rule] of ALLOW) {
+    if (!used.has(JSON.stringify([file, rule]))) problems.push(`stale ALLOW entry (${file}, ${rule}) — delete it`);
+  }
   expect(problems).toEqual([]);
 });
 ```
+
+A failure lists every finding as `file:line: severity[rule]: message` — the
+same line the Rust sibling's guard prints:
+
+```
+tests/features/counter.feature:34: warn[no-then]: Scenario "skipped scenarios do not run" has no Then step — it runs code but asserts nothing
+```
+
+Every finding fails the test, warnings included. A warning you have decided
+to keep goes in `ALLOW`, per file and rule, like the runner's `wip` list; an
+entry that stops firing fails the test, so the register only shrinks. Pass
+`{ strict: true }` to also reject committed `@skip` and `@only` tags. The
+walk is recursive because a foreign executor's layout puts features where it
+likes; the Rust sibling reads its `features/` flat, matching its own runner's
+discovery.
 
 Findings carry `{ rule, severity, line, message }`:
 
@@ -837,9 +866,9 @@ their guard test.
 Severity is descriptive, not policy. `dialect` is an error because the runner
 would refuse the file, and `duplicate-title` because the runner refuses it
 too; the remaining lints warn because adopting them on an existing suite needs
-a debt register, and that register — a `wip`-style allowlist, filtering by
-rule — belongs in your guard test, where it's grep-able, not hidden in a
-config file.
+a debt register, and that register — the `ALLOW` list in the guard test
+above, per file and rule — belongs in the guard test, where it's grep-able
+and where a stale entry fails, not hidden in a config file.
 
 **The two-parser rule.** When the linter and the executor are different
 parsers, the executor's interpretation of a feature file is the authoritative
