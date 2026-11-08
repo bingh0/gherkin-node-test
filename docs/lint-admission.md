@@ -304,3 +304,38 @@ below still registers and runs.*
    path and must keep counting); and *the refusal is a registered failure,
    not a load-time crash* keeps the red local (one failing test; the rest of
    the suite still reports — the Deno load-throw precedent).
+
+### `near-miss-keyword`, construct half in the Feature narrative — reviewed 2026-11-08, kept (warn; rule since 0.5.0)
+
+*A field report, not a new rule. The construct check is deliberately
+unscoped: a construct header in the wrong form is flagged wherever it
+appears, the Feature narrative included. An agent-written design-tier file
+in one of the owner's projects wrapped a narrative sentence so that a line
+began `scenario: the wrong session moved, …` and drew the warning (an error
+under `--strict`); both siblings emitted it byte-identically. Three options
+were weighed — keep and document; a header-shape heuristic for the
+narrative only; exempt the narrative as the step half does — and the owner
+ruled the first. The README's rule-table row now names the shape and its
+fix (rewrap the line); gct carries the identical sentence.*
+
+1. **Unique remedy**: the finding names the line and the exact form it is
+   not. For a real near miss the fix is the exact form; for the prose
+   collision the README names the rewrap. Finding text is unchanged, so
+   the lockstep holds without a release.
+2. **Cheapest legal move**: for prose, rewrap — a whitespace-only diff in a
+   reviewed artifact. The tempting mis-fix is loud, not silent: capitalizing
+   the line to `Scenario:` starts a real scenario mid-narrative, and the
+   no-steps guard refuses it on the same line as a `dialect` error. There
+   is no quiet green but the honest one.
+3. **Subset, never divergence**: the parse is untouched; mainstream Gherkin
+   also reads the line as description. The rejected heuristic would have
+   made the warning depend on sentence shape, and this house's real
+   scenario titles are long and sentence-shaped — it would miss the very
+   headers the rule exists for.
+4. **Loudness stays rare**: one field occurrence across the house corpora
+   since 0.5.0, and the shape needs the construct word and a colon at a
+   line start. The exemption option was rejected for what it loses: an
+   all-lowercase block before the first `Scenario` (`scenario:` / `given` /
+   `then`) is invisible to the step half (not in a body) and to the dialect
+   gate (no exact-case step reaches it), so the unscoped construct half is
+   the only check that names it.
