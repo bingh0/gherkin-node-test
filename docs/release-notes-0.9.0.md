@@ -102,8 +102,11 @@ diff once; consumers join relative to the manifest's location.
 
 ## Publish checklist
 
-1. Lockstep: neither sibling publishes alone. gct mirror is commit-complete;
-   parity 225/225 before tagging.
+1. Lockstep: the `0.y` never moves alone — a shared `0.y` means one grammar,
+   one guard set, one finding text, byte-for-byte under `tools/parity`;
+   the `z` is each sibling's own and may ship alone for a change that
+   touches neither (refined 2026-11-08, the first one-sided patch being
+   gct 0.11.1's `gct-lint` command). gct mirror is commit-complete; parity 225/225 before tagging.
 2. Push both repos; CI green (node ×3 OS, bun, deno, vitest lane, strict
    typecheck; cargo: msrv, lint, test ×3 OS) — the two CI-shaped declared
    scenarios (four-runtime verdict, cross-runtime manifest bytes) are

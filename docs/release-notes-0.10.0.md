@@ -72,7 +72,11 @@ family. Bun and Deno lanes are unchanged.
 
 ## Publish checklist
 
-1. Lockstep: neither sibling publishes alone.
+1. Lockstep: the `0.y` never moves alone — a shared `0.y` means one grammar,
+   one guard set, one finding text, byte-for-byte under `tools/parity`;
+   the `z` is each sibling's own and may ship alone for a change that
+   touches neither (refined 2026-11-08, the first one-sided patch being
+   gct 0.11.1's `gct-lint` command).
 2. CI green on all lanes both sides — node (22.17/24/26 × ubuntu, 24 ×
    macos/windows), bun ×3 OS, deno ×3 OS, vitest + typecheck under BOTH
    TypeScript majors; cargo msrv/lint/test ×3 OS.
