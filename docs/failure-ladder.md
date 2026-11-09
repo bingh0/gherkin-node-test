@@ -17,7 +17,8 @@ Two families, one line between them:
 
 A reviewer can catch *wrong*; only forcing questions catch *missing*;
 hollow is caught by execution and by history — the first three `cino:`
-rungs by running a doctored world, the last two by records and temporal
+rungs by running the real thing (a doctored world, the installed door, a
+count against a foreign record), the last two by records and temporal
 comparison — never by reading the text.
 
 The generative question behind every row — the one that names the rungs
@@ -37,7 +38,7 @@ that file now points here.)
 |---|---|---|---|
 | `cino:code` | the feature exists and is a near no-op | works on the demo path only; a guard never true; an option read and never used; a sibling platform path never lit | execute the real thing against real state; assert the **effect**, not the call |
 | `cino:binding` | the step runs, observes nothing, goes green | passes on a fixture containing none of its subject matter; asserts non-empty instead of naming members; no world makes it red; every binding drives the same seam | **mutation** — doctor the world so the Then *should* fail, and watch it fail |
-| `cino:assertion` | the predicate is real but its ground truth is an artifact the system itself wrote | asserting a file/string the system just produced; "exists" where "usable" was meant | name the foreign system on the far side of the boundary; assert what **it** observes |
+| `cino:assertion` | the predicate is real but its ground truth is something the build wrote: the result the step checks, or the input it was fed in a foreign system's name | asserting a file/string the system just produced; "exists" where "usable" was meant; a stand-in for a foreign system whose input cites no recording of it; "every" or "never" quantified over what a foreign system does and proven on cases the binding chose | name the foreign system on the far side of the boundary; assert what **it** observes, and feed the step what **it** sent |
 | `cino:spec` | green because the scenario was weakened | scenario text changed in the window its status went red→green; assertion mass shrank | temporal comparison across history — a snapshot cannot see this |
 | `cino:decision` | ratified scope honored in name; the reasons are gone | an agent re-proposes an explicitly rejected option; the same debate recurs | record rejected alternatives *with their reasons*, and recall them before reopening |
 
@@ -47,6 +48,31 @@ review (there is nothing to review), and a self-referential assertion
 survives mutation (delete the artifact and the test duly fails — the
 mutation was applied to the wrong variable). Ask the dispatch question:
 *no ground truth at all* → binding; *ground truth we wrote* → assertion.
+
+`cino:assertion` has two sides, and the second is easy to miss. On the
+output side the step asserts something the system wrote. On the **input
+side** the step is *fed* something the build wrote: a stand-in for the
+foreign system — a payload, an event sequence, a reply — written from
+what the builders believed that system sends. The Then can be beyond
+reproach, a discriminating predicate over the real store, and the
+scenario still proves only that the system handles the build's idea of
+its neighbour. The tell is provenance, not the assertion: an input
+presented as the foreign system's that cites no recording of it. It does
+not reach an ordinary fixture, which stands in for nobody; it applies
+where a step speaks for a party whose behaviour the build learns rather
+than defines — a client, a platform, a remote API. A universal sharpens
+it: "every" or "never" quantified over what a foreign system does is a
+claim about a list, and a binding that picks its own cases has written
+the list. So two questions at every boundary — *who made the input?* and
+*who made the list?* — and two catches: replay a recording of the foreign
+system through the door as it is installed, not through an entry point
+the binding picks; and take the list from the foreign system, its own
+reference or its own record of what happened, and count against it. A
+recording is a dated sample and says so, and one that holds none of the
+cases the universal ranges over is a hand-written input with a date on
+it; the count against a live run is what keeps a recording honest. Where
+the foreign system offers neither a list nor a record, the universal is
+reported unverified, not green.
 
 ## Specimens
 
@@ -74,7 +100,22 @@ survived every control below its own rung:
   by parsing back the file it had itself written one call earlier. Fully
   bound, non-vacuous, discriminating — and measuring a mirror. Sibling:
   "each command resolves to an absolute path that exists" — it existed;
-  it could not load the library that mattered.
+  it could not load the library that mattered. Input-side specimen
+  (2026-11-09): a session journal promised that every tool invocation is
+  captured, none filtered out. Its binding fed four hand-written payloads
+  of the client's success event to the hook script and read the rows back
+  from the real store: bound and discriminating. The client fires that
+  event only when a call succeeds: a failed call fires another event,
+  which the installer never subscribed to, and a call the client refuses
+  before running it fires no event that says how it ended. Across four
+  sessions, 460 of 460 successful shell calls were in the store and at
+  most 3 of 9 failed ones. Sixteen review briefs relied on mutation and
+  none named this address; no mutation could have flipped it — the
+  binding ran the script itself, so the subscription was outside the
+  world — and an audit with this address on its menu graded the scenario
+  solid, taking "fired through the real hook" for the client's event. The
+  refused calls were found only by recording a real session. Caught by a
+  foreign record: four sessions' transcripts counted against the store.
 - **cino:spec** — the predicted class with the fewest confirmed
   specimens: the tell is stated from mechanism (weakening leaves a
   text-change/status-flip coincidence in history), and the temporal
@@ -133,24 +174,29 @@ share nothing.
 
 ## A rule beside the ladder, not on it
 
-One lesson from the `blind:fenced` specimen is a process rule, not a
-rung, and is the catch of nothing above; it is kept here so it is not
-mistaken for an address. (The fence rule — a fence may decline a promise
+Two lessons from the specimens are process rules, not rungs, and are the
+catch of nothing above; they are kept here so they are not mistaken for
+addresses. (The fence rule — a fence may decline a promise
 but never a writer — is the rung's own catch and lives where catches
 live, in the `/scope` skill's Phase 4.)
 
 - **The triage rule.** Growth rate is severity. A finding about anything
   that grows without bound — a row, a file, a queue, a reply — is a
   blocker on the day it is found, whatever its size that day. The
-  specimen was sighted twice at 515 K and 1.8 M characters and parked as
-  a next-release candidate; two days later it was 21 M.
+  `blind:fenced` specimen was sighted twice at 515 K and 1.8 M characters
+  and parked as a next-release candidate; two days later it was 21 M.
+- **The per-rung rule.** A review reports, per rung, which catch ran and
+  against what. Mutation is `cino:binding`'s catch alone, and a review
+  that ran only mutation has reviewed one rung, however many probes it
+  ran. "Not run" is an answer; silence is not.
 
 ## Using the addresses
 
 Typing an address is a complete instruction. `cino:binding` means: build
 the doctored world, run it, show me the red. `cino:assertion` means:
 name the foreign system this boundary faces, restate the Then as what it
-observes, rebind far-side. `blind:fenced` means: read the fence for
+observes, say who made the step's input and who made the list, rebind
+far-side. `blind:fenced` means: read the fence for
 verbs, name the entry that describes a writer, and give that path a tier.
 
 This table is versioned by its specimens. It was induced from one corpus;
