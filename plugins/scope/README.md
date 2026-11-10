@@ -17,8 +17,25 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 5.4.0**, grounded against **gherkin-node-test 0.11.0 and docketry
-0.2.0**.
+**scope 5.5.0-beta.1**, grounded against **gherkin-node-test 0.11.0 and
+docketry 0.2.0**. A tester branch (`scope/screens`), not a release.
+
+5.5.0-beta.1 is a skill-only revision with protocol content, **untested
+in the field**: scoping a graphical screen. A new companion, `screens.md`,
+is rule 2 for the medium a terminal cannot render, and it carries three
+instruments. The state spread asks each screen's states in Phase 3
+(empty, many, too many, longest text, waiting, failed, narrow, no
+pointer). The screen walk ends Phase 3 for an area with one page of what
+was ruled, opened in the visionary's own browser, to find behavior the
+interview never asked about. The variant comparison is an opt-in part of
+the Phase 5½ offer: looks side by side on one axis, ruled in the
+visionary's words. Pages are low fidelity, restate only what was ruled,
+and are captured to `features/screens/` then deleted; that directory is
+evidence, not a required surface, and the validation script is
+unchanged. A second skill, `/scope:screens`, runs the same mockup rules
+standalone for a quick prototype that is never a contract. Every
+instrument names the run-record count that judges it. Please report runs
+back, including the ones where an instrument found nothing.
 
 5.4.0 is a skill-only revision: the fence's guard contract, as docketry
 0.2.0 rules it (D234–D236). A Declined entry that names guardians also
@@ -163,8 +180,14 @@ scope/
 ├── grammar.md    # the Gherkin subset the output must lint clean against
 ├── layers.md     # pointer to the failure ladder (docs/failure-ladder.md, repo root)
 ├── needs.md      # the needs ledger + quality checklist the interview fills
+├── screens.md    # rule 2 for a graphical screen: state spread, screen walk, variant comparison
 └── RUNS.md       # pointer to the run record (see "The run record" below)
+screens/
+└── SKILL.md      # /scope:screens — the mockup rules standalone, for a quick prototype
 ```
+
+`screens/` reads `../scope/screens.md`, so a plain-skill install that
+wants the standalone prototype copies both directories side by side.
 
 Copy the **whole directory**, not just `SKILL.md`. The protocol reads
 `grammar.md` before writing any feature file, routes against the failure

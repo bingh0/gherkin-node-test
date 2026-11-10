@@ -10,10 +10,12 @@ exist and why; they do not write feature files, and technology stays out of
 the conversation until the one sanctioned moment at its end (Phase 5½). Your
 job is to extract a testable contract from them, then write it down in the
 Gherkin subset defined in `grammar.md` (in this skill's directory — read it
-before writing any feature file). Three companions sit beside it in the same
+before writing any feature file). Four companions sit beside it in the same
 directory: `needs.md` (the needs sketch, its checklist, and the ledger),
-`layers.md` (the failure-mode map), and `docket.md` (the ruling record you
-keep as you go — its entry shape, and the lint that reads it).
+`layers.md` (the failure-mode map), `docket.md` (the ruling record you
+keep as you go — its entry shape, and the lint that reads it), and
+`screens.md` (rule 2 for a graphical screen — read it only when Phase 1
+finds one).
 
 The interview is not done until its output passes the output contract at the
 bottom of this file.
@@ -31,7 +33,9 @@ bottom of this file.
    assumption silently baked into the next question. When the ruling is about
    the *shape of an artifact* — a pane, a report, a layout, CLI output,
    refusal or error text, a status line — the options are rendered mockups
-   at true dimensions, never prose (three runs: prose stalled, renders
+   at true dimensions, never prose — and for a graphical screen true
+   dimensions means the visionary's own browser, under `screens.md`
+   (three runs: prose stalled, renders
    resolved on first ask, and twice the render itself surfaced the decisive
    fact). **The values in a mockup are themselves a scoping decision:
    render the case that stresses the ruling, never the case that flatters
@@ -145,6 +149,11 @@ rule).
 (people, roles, other systems, time) and, per actor, what observable outcome
 defines success. These become the `Feature:` boundaries — one feature file per
 coherent behavior area, named for the behavior, not for a component.
+When an actor meets the system through a graphical screen — a browser
+page, a desktop window, a phone app — read `screens.md` now and announce
+its three instruments in one line as this phase closes: the state spread
+and the screen walk run unless declined, the variant comparison only if
+taken at Phase 5½.
 
 **Phase 1½ — Intent checkpoint.** First run the swap test (`needs.md`)
 over every sketch entry — an entry that dies when its mechanism is
@@ -188,7 +197,12 @@ decrease in file order, D147). Value spreads
 become `Scenario Outline` + `Examples` rows (extremes included); failure and
 misuse answers become their own scenarios. It is the visionary's call whether
 an edge case is in scope — but the question must be asked, and a declined case
-goes on the out-of-scope list, not in the bin.
+goes on the out-of-scope list, not in the bin. Where an area has a
+graphical screen, two more things happen here (`screens.md`): each
+screen's states are asked like any other spread, and when coverage closes
+for the area the visionary walks one page of what was ruled, in their own
+browser — never before, since a page shown earlier answers the questions
+this phase exists to ask.
 
 **Phase 3¼ — Checklist sweep (default-on; visionary-controlled).** After
 coverage forcing, announce it in one line and begin unless the visionary
@@ -298,6 +312,10 @@ framework preference) — is put back as a decision point, never absorbed
 silently. Electives land in `DESIGN.md` (output contract below), not in
 feature files: behavior stays the contract; electives bound the build.
 Record each one as a docket entry as it is ruled, not in a batch at the end.
+For a project with a graphical screen the offer names one more thing
+that can be taken: comparing looks side by side, one axis at a time
+(`screens.md`, the variant comparison) — a look is a means, so this is
+its room, and what it rules is the visionary's stated reason, in words.
 (This phase reverses a 2026-08-12 ruling that the design conversation
 must be a sibling protocol — reversed on the pro team's multi-prototype
 evidence that an orienting design document improves build convergence;
@@ -503,6 +521,13 @@ is drafted while that door is open):
   between doc and corpus is raised as a question, never resolved by
   editing either side alone.
 
+One directory is evidence, not a surface: `features/screens/`, present
+only when the run built pages under `screens.md`. It holds the captures
+of what the visionary was looking at when they ruled, named for the
+ruling and the state. The script below does not require it, the docket
+lint does not read it, and the build never copies from it; the limits
+`screens.md` lists are said aloud at handoff.
+
 **Scoping into an existing repo:** before writing any file, inventory what
 the host's suite does to new feature files — tags it gates, discovery that
 auto-runs them, registers they must enter. The same inventory checks for a
@@ -687,7 +712,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-5.4.0**, grounded against **gherkin-node-test 0.11.0 and docketry 0.2.0**
+5.5.0-beta.1**, grounded against **gherkin-node-test 0.11.0 and docketry 0.2.0**
 (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
@@ -958,7 +983,12 @@ question's earn-its-keep number); protocol critiques from Phase 5's
 second question; gate questions by route — put raw, settled from the
 record (that step's earn-its-keep number), returned — and the
 mid-interview questions that would have met the settling test (the
-evidence that would widen it); the model each agent pass ran on — the
+evidence that would widen it); for a project with a graphical screen,
+the three counts `screens.md` names — scenarios and fence entries from
+state questions, what first appeared in a screen walk with the marked
+items the page forced, and comparisons run with "neither" answers and
+how often the pick matched the undisclosed preference — plus the route
+to the browser and any ruling made off-medium; the model each agent pass ran on — the
 post-draft reviewers and both sides of the settle round — since the route
 counts compare across tiers only if the tier is written down; corrections with their
 review-order positions, whether the `signs` entry was written after the read
