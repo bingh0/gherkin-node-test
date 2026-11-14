@@ -339,3 +339,34 @@ fix (rewrap the line); gct carries the identical sentence.*
    `then`) is invisible to the step half (not in a body) and to the dialect
    gate (no exact-case step reaches it), so the unscoped construct half is
    the only check that names it.
+
+### `vague-then`, finding text — amended 2026-11-14 (warn)
+
+*A field report, not a new rule. In one of the owner's projects a
+strict-lint cleanup cleared a `vague-then` finding by rewording a step that
+said something "still works" into exactly what its binding proved. The new
+text was true and checkable, and it promised less than the old one, with no
+recorded decision behind the narrowing. By the failure ladder's
+discriminator ([failure-ladder.md](failure-ladder.md)) that is a
+`cino:spec` sighting. The rule, its severity and its trigger words are
+unchanged; only the finding's text grew, and it ships in 0.12.0 on both
+siblings byte-identically. The finding now ends:*
+`name the observable result. If the binding proves less than the step promised, strengthen the binding or record the narrowing as a ruling; rewording the step down to what the binding proves is a contract change`
+
+1. **Unique remedy**: the finding still names the line and the word. The
+   remedy is now three moves stated in the finding: name the observable
+   result; if that result is less than the step promised, strengthen the
+   binding, or record the narrowing as a ruling.
+2. **Cheapest legal move**: this is the test the specimen failed in the
+   field. The cheapest green is still a reword, and a reword that narrows
+   is spec-weakening. The rule stays admissible on the test's "at minimum"
+   clause: the reword is a diff in the feature file, a reviewed artifact.
+   The amended text names that diff as a contract change at the moment the
+   agent makes it. The lint cannot tell a naming reword from a narrowing
+   one; the temporal layer (gherkin-trace) and /audit are the catches, per
+   the layer table above.
+3. **Subset, never divergence**: the parse and the rule are untouched; only
+   message text changed.
+4. **Loudness stays rare**: severity is unchanged (warn; error under
+   strict, same message in both modes). The finding is about 190 characters
+   longer and fires no more often.
