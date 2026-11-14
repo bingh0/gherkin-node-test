@@ -119,19 +119,22 @@ class SubRun {
 /**
  * Spawn a fixture under the runtime running this suite — the same
  * environment discipline as test/runner.test.js's runFixture.
+ * `filter` is a name filter in the runtime's own spelling (node
+ * --test-name-pattern=, bun -t, deno --filter).
  * @param {string} fixture
+ * @param {string} [filter]
  * @returns {{ status: number | null, out: string }}
  */
-function spawnFixture(fixture) {
+function spawnFixture(fixture, filter) {
   const file = path.join(ROOT, 'fixtures', fixture);
   const env = { ...process.env, NO_COLOR: '1' };
   delete env.NODE_TEST_CONTEXT;
   delete env.NODE_OPTIONS;
   const args = isDeno
-    ? ['test', '--no-check', '--allow-read', file]
+    ? ['test', '--no-check', '--allow-read', ...(filter === undefined ? [] : ['--filter', filter]), file]
     : isBun
-      ? ['test', file]
-      : ['--test', file];
+      ? ['test', file, ...(filter === undefined ? [] : ['-t', filter])]
+      : ['--test', ...(filter === undefined ? [] : [`--test-name-pattern=${filter}`]), file];
   const r = spawnSync(process.execPath, args, { encoding: 'utf8', env });
   return { status: r.status, out: r.stdout + r.stderr };
 }

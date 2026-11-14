@@ -95,6 +95,15 @@ test('vague-then: each banned word fires, pointing at the step line', () => {
   }
 });
 
+test('vague-then: the whole message is pinned, remedy included', () => {
+  const findings = lintFeature(feat('Scenario: s\n  When I poke it\n  Then it works\n'));
+  assert.strictEqual(findings.length, 1);
+  assert.strictEqual(findings[0].message,
+    'vague Then "it works" — "works" is not a checkable outcome; name the observable result. ' +
+    'If the binding proves less than the step promised, strengthen the binding or record the ' +
+    'narrowing as a ruling; rewording the step down to what the binding proves is a contract change');
+});
+
 test('vague-then: only Then-resolved steps are checked', () => {
   // "works" in a Given/When describes state, not an unchecked assertion.
   const findings = lintFeature(feat(

@@ -41,9 +41,11 @@ const isDeno = !!(/** @type {any} */ (globalThis).Deno?.version?.deno);
  * fixtures/.manifest-out — the documented minimum for that opt-in, and only
  * for it. There is no focus mode: this library never emits only:/test.only,
  * on any runtime.
+ * `filter` = a name filter in the runtime's own spelling (node
+ * --test-name-pattern=, bun -t, deno --filter).
  * @param {string | string[]} fixture
- * @param {{ runTodo?: boolean, nodeFlags?: string[], write?: boolean }} [mode]
- * @returns {{ status: number | null, out: string }}
+ * @param {{ runTodo?: boolean, nodeFlags?: string[], write?: boolean, filter?: string }} [mode]
+ * @returns {{ status: number | null, out: string, stdout: string, stderr: string }}
  */
 function runFixture(fixture, mode = {}) {
   const files = (Array.isArray(fixture) ? fixture : [fixture])
@@ -62,12 +64,15 @@ function runFixture(fixture, mode = {}) {
   const args = isDeno
     ? ['test', '--no-check', '--allow-read',
       ...(mode.write ? [`--allow-write=${path.join(__dirname, '..', 'fixtures', '.manifest-out')}`] : []),
+      ...(mode.filter !== undefined ? ['--filter', mode.filter] : []),
       ...files]
     : isBun
-      ? ['test', ...(mode.runTodo ? ['--todo'] : []), ...files]
-      : ['--test', ...(mode.nodeFlags || []), ...files];
+      ? ['test', ...(mode.runTodo ? ['--todo'] : []),
+        ...(mode.filter !== undefined ? ['-t', mode.filter] : []), ...files]
+      : ['--test', ...(mode.nodeFlags || []),
+        ...(mode.filter !== undefined ? [`--test-name-pattern=${mode.filter}`] : []), ...files];
   const r = spawnSync(process.execPath, args, { encoding: 'utf8', env });
-  return { status: r.status, out: r.stdout + r.stderr };
+  return { status: r.status, out: r.stdout + r.stderr, stdout: r.stdout, stderr: r.stderr };
 }
 
 /**
@@ -376,4 +381,175 @@ test('runFeatures: a name-filtered run never writes the manifest', () => {
     { nodeFlags: ['--test-name-pattern', 'passes'] });
   assert.strictEqual(fs.existsSync(outFile), false,
     `a filtered run observed only part of the suite and must not write:\n${out}`);
+});
+
+// --- The name-filter guard ---------------------------------------------------
+// A run whose name filter leaves no scenario to run is red (see the guard's
+// comment in index.js). Every proof here is a real child run asserted on its
+// exit status AND its output. The three-scenario trio fixture is the subject;
+// features/honest-run.feature binds the same three runs as scenarios.
+
+const TRIO_DIR = JSON.stringify(path.join(__dirname, '..', 'features', 'trio'));
+const GUARD = /gherkin-node-test: [^\n]*(?:ran no scenario|left no scenario|matched no runnable scenario, only wip-held ones)[^\n]*/;
+const nodeOnly = isBun || isDeno ? 'node-only: the filter text, the skip pattern and the second-filter refusal exist only on node' : false;
+
+test('filter guard: a filter that matches only a runner check is red and says so, per runtime', () => {
+  const { status, out } = runFixture('trio.fixture.js', { filter: 'step definitions are complete' });
+  assert.notStrictEqual(status, 0, out);
+  const line = (out.match(GUARD) || [])[0];
+  assert.ok(line, `the refusal line is printed:\n${out}`);
+  assert.ok(line.includes(`ran no scenario in ${TRIO_DIR}`), line);
+  assert.strictEqual(counts(out).pass >= 1, true, `the check itself ran and passed:\n${out}`);
+});
+
+test('filter guard: a filter that runs a scenario is not refused', () => {
+  const { status, out } = runFixture('trio.fixture.js', { filter: 'first balances' });
+  assert.strictEqual(status, 0, out);
+  assert.strictEqual(counts(out).pass, 1, `one body ran, two did not:\n${out}`);
+  assert.doesNotMatch(out, GUARD);
+});
+
+test('filter guard: a real failure outranks the refusal', () => {
+  const { status, out } = runFixture('orphan.fixture.js', { filter: 'map only to existing' });
+  assert.notStrictEqual(status, 0, out);
+  assert.match(out, /definers with no matching \.feature/, `the check's own failure is shown:\n${out}`);
+  assert.doesNotMatch(out, GUARD, 'no refusal line on top of a real failure');
+});
+
+test('filter guard: an unfiltered green run is not refused', () => {
+  const { status, out } = runFixture('trio.fixture.js');
+  assert.strictEqual(status, 0, out);
+  assert.doesNotMatch(out, GUARD);
+});
+
+test('filter guard (node): the refusal names the filter, in either spelling, once', { skip: nodeOnly }, () => {
+  if (isBun || isDeno) return;
+  for (const flags of [['--test-name-pattern=zzz'], ['--test-name-pattern', 'zzz']]) {
+    const { status, out } = runFixture('trio.fixture.js', { nodeFlags: flags });
+    assert.notStrictEqual(status, 0, out);
+    assert.strictEqual(out.split(`the filter "zzz" ran no scenario in ${TRIO_DIR}`).length - 1, 1,
+      `the line appears exactly once for ${flags.join(' ')}:\n${out}`);
+  }
+});
+
+test('filter guard (node): a regex-form filter that runs a scenario is not refused', { skip: nodeOnly }, () => {
+  if (isBun || isDeno) return;
+  const { status, out } = runFixture('trio.fixture.js', { nodeFlags: ['--test-name-pattern=/FIRST/i'] });
+  assert.strictEqual(status, 0, out);
+  assert.strictEqual(counts(out).pass, 1, out);
+});
+
+test('filter guard (node): a skip pattern that deselects every scenario is red; one that skips one is green', { skip: nodeOnly }, () => {
+  if (isBun || isDeno) return;
+  const all = runFixture('trio.fixture.js', { nodeFlags: ['--test-skip-pattern=Trio'] });
+  assert.notStrictEqual(all.status, 0, all.out);
+  assert.ok(all.out.includes(`gherkin-node-test: the skip pattern "Trio" left no scenario to run in ${TRIO_DIR}; nothing ran`), all.out);
+  const one = runFixture('trio.fixture.js', { nodeFlags: ['--test-skip-pattern=first balances'] });
+  assert.strictEqual(one.status, 0, one.out);
+  assert.strictEqual(counts(one.out).pass, 4, `two guards and two scenarios ran:\n${one.out}`);
+  assert.doesNotMatch(one.out, GUARD);
+});
+
+test('filter guard (node): a filter and a skip pattern together are both named', { skip: nodeOnly }, () => {
+  if (isBun || isDeno) return;
+  const { status, out } = runFixture('trio.fixture.js',
+    { nodeFlags: ['--test-name-pattern=zzz', '--test-skip-pattern=yyy'] });
+  assert.notStrictEqual(status, 0, out);
+  assert.ok(out.includes(`the filter "zzz" and the skip pattern "yyy" left no scenario to run in ${TRIO_DIR}`), out);
+});
+
+test('filter guard (node): a filter that matches only wip-held scenarios says so', { skip: nodeOnly }, () => {
+  if (isBun || isDeno) return;
+  const held = runFixture('scenariowip.fixture.js', { filter: 'pending' });
+  assert.notStrictEqual(held.status, 0, held.out);
+  assert.match(held.out, /the filter "pending" matched no runnable scenario, only wip-held ones, in ".*partial"; nothing ran/);
+  assert.strictEqual(counts(held.out).todo, 3, `the three pending scenarios were what matched:\n${held.out}`);
+  const mixed = runFixture('scenariowip.fixture.js', { filter: 'ready|pending' });
+  assert.strictEqual(mixed.status, 0, mixed.out);
+  assert.doesNotMatch(mixed.out, GUARD);
+});
+
+test('filter guard (node): a second, different name filter is refused at load, in either spelling', { skip: nodeOnly }, () => {
+  if (isBun || isDeno) return;
+  for (const flags of [
+    ['--test-name-pattern=zzz', '--test-name-pattern=first'],
+    ['--test-name-pattern', 'zzz', '--test-name-pattern', 'first'],
+  ]) {
+    const { status, out } = runFixture('trio.fixture.js', { nodeFlags: flags });
+    assert.notStrictEqual(status, 0, out);
+    assert.ok(out.includes('two name filters were given, "zzz", "first"; no scenario ran'), out);
+    assert.doesNotMatch(out, /✔ Trio ::/, `no scenario body ran:\n${out}`);
+  }
+  // The same filter twice is one filter.
+  const same = runFixture('trio.fixture.js',
+    { nodeFlags: ['--test-name-pattern=first', '--test-name-pattern=first'] });
+  assert.strictEqual(same.status, 0, same.out);
+});
+
+// --- Filter guard: directories with nothing runnable --------------------------
+// A directory whose scenarios are all held (unbound + wip) or all @skip has no
+// runnable body, so a name filter cannot have "ran no scenario" said of it.
+
+test('filter guard (node): a filter over a directory of only wip-held scenarios is not refused', { skip: nodeOnly }, () => {
+  if (isBun || isDeno) return;
+  const { status, out } = runFixture('wip.fixture.js', { filter: 'zzz' });
+  assert.strictEqual(status, 0, out);
+  assert.doesNotMatch(out, GUARD);
+  assert.doesNotMatch(out, /the filter "zzz"/, out);
+});
+
+test('filter guard (node): a filter over a directory of only @skip scenarios is not refused', { skip: nodeOnly }, () => {
+  if (isBun || isDeno) return;
+  const { status, out } = runFixture('skiponly.fixture.js', { filter: 'zzz' });
+  assert.strictEqual(status, 0, out);
+  assert.doesNotMatch(out, GUARD);
+  assert.doesNotMatch(out, /the filter "zzz"/, out);
+});
+
+test('filter guard: an unfiltered run of an all-@skip bound directory is green with no guard line, per runtime', () => {
+  const { status, out } = runFixture('skiponly.fixture.js');
+  assert.strictEqual(status, 0, out);
+  assert.doesNotMatch(out, GUARD);
+  assert.strictEqual(counts(out).fail, 0, out);
+});
+
+test('filter guard (node): a filter that matches no runnable scenario beside a wip-held one gets the plain line', { skip: nodeOnly }, () => {
+  if (isBun || isDeno) return;
+  const { status, out } = runFixture('scenariowip.fixture.js', { nodeFlags: ['--test-name-pattern=zzz'] });
+  assert.notStrictEqual(status, 0, out);
+  assert.ok(out.includes('gherkin-node-test: the filter "zzz" ran no scenario in '), out);
+  assert.doesNotMatch(out, /only wip-held ones/, 'nothing wip-held ran, so the wip-held line must not appear');
+});
+
+// --- The failure information line goes to stderr -------------------------------
+
+// Where each runtime puts a child's stderr differs (`node --test` and
+// `deno test` fold it into the runner's stdout), so the channel is proven where
+// it is observable: node by running the fixture file directly (no runner in
+// between), bun through its own runner (which keeps stderr apart); Deno skips.
+const channelSkip = isDeno ? 'deno: `deno test` folds the child\'s stderr into stdout, so the channel is unobservable there' : false;
+
+test('failure line: the role line is on stderr and not on stdout', { skip: channelSkip }, () => {
+  if (isDeno) return;
+  const line = 'gherkin-node-test: role.feature: scenario "the last step fails": step `And a check that fails` (line 5) failed; role: Then';
+  const file = path.join(__dirname, '..', 'fixtures', 'failrole.fixture.js');
+  const env = { ...process.env, NO_COLOR: '1' };
+  delete env.NODE_TEST_CONTEXT;
+  delete env.NODE_OPTIONS;
+  const r = isBun
+    ? runFixture('failrole.fixture.js')
+    : spawnSync(process.execPath, [file], { encoding: 'utf8', env });
+  assert.notStrictEqual(r.status, 0, `${r.stdout}${r.stderr}`);
+  assert.ok(r.stderr.includes(line), `stderr carries the line:\n${r.stderr}`);
+  assert.ok(!r.stdout.includes(line), `stdout does not:\n${r.stdout}`);
+});
+
+test('failure line: a cleanup-only failure says "cleanup failed", names no step, and the run is red with the cleanup error', () => {
+  const { status, out } = runFixture('cleanupfail.fixture.js');
+  assert.notStrictEqual(status, 0, out);
+  const lines = out.split('\n').filter((l) => l.includes('gherkin-node-test: cleanup.feature:'));
+  assert.strictEqual(lines.length, 1, `one information line:\n${out}`);
+  assert.ok(lines[0].endsWith('scenario "only the cleanup fails": cleanup failed'), lines[0]);
+  assert.ok(!lines[0].includes('step `'), lines[0]);
+  assert.ok(out.includes('the cleanup itself broke'), `the cleanup's own error is shown:\n${out}`);
 });

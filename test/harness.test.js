@@ -295,6 +295,27 @@ test('a cleanup error surfaces when the steps themselves passed', async () => {
   );
 });
 
+test('executeSteps rejects with the identical object the step threw', async () => {
+  const reg = new StepRegistry();
+  const thrown = new Error('exactly this one');
+  const before = Object.getOwnPropertyNames(thrown).sort();
+  reg.define('boom', () => { throw thrown; });
+  /** @type {unknown} */ let caught;
+  await executeSteps([{ keyword: 'When', text: 'boom' }], reg).catch((e) => { caught = e; });
+  assert.strictEqual(caught, thrown, 'strict identity: not wrapped, not copied');
+  assert.deepStrictEqual(Object.getOwnPropertyNames(thrown).sort(), before, 'no property added to the thrown value');
+});
+
+test('a step that throws undefined still rejects', async () => {
+  const reg = new StepRegistry();
+  reg.define('vanish', () => { throw undefined; });
+  let rejected = false;
+  /** @type {unknown} */ let caught = 'unset';
+  await executeSteps([{ keyword: 'When', text: 'vanish' }], reg).catch((e) => { rejected = true; caught = e; });
+  assert.ok(rejected, 'a falsy throw still fails the scenario');
+  assert.strictEqual(caught, undefined);
+});
+
 // --- Snippets -------------------------------------------------------------------
 
 test('buildSnippet converts numbers and quoted strings to captures', () => {
@@ -434,4 +455,73 @@ test('bindRunner.runFeatures bypasses the one-call-per-file guard (vitest watch 
   assert.strictEqual(calls.length, firstRun * 2, 'second run registers the same suite again');
   assert.ok(!calls.some(([, title]) => /one call per test file/.test(title)),
     'the native-runner refusal must not fire under an injected runner');
+});
+
+// --- The failing-step information line: role resolution (in-process) ----------
+// runFeature prints one line to stderr just before a failure propagates. These
+// run a stub-registered scenario and read that line.
+
+/**
+ * Run the first scenario of an inline feature whose steps all resolve; return
+ * the information lines printed and the rejection (or null).
+ * @param {string} text @param {(reg: StepRegistry) => void} define
+ */
+async function failureLines(text, define) {
+  const reg = new StepRegistry();
+  define(reg);
+  /** @type {(() => Promise<void>)[]} */
+  const bodies = [];
+  runFeature(parseFeature(text, 'roles.feature'), reg, /** @type {any} */ ((_t, _o, fn) => bodies.push(fn)));
+  const lines = [];
+  const orig = console.error;
+  console.error = (/** @type {any[]} */ ...a) => { lines.push(a.join(' ')); };
+  let error = null;
+  try { await bodies[bodies.length - 1](); } catch (e) { error = e; } finally { console.error = orig; }
+  return { lines: lines.filter((l) => l.startsWith('gherkin-node-test: roles.feature:')), error };
+}
+
+const boom = () => { throw new Error('boom'); };
+
+test('failure line: a first And after a Background that ends with Given has role Given', async () => {
+  const { lines, error } = await failureLines(
+    'Feature: R\n  Background:\n    Given a ready\n  Scenario: s\n    And it fails\n',
+    (r) => { r.define('a ready', () => {}); r.define('it fails', boom); });
+  assert.ok(error);
+  assert.strictEqual(lines.length, 1, lines.join('\n'));
+  assert.ok(lines[0].endsWith('step `And it fails` (line 5) failed; role: Given'), lines[0]);
+});
+
+test('failure line: a failing Background step names its own role, not unresolved', async () => {
+  const { lines } = await failureLines(
+    'Feature: R\n  Background:\n    Given a ready\n  Scenario: s\n    Then fine\n',
+    (r) => { r.define('a ready', boom); r.define('fine', () => {}); });
+  assert.strictEqual(lines.length, 1, lines.join('\n'));
+  assert.ok(lines[0].endsWith('step `Given a ready` (line 3) failed; role: Given'), lines[0]);
+  assert.ok(!lines[0].includes('unresolved'), lines[0]);
+});
+
+test('failure line: a failing plain When after a Given has role When; a failing first Given has role Given', async () => {
+  const when = await failureLines(
+    'Feature: R\n  Scenario: s\n    Given a start\n    When it fails\n',
+    (r) => { r.define('a start', () => {}); r.define('it fails', boom); });
+  assert.strictEqual(when.lines.length, 1, when.lines.join('\n'));
+  assert.ok(when.lines[0].endsWith('step `When it fails` (line 4) failed; role: When'), when.lines[0]);
+  const given = await failureLines(
+    'Feature: R\n  Scenario: s\n    Given a start\n    When fine\n',
+    (r) => { r.define('a start', boom); r.define('fine', () => {}); });
+  assert.strictEqual(given.lines.length, 1, given.lines.join('\n'));
+  assert.ok(given.lines[0].endsWith('step `Given a start` (line 3) failed; role: Given'), given.lines[0]);
+});
+
+test('failure line: a cleanup-only failure says "cleanup failed" and names no step', async () => {
+  const { lines, error } = await failureLines(
+    'Feature: R\n  Scenario: s\n    Given a start\n    Then fine\n',
+    (r) => {
+      r.define('a start', (w) => { w.defer(() => { throw new Error('cleanup broke'); }); });
+      r.define('fine', () => {});
+    });
+  assert.ok(error && String(error.message).includes('cleanup broke'), String(error));
+  assert.strictEqual(lines.length, 1, lines.join('\n'));
+  assert.ok(lines[0].endsWith('scenario "s": cleanup failed'), lines[0]);
+  assert.ok(!lines[0].includes('step `'), lines[0]);
 });

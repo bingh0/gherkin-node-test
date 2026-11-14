@@ -108,6 +108,39 @@ Feature: An honest run
     Then the run is red
     And the refusal names the missing directory path
 
+  Scenario: a failing step's failure names the step and its role
+    Given a scenario whose last step is written with And and follows a Then
+    And a binding for that last step that fails
+    When the suite runs
+    Then the run's output names the failing step by its text and its line
+    And it names the step's role as Then, not the And it was written with
+
+  Scenario: what a failing step threw reaches the runtime unchanged
+    Given a scenario whose Then fails an assertion that carries a diff
+    When the suite runs
+    Then the scenario's failure is the assertion the step threw, with its diff
+
+  Scenario: a name filter that runs no scenario is red
+    Given a feature file with 3 scenarios
+    And each step in the file matches exactly one binding
+    When the suite runs with a name filter that matches no scenario title
+    Then the run is red
+    And the run says the filter ran nothing
+
+  Scenario: a name filter that reaches only the runner's own checks is red
+    Given a feature file with 3 scenarios
+    And each step in the file matches exactly one binding
+    When the suite runs with a name filter that matches only a check the runner registers
+    Then the run is red
+    And the refusal says the filter ran no scenario
+    And the refusal names the feature directory it looked in
+
+  Scenario: a name filter that runs a scenario is not refused
+    Given a feature file with 3 scenarios
+    And each step in the file matches exactly one binding
+    When the suite runs with a name filter that matches one scenario title
+    Then that scenario passes and the run is green
+
   Scenario: the verdict does not depend on the runtime
     Given one suite of feature files and bindings, one runner call per test file
     When the suite runs under node, bun, Deno, and vitest
