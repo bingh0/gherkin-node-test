@@ -524,6 +524,19 @@ export type WipEntry = string | {
  * is exactly where a bad definer or an unparseable feature would vanish).
  * Give each feature directory its own test file.
  *
+ * Two things a run says on stderr (0.12.0). When a step fails, one line names
+ * the feature file, the scenario, the step as written, its line and its role
+ * — And, But and * resolved to the Given, When or Then they follow — just
+ * before the failure propagates; what the step threw is rethrown untouched,
+ * and the line is information only. And a name filter that runs no scenario
+ * is red, per test file, on node, bun and Deno: this call registered a
+ * runnable scenario and the file ended with none run. The runner's own
+ * checks never count; a test that already failed outranks the refusal. On
+ * node a skip pattern that leaves nothing to run is red too, and a second,
+ * different --test-name-pattern is refused at load. Not covered when the
+ * runner is bound to vitest (bindRunner). See the README for the lines'
+ * exact text and the per-runtime limits.
+ *
  * `manifest` (opt-in) names a file to receive the run manifest: one sorted
  * `{file, title, status}` NDJSON row per registered scenario (post-expansion —
  * outline rows land individually, exactly as they registered), written only

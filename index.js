@@ -86,7 +86,12 @@ const url = require('node:url');
 // skip/todo honored), so `deno test` runs this via node:test natively.
 const isBun = !!process.versions.bun;
 const isDeno = !!(/** @type {any} */ (globalThis).Deno?.version?.deno);
-const { test } = require(isBun ? 'bun:test' : 'node:test');
+const runnerModule = require(isBun ? 'bun:test' : 'node:test');
+const { test } = runnerModule;
+// The end-of-file hook the filter guard rides on (see installFilterGuard):
+// node's root-level after() and bun's afterAll run even when every test was
+// filtered out; Deno's node:test after() does not, so Deno uses unload.
+const endHook = isBun ? runnerModule.afterAll : isDeno ? null : runnerModule.after;
 
 /**
  * Register one test on the active runner. node:test takes skip/todo as
@@ -844,7 +849,7 @@ function lintFeature(text, filename = '<feature>', opts = {}) {
     const m = st.text.match(VAGUE_THEN);
     if (m) {
       warn('vague-then', st.line,
-        `vague Then "${st.text}" — "${m[0]}" is not a checkable outcome; name the observable result`);
+        `vague Then "${st.text}" — "${m[0]}" is not a checkable outcome; name the observable result. If the binding proves less than the step promised, strengthen the binding or record the narrowing as a ruling; rewording the step down to what the binding proves is a contract change`);
     }
   };
 
@@ -1522,6 +1527,24 @@ function ambiguityError(steps, registry) {
  * @returns {Promise<W>}
  */
 async function executeSteps(steps, registry, world = /** @type {W} */ ({})) {
+  return runSteps(steps, registry, world, null);
+}
+
+/**
+ * The body of executeSteps, with one internal seam: `onFailure`, called once
+ * just before a failure propagates (after deferred cleanup has run), with
+ * the failing step — or null when no step failed and a cleanup threw. The
+ * callback only OBSERVES: the thrown value is rethrown untouched, whatever
+ * `onFailure` does (a throw from it is swallowed). The ambiguity preflight
+ * runs before any step and does not call it.
+ * @template [W=Record<string, any>]
+ * @param {Step[]} steps
+ * @param {StepRegistry<W>} registry
+ * @param {W} world
+ * @param {((failedStep: Step | null) => void) | null} onFailure
+ * @returns {Promise<W>}
+ */
+async function runSteps(steps, registry, world, onFailure) {
   // Ambiguity preflight, before ANY step runs: a step matching two bindings
   // must fail the scenario without executing it — which binding would have
   // run is silent information, and running "up to the ambiguous step" would
@@ -1541,8 +1564,11 @@ async function executeSteps(steps, registry, world = /** @type {W} */ ({})) {
   let failed = false;
   /** @type {unknown} */
   let failure;
+  /** @type {Step | null} */
+  let failedStep = null;
   try {
     for (const step of steps) {
+      failedStep = step;
       const found = registry.find(step.text);
       if (!found) {
         throw new Error(`Undefined step: ${step.text}\nDefine it with:\n${buildSnippet(step.text)}`);
@@ -1554,6 +1580,7 @@ async function executeSteps(steps, registry, world = /** @type {W} */ ({})) {
       const refusal = consumptionError(step, found, args.length);
       if (refusal) throw new Error(refusal);
       await found.fn(w, ...args);
+      failedStep = null;
     }
   } catch (e) {
     failed = true;
@@ -1564,8 +1591,32 @@ async function executeSteps(steps, registry, world = /** @type {W} */ ({})) {
       if (!failed) { failed = true; failure = e; }
     }
   }
-  if (failed) throw failure;
+  if (failed) {
+    if (onFailure) { try { onFailure(failedStep); } catch { /* information only */ } }
+    throw failure;
+  }
   return world;
+}
+
+/**
+ * Resolve each step's ROLE: its own keyword when that is Given, When or Then,
+ * otherwise the primary keyword it follows — And, But and * inherit, across a
+ * Background (the list passed is Background steps first), exactly as the
+ * linter's vague-then check resolves them. A step with nothing before it to
+ * inherit from maps to null. Information only: nothing keys a verdict on it.
+ * @param {Step[]} steps
+ * @returns {Map<Step, string | null>}
+ */
+function resolveRoles(steps) {
+  /** @type {Map<Step, string | null>} */
+  const roles = new Map();
+  /** @type {string | null} */
+  let last = null;
+  for (const st of steps) {
+    if (PRIMARY_KEYWORDS.has(st.keyword)) last = st.keyword;
+    roles.set(st, last);
+  }
+  return roles;
 }
 
 /**
@@ -1595,8 +1646,17 @@ async function executeSteps(steps, registry, world = /** @type {W} */ ({})) {
  *   bindRunner, defaults to the runtime's native runner
  * @param {ManifestRecorder | null} [recorder] run-manifest recorder; supplied
  *   by runFeatures when its `manifest` option is set
+ * @param {FilterProbe | null} [probe] scenario-body tally for the filter
+ *   guard; supplied by runFeatures. Counts bound scenario bodies (@todo
+ *   included) registered and invoked, and unbound placeholders invoked.
  */
-function runFeature(parsed, registry, register = registerTest, recorder = null) {
+function runFeature(parsed, registry, register = registerTest, recorder = null, probe = null) {
+  /** @param {() => Promise<void>} fn */
+  const counted = (fn) => {
+    if (!probe) return fn;
+    probe.runnable += 1;
+    return async () => { probe.invoked += 1; await fn(); };
+  };
   const base = featureBase(parsed.file);
   if (parsed.scenarios.some((sc) => sc.tags.includes('@only'))) {
     const msg = `${parsed.file}: @only is not supported; run one scenario with `
@@ -1659,7 +1719,11 @@ function runFeature(parsed, registry, register = registerTest, recorder = null) 
       // even FAILS a todo that passes. A throwing todo gates nothing on
       // either runner and keeps the reason visible wherever bodies run.
       recorder?.static(parsed.file, sc.name, 'unbound');
-      register(title, { todo: reason }, () => { throw new Error(reason); });
+      if (probe) probe.held += 1;
+      register(title, { todo: reason }, () => {
+        if (probe) probe.heldInvoked += 1;
+        throw new Error(reason);
+      });
       continue;
     }
     // Ambiguity is a BINDING defect, so it is detected at registration and
@@ -1670,12 +1734,24 @@ function runFeature(parsed, registry, register = registerTest, recorder = null) 
     // registers as a plain failing test either way.
     const amb = ambiguityError(steps, registry);
     if (amb) {
+      // A refusal is a check, not a runnable scenario body: never counted.
       const refuse = async () => { throw amb; };
       register(title, {}, recorder ? recorder.wrap(parsed.file, sc.name, refuse) : refuse);
       continue;
     }
     const tags = new Set(sc.tags);
-    const body = async () => { await executeSteps(steps, registry); };
+    // The one information line a failure gets, printed just before the
+    // runtime sees the failure (see runSteps): which step failed and in what
+    // role. The failure itself is untouched.
+    const roles = resolveRoles(steps);
+    const file = path.basename(parsed.file);
+    const report = (/** @type {Step | null} */ failed) => {
+      const head = `gherkin-node-test: ${file}: scenario "${sc.name}":`;
+      console.error(failed
+        ? `${head} step \`${failed.keyword} ${failed.text}\` (line ${failed.line}) failed; role: ${roles.get(failed) ?? 'unresolved'}`
+        : `${head} cleanup failed`);
+    };
+    const body = async () => { await runSteps(steps, registry, /** @type {any} */ ({}), report); };
     // @todo is inverted (xfail), and registered as a PLAIN test so the
     // inversion is the verdict on every runtime — the runtimes' own todo
     // modes disagree about whether todo bodies even run (node always, bun
@@ -1701,9 +1777,9 @@ function runFeature(parsed, registry, register = registerTest, recorder = null) 
       // the row is deterministic — 'todo' while the debt still fails, and
       // 'failed' when the tag is stale, so a red run's account explains
       // itself (see wrap's mapping doc).
-      register(title, {}, recorder
+      register(title, {}, counted(recorder
         ? recorder.wrap(parsed.file, sc.name, inverted, { ok: 'todo', err: 'failed' })
-        : inverted);
+        : inverted));
       continue;
     }
     if (tags.has('@skip')) {
@@ -1715,10 +1791,10 @@ function runFeature(parsed, registry, register = registerTest, recorder = null) 
       continue;
     }
     if (recorder) {
-      register(title, {}, recorder.wrap(parsed.file, sc.name, body));
+      register(title, {}, counted(recorder.wrap(parsed.file, sc.name, body)));
       continue;
     }
-    register(title, {}, body);
+    register(title, {}, counted(body));
   }
 }
 
@@ -1944,6 +2020,124 @@ const manifestClaims = new Map();
  * @typedef {string | { feature: string, scenarios: string[] }} WipEntry
  */
 
+// --- The name-filter guard ----------------------------------------------------
+//
+// A run whose name filter (or skip pattern) leaves no scenario to run is red.
+// `node --test --test-name-pattern=<typo>` and `deno test --filter <typo>` run
+// nothing and exit 0: a green that observed nothing. The condition needs no
+// knowledge of the filter: this runFeatures call registered at least one
+// runnable scenario body (bound scenarios, @todo included), and at the end of
+// the file none was invoked. The runner's own check tests, @skip scenarios
+// and unbound scenarios never count; a file with nothing runnable is not this
+// failure (the other refusals cover it). A test this call registered that
+// already failed outranks the refusal: no line, no second failure.
+//
+// The end-of-file hook differs per runtime, because each runtime's "every test
+// was filtered out" run still gets to run a different kind of hook:
+//   node  root-level after(); throws, which fails the file. Only when execArgv
+//         carries --test-name-pattern or --test-skip-pattern: without one,
+//         zero invoked bodies has other causes (--test-only) and is left alone.
+//   bun   afterAll(); throws. (bun test -t <typo> already exits 1 by itself.)
+//   Deno  the unload event, which fires per test file; Deno.exit(1) is the one
+//         way to fail the run from there. Our own line is printed first.
+// vitest is not covered: with every test filtered out neither hook runs.
+// Filter text is readable on node only. Two different name patterns on node
+// are refused at load (see nameFilterConflict).
+
+/**
+ * @typedef {{ runnable: number, invoked: number, held: number, heldInvoked: number,
+ *   failed: boolean }} FilterProbe
+ */
+
+/**
+ * Values of a node flag in an argv list, in either spelling. Node normalises
+ * the space form (`--flag x`) to `--flag=x` AND keeps the raw two tokens, so
+ * the values are de-duplicated: one filter is one filter however it shows up.
+ * @param {string[]} argv @param {string} flag @returns {string[]}
+ */
+function flagValues(argv, flag) {
+  /** @type {Set<string>} */
+  const found = new Set();
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith(flag + '=')) found.add(a.slice(flag.length + 1));
+    else if (a === flag && i + 1 < argv.length) found.add(argv[i + 1]);
+  }
+  return [...found];
+}
+
+/** @param {string[]} items @returns {string} */
+const quoteList = (items) => items.map((v) => `"${v}"`).join(', ');
+
+/**
+ * Node only: the second name filter. node ORs repeated name patterns, so
+ * which scenarios ran would depend on a pattern the user may not have meant.
+ * Returns the refusal text, or null. runFeatures throws it at load — node
+ * reports a load-time throw as a failed file, loudly (Deno's swallow does not
+ * apply, and Deno/Bun never reach this).
+ * @param {string[]} argv @returns {string | null}
+ */
+function nameFilterConflict(argv) {
+  const names = flagValues(argv, '--test-name-pattern');
+  if (names.length < 2) return null;
+  return `gherkin-node-test: two name filters were given, ${quoteList(names)}; no scenario ran — `
+    + 'run the filters one at a time';
+}
+
+/**
+ * The refusal line for a run that invoked no scenario body, or null when the
+ * guard does not apply.
+ * @param {FilterProbe} probe @param {string} dir @param {string[] | null} argv
+ *   node's execArgv, or null where the filter text is unreadable (bun, Deno)
+ * @returns {string | null}
+ */
+function filterRefusal(probe, dir, argv) {
+  if (probe.failed || probe.runnable === 0 || probe.invoked > 0) return null;
+  const where = JSON.stringify(dir);
+  const advice = 'if it names a scenario of another test file, run that file with the filter';
+  if (!argv) return `gherkin-node-test: a name filter ran no scenario in ${where}; ${advice}`;
+  const names = flagValues(argv, '--test-name-pattern');
+  const skips = flagValues(argv, '--test-skip-pattern');
+  if (names.length === 0 && skips.length === 0) return null;
+  const skipped = `the skip pattern${skips.length > 1 ? 's' : ''} ${quoteList(skips)}`;
+  if (names.length === 0) {
+    return `gherkin-node-test: ${skipped} left no scenario to run in ${where}; nothing ran`;
+  }
+  if (skips.length > 0) {
+    return `gherkin-node-test: the filter ${quoteList(names)} and ${skipped} left no scenario to run in ${where}; nothing ran`;
+  }
+  // Unbound placeholders run on node even when filtered to (todo bodies
+  // always execute there), so a match is observed, not re-derived from the
+  // pattern: held ran and no runnable body did.
+  if (probe.heldInvoked > 0) {
+    return `gherkin-node-test: the filter ${quoteList(names)} matched no runnable scenario, only wip-held ones, in ${where}; nothing ran`;
+  }
+  return `gherkin-node-test: the filter ${quoteList(names)} ran no scenario in ${where}; ${advice}`;
+}
+
+/**
+ * Arm the end-of-file check for one runFeatures call.
+ * @param {FilterProbe} probe @param {string} dir
+ */
+function installFilterGuard(probe, dir) {
+  const check = () => filterRefusal(probe, dir, isBun || isDeno ? null : process.execArgv);
+  if (isDeno) {
+    globalThis.addEventListener('unload', () => {
+      const line = check();
+      if (!line) return;
+      console.error(line);
+      /** @type {any} */ (globalThis).Deno.exit(1);
+    });
+    return;
+  }
+  /** @type {(fn: () => void) => void} */ (endHook)(() => {
+    const line = check();
+    if (!line) return;
+    console.error(line);
+    throw new Error('no scenario ran: the run is red (see the gherkin-node-test line above)');
+  });
+}
+
 /**
  * Discover and run every *.feature in `dir`, each against its OWN scoped
  * registry — one feature's step patterns can never match another feature's
@@ -1979,6 +2173,19 @@ const manifestClaims = new Map();
  * is exactly where a bad definer or an unparseable feature would vanish).
  * Give each feature directory its own test file.
  *
+ * Two things a run says on stderr (0.12.0). When a step fails, one line names
+ * the feature file, the scenario, the step as written, its line and its role
+ * — And, But and * resolved to the Given, When or Then they follow — just
+ * before the failure propagates; what the step threw is rethrown untouched,
+ * and the line is information only. And a name filter that runs no scenario
+ * is red, per test file, on node, bun and Deno: this call registered a
+ * runnable scenario and the file ended with none run. The runner's own
+ * checks never count; a test that already failed outranks the refusal. On
+ * node a skip pattern that leaves nothing to run is red too, and a second,
+ * different --test-name-pattern is refused at load. Not covered when the
+ * runner is bound to vitest (bindRunner). See the README for the lines'
+ * exact text and the per-runtime limits.
+ *
  * `manifest` (opt-in) names a file to receive the run manifest: one sorted
  * `{file, title, status}` NDJSON row per registered scenario (post-expansion —
  * outline rows land individually, exactly as they registered), written only
@@ -2009,6 +2216,10 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   // filesWithRunFeatures) survives, so the second run of the SAME single call
   // would trip the guard.
   const native = register === registerTest;
+  if (native && !isBun && !isDeno) {
+    const conflict = nameFilterConflict(process.execArgv);
+    if (conflict) throw new Error(conflict);
+  }
   const testFile = currentTestFile();
   if (native && filesWithRunFeatures.has(testFile.key)) {
     register('runFeatures: one call per test file', {}, () => {
@@ -2099,6 +2310,18 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   }
   const bases = files.map(featureBase);
 
+  // The filter guard (native runners only; see its comment). Every test this
+  // call registers goes through `reg`, so a real failure is seen before the
+  // guard could speak. A declared-debt todo placeholder never counts as one.
+  /** @type {FilterProbe} */
+  const probe = { runnable: 0, invoked: 0, held: 0, heldInvoked: 0, failed: false };
+  const rawRegister = register;
+  /** @type {typeof registerTest} */
+  const tracked = (title, opts, fn) => rawRegister(title, opts, opts.todo ? fn : async () => {
+    try { await fn(); } catch (e) { probe.failed = true; throw e; }
+  });
+  if (native) register = tracked;
+
   // Validate and parse EVERYTHING before registering any test: a bad definer
   // or an unparseable feature must fail at load, before half a suite exists.
   const features = files.map((file) => {
@@ -2120,6 +2343,10 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   // *registering* call. Registrations start below, so from this point the
   // call is the one the rule permits.
   if (native) filesWithRunFeatures.add(testFile.key);
+  // Armed only now: a call that threw its load-time error registers nothing,
+  // so it has no end-of-file check to make (and bun refuses a hook added while
+  // a test body is running — the in-process load-error tests do exactly that).
+  if (native) installFilterGuard(probe, dir);
 
   // Created after validation, alongside the one-call slot: a call that threw
   // its load-time error never observed a full run, so it must not write.
@@ -2210,7 +2437,7 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
         + stale.map((t) => `'${t}'`).join(', '));
     });
 
-    runFeature(parsed, registry, register, recorder);
+    runFeature(parsed, registry, register, recorder, native ? probe : null);
   }
   // Every row source is now known. If nothing is left pending (every scenario
   // was @skip/@todo/unbound), this is also the write.

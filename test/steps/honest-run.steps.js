@@ -7,7 +7,11 @@
 // stays declared.
 const assert = require('node:assert');
 const fs = require('node:fs');
-const { SubRun, spawnFixture, spawnCounts, outPath } = require('./world');
+const path = require('node:path');
+const { parseFeature } = require('../../index.js');
+const { SubRun, spawnFixture, spawnCounts, outPath, ROOT } = require('./world');
+
+const isBun = !!process.versions.bun;
 
 const counterDefs = (/** @type {import('../../index.js').StepRegistry} */ reg) => {
   reg.define(/^a counter at (\d+)$/, (/** @type {any} */ w, /** @type {string} */ n) => { w.count = Number(n); });
@@ -262,9 +266,43 @@ module.exports = (reg) => {
     w.job = { dir, definers: {} };
   });
 
+  // The failing-step information line: both scenarios spawn a real child
+  // suite and read what it printed. The role scenario's premise is checked
+  // on the fixture's own parse, so it cannot pass against a fixture that
+  // quietly stopped being an And-after-Then.
+  reg.define(/^a scenario whose last step is written with And and follows a Then$/, (w) => {
+    w.fixture = 'failrole.fixture.js';
+    w.childFeature = path.join(ROOT, 'features', 'failrole', 'role.feature');
+    const steps = parseFeature(fs.readFileSync(w.childFeature, 'utf8'), w.childFeature).scenarios[0].steps;
+    const last = steps[steps.length - 1];
+    assert.strictEqual(last.keyword, 'And', 'the premise holds: the last step is written And');
+    assert.strictEqual(steps[steps.length - 2].keyword, 'Then', 'the premise holds: it follows a Then');
+    w.failingStep = last;
+  });
+
+  reg.define(/^a binding for that last step that fails$/, (w) => {
+    const src = fs.readFileSync(path.join(ROOT, 'fixtures', w.fixture), 'utf8');
+    assert.ok(src.includes(`reg.define('${w.failingStep.text}', () => { throw `),
+      'the premise holds: the fixture binds that step to a body that throws');
+  });
+
+  reg.define(/^a scenario whose Then fails an assertion that carries a diff$/, (w) => {
+    w.fixture = 'faildiff.fixture.js';
+    const file = path.join(ROOT, 'features', 'faildiff', 'diff.feature');
+    const steps = parseFeature(fs.readFileSync(file, 'utf8'), file).scenarios[0].steps;
+    assert.strictEqual(steps[steps.length - 1].keyword, 'Then', 'the premise holds: the failing step is a Then');
+    const src = fs.readFileSync(path.join(ROOT, 'fixtures', w.fixture), 'utf8');
+    assert.ok(src.includes('assert.deepStrictEqual({ colour: \'teal\' }, { colour: \'amber\' })'),
+      'the premise holds: the step fails deepStrictEqual on two differing objects');
+  });
+
   // --- Whens --------------------------------------------------------------
 
   reg.define(/^the suite runs$/, async (w) => {
+    if (w.fixture && !w.job && !w.inline) {
+      w.spawned = spawnFixture(w.fixture);
+      return;
+    }
     const sub = new SubRun();
     if (w.inline) sub.registerInline(w.inline, w.define);
     else sub.registerDir(w.job.dir, w.job.definers, w.job.opts || {});
@@ -283,6 +321,27 @@ module.exports = (reg) => {
     } finally {
       console.error = orig;
     }
+  });
+
+  // The name-filter guard: each When spawns the trio fixture (the same
+  // three-scenario feature the Given describes) with a real name filter, and
+  // keeps the child's exit status and output for the Thens. The filter is a
+  // plain word, valid as a node pattern, a bun -t regex and a deno substring.
+  reg.define(/^the suite runs with a name filter that matches no scenario title$/, (w) => {
+    w.filter = 'no-scenario-is-called-this';
+    w.spawned = spawnFixture('trio.fixture.js', w.filter);
+  });
+
+  reg.define(/^the suite runs with a name filter that matches only a check the runner registers$/, (w) => {
+    w.filter = 'step definitions are complete';
+    w.spawned = spawnFixture('trio.fixture.js', w.filter);
+    // Vacuity guard: the filter reached a check (it ran and passed) and no scenario.
+    assert.ok(spawnCounts(w.spawned.out).pass >= 1, `the check ran:\n${w.spawned.out}`);
+  });
+
+  reg.define(/^the suite runs with a name filter that matches one scenario title$/, (w) => {
+    w.filter = 'first balances';
+    w.spawned = spawnFixture('trio.fixture.js', w.filter);
   });
 
   reg.define(/^the suite runs under a native runtime$/, (w) => {
@@ -476,5 +535,71 @@ module.exports = (reg) => {
     const c = spawnCounts(w.spawned.out);
     assert.deepStrictEqual(c, { pass: 3, fail: 1 },
       `the first call's guards and scenario all passed:\n${w.spawned.out}`);
+  });
+
+  reg.define(/^the run's output names the failing step by its text and its line$/, (w) => {
+    const out = w.spawned.out;
+    const info = out.split('\n').find((/** @type {string} */ l) => l.includes('gherkin-node-test: role.feature:'));
+    assert.ok(info, `the run printed the information line:\n${out}`);
+    assert.ok(info.includes(w.failingStep.text), `names the step's text: ${info}`);
+    assert.ok(info.includes(`(line ${w.failingStep.line})`), `names the step's line ${w.failingStep.line}: ${info}`);
+    w.info = info;
+  });
+
+  reg.define(/^it names the step's role as Then, not the And it was written with$/, (w) => {
+    const role = (w.info.match(/; role: (\S+)\s*$/) || [])[1];
+    assert.strictEqual(role, 'Then', `role: Then closes the line: ${w.info}`);
+    assert.notStrictEqual(role, w.failingStep.keyword, `the written keyword is not the role: ${w.info}`);
+  });
+
+  reg.define(/^the scenario's failure is the assertion the step threw, with its diff$/, (w) => {
+    const out = w.spawned.out;
+    assert.ok(typeof w.spawned.status === 'number' && w.spawned.status !== 0, `the run is red:\n${out}`);
+    assert.ok(out.includes('strictly deep-equal'), `the assertion's own message survives:\n${out}`);
+    assert.ok(out.includes('teal') && out.includes('amber'), `both sides of the diff survive:\n${out}`);
+    assert.ok(out.includes('AssertionError'), `it is still the assertion, not a wrapper:\n${out}`);
+  });
+
+  // The refusal line, as the child printed it. On node and Deno it is the
+  // runner's own; on bun the runtime refuses a filter that matches no test at
+  // all before the runner can speak, so see the directory step below.
+  const refusalLine = (/** @type {string} */ out) =>
+    (out.match(/gherkin-node-test: [^\n]*ran no scenario[^\n]*/) || [])[0];
+
+  reg.define(/^the run says the filter ran nothing$/, (w) => {
+    const out = w.spawned.out;
+    if (isBun) {
+      // bun exits 1 by itself on a filter that matches no test at all, before
+      // the runner can speak: bun's own refusal is the statement here.
+      assert.match(out, /matched 0 tests/, `bun's own refusal:\n${out}`);
+      return;
+    }
+    // node and Deno: the runner's own line.
+    const line = refusalLine(out);
+    assert.ok(line, `the runner printed its refusal:\n${out}`);
+    assert.ok(line.includes('ran no scenario'), line);
+  });
+
+  reg.define(/^the refusal names the feature directory it looked in$/, (w) => {
+    const out = w.spawned.out;
+    const line = refusalLine(out);
+    assert.ok(line, `the runner printed its refusal:\n${out}`);
+    assert.ok(line.includes(`in ${JSON.stringify(path.join(ROOT, 'features', 'trio'))};`), `names the directory: ${line}`);
+  });
+
+  reg.define(/^the refusal says the filter ran no scenario$/, (w) => {
+    const out = w.spawned.out;
+    const line = refusalLine(out);
+    assert.ok(line, `the runner printed its refusal:\n${out}`);
+    // node names the filter text; bun and Deno cannot read it and say "a name filter".
+    assert.ok(line.includes(`the filter "${w.filter}" ran no scenario`) || line.includes('a name filter ran no scenario'), line);
+  });
+
+  reg.define(/^that scenario passes and the run is green$/, (w) => {
+    const out = w.spawned.out;
+    assert.strictEqual(w.spawned.status, 0, `green exit:\n${out}`);
+    // Vacuity guard: the filter really filtered — one body ran of three.
+    assert.deepStrictEqual(spawnCounts(out), { pass: 1, fail: 0 }, `one scenario ran, two did not:\n${out}`);
+    assert.ok(!refusalLine(out), `no refusal on a run that ran a scenario:\n${out}`);
   });
 };

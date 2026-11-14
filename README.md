@@ -338,6 +338,26 @@ a new status value).
   tooling from the committed manifest's git history, none of it this
   library's business.
 
+When a step fails, the runner prints one information line to stderr just
+before the failure reaches the runtime:
+
+```
+gherkin-node-test: <feature file>: scenario "<title>": step `<Keyword> <text>` (line <N>) failed; role: <Given|When|Then|unresolved>
+```
+
+It names the feature file, the scenario, the step as written, its line, and
+the step's role: its keyword with `And`, `But` and `*` resolved to the `Given`,
+`When` or `Then` they follow, across a `Background`, the way the `vague-then`
+lint rule resolves them. It covers any failure inside the step loop (a failed
+assertion, an undefined step, an args-consumption refusal); an ambiguous step
+fails before any step runs and gets no line. When no step failed and a deferred
+cleanup threw, the line reads `... scenario "<title>": cleanup failed`. A step
+with no `Given`, `When` or `Then` before it has the role `unresolved`. The
+failure itself is unchanged: the runtime receives the object the step threw.
+The line is information only. No verdict, manifest row or exit code depends on
+the role, and no tool should count or discard a catch by a step's role: in one
+measured project, a quarter of the real catches failed in a `When`.
+
 One manifest per `runFeatures` call — which the one-call rule makes one per
 feature directory, and enforced in-process: a second call claiming an
 already-claimed path is refused loudly (a registered failing test — its
@@ -428,10 +448,49 @@ goes red instead, naming the stale tag. Declared debt is visible while it
 lasts and self-retiring when it's paid: the only exit is deleting the tag,
 a one-line reviewed diff.
 
+**A name filter that runs no scenario is red.** `node --test
+--test-name-pattern=<typo>` and `deno test --filter <typo>` run nothing and
+exit `0`: a green that observed nothing. When a `runFeatures` call registered
+at least one runnable scenario (a bound scenario, `@todo` included) and the
+file ends with none of them run, the run is red and stderr carries one line:
+
+```
+gherkin-node-test: the filter "<f>" ran no scenario in "<feature dir>"; if it names a scenario of another test file, run that file with the filter
+```
+
+The runner's own check tests, `@skip` scenarios and unbound scenarios do not
+count as runnable. A directory with nothing runnable is not this failure. A
+test that already failed in the file outranks the refusal: you get the
+failure and no line. The manifest is untouched: a filtered run still does not
+write it.
+
 What still differs — the honest list, pinned by tests:
 
 - **Reporter output** (test counts, summary format) is each runtime's own.
 - **Permissions**: only Deno needs a flag (`--allow-read`).
+- **The empty-filter refusal is per test file.** A filter aimed at a scenario
+  in another test file reddens this one. That is deliberate: aim the filter at
+  the file (`node --test --test-name-pattern=<x> test/that.test.js`).
+- **The filter text is named on node only.** Bun and Deno cannot expose it, so
+  their line begins `gherkin-node-test: a name filter ran no scenario in ...`.
+  On Bun a filter that matches no test at all is refused by Bun itself (`regex
+  ... matched 0 tests`, exit `1`) without naming the directory; in a run of
+  several files, Bun does not run the end-of-file hook in a file where zero
+  tests matched while another file had matches, so that file is not refused.
+  A filter that reaches only wip-held scenarios is green under `bun test`
+  (the hook does not run).
+- **Node only: a skip pattern and a second filter.** A `--test-skip-pattern`
+  that leaves no scenario to run is red (`the skip pattern "<p>" left no
+  scenario to run in "<feature dir>"; nothing ran`), a filter that matches only
+  wip-held scenarios says so (`matched no runnable scenario, only wip-held ones`), and a second,
+  different `--test-name-pattern` is refused at load: no scenario runs and the
+  error names both filters; run them one at a time.
+- **Node: `--test-only` can still run no scenario and stay green.** With no
+  name or skip pattern the guard cannot tell that case from other causes, so it
+  leaves it alone.
+- **vitest is not covered.** With every test filtered out, vitest runs no
+  `afterAll` and no exit handler, so a filter that matches nothing exits `0`
+  there. This is a known deviation.
 
 One footnote: `bun test` and `deno test` run those runtimes' own test
 runners; `bun run test` runs this package's `test` script (`node --test`).
@@ -495,6 +554,115 @@ Details worth knowing:
   it: it's load-bearing under `bun test --todo`). The vitest entry is the only
   binding this package ships and CI-tests; anything else, you're holding the
   binding.
+
+## Running the suite
+
+This section is for a project starting on this runner, and for the build agent
+that works in it. It assumes nothing about the machine. Except where it names a
+flag, a function or a file of this package, it describes practice, not runner
+features.
+
+### The loop
+
+- **While working**, run one feature or one scenario: one name filter per run,
+  aimed at the test file that holds it. A scenario is named `Feature :: Scenario`,
+  and the filter matches a part of that name.
+
+  | Runtime | One scenario |
+  |---|---|
+  | node | `node --test --test-name-pattern "<Feature> :: <Scenario>" test/<file>.test.js` |
+  | bun | `bun test -t "<Feature> :: <Scenario>" test/<file>.test.js` |
+  | Deno | `deno test --allow-read --filter "<Feature> :: <Scenario>" test/<file>.test.js` |
+
+  On node a second, different `--test-name-pattern` is refused: run them one at
+  a time. A filter that runs no scenario is red, and the red means the
+  selection is wrong, not the code. The rules and the per-runtime differences
+  are in [One behavior on all three runtimes](#one-behavior-on-all-three-runtimes).
+- **Before handing work back**, run the whole suite, once.
+- **Per stage**, run target-only mutants for what changed, each against its
+  named target scenario. **Per release**, run the full mutation table. This
+  package has no mutation runner; the project's own scripts do it.
+- **Run long commands in the foreground with a time limit** (for example
+  `timeout`). Do not start a background run and then loop, sleeping and
+  checking: with a limit in the foreground, a run that died is found at once.
+
+### What a faster suite is for
+
+Mutation is `cino:binding`'s catch and no other rung's: doctor the world so the
+Then should fail, and watch it fail. It says nothing about the rungs above it
+in the [failure ladder](#why-a-green-suite-lies-the-failure-ladder). Spend the
+time a faster suite frees on the catches mutation cannot reach: name the
+foreign system on the far side of the boundary and assert what it observes;
+replay a recording of the foreign system through the door as it is installed;
+count a universal against the foreign system's own list or record. A report that
+ran only mutation says it reviewed one rung. It never says "verified".
+
+### Lint from the first commit
+
+Gate on the strict lint in CI from the first commit, so findings never pile up.
+This package has no lint command. The gate is a guard test that calls
+`lintFeature(text, file, { strict: true })` on every `.feature` file and fails
+on any finding, as in [the linter role](#the-linter-role--under-someone-elses-runner).
+
+One rule goes with it. When strict lint flags a vague Then (`vague-then`), the
+fix is a stronger binding, or a recorded ruling that narrows the promise.
+Rewording the step down to what the binding already proves narrows the contract
+quietly.
+
+### Raising a limit
+
+A concurrency level, a thread count, a harness cap or the number of mutants run
+at once goes up only after repeated green, unmutated whole runs at the new
+value, under the load it will really see. Record the measurement where the
+default lives.
+
+How many heavy runs fit at once (`ABDD_HEAVY_JOBS`) and the machine's time
+factor for waits (`ABDD_TIME_SCALE`) are machine conventions, set in the
+machine's environment and not in the repository. gherkin-node-test reads
+neither. See [docs/machine-settings.md](docs/machine-settings.md).
+
+### The step-role line
+
+The `role:` on a failed step's stderr line is information. No tool counts or
+discards a catch by a step's role.
+
+### A block for the project's AGENTS.md
+
+A build agent starting a project copies the block below into the project's own
+`AGENTS.md` (or `CLAUDE.md`) itself, as its first act, from the README of the
+runner version the project pinned. It fills in the test file names.
+
+```markdown
+## Running tests (gherkin-node-test; reasons: https://github.com/bingh0/gherkin-node-test#running-the-suite)
+- Run one scenario with one name filter, aimed at the test file that holds it:
+  - node: `node --test --test-name-pattern "<Feature> :: <Scenario>" test/<file>.test.js`
+  - bun: `bun test -t "<Feature> :: <Scenario>" test/<file>.test.js`
+  - Deno: `deno test --allow-read --filter "<Feature> :: <Scenario>" test/<file>.test.js`
+- A second name filter is refused on node. A filter that ran no scenario is red:
+  the selection is wrong, not the code.
+- Run the whole suite once before handing work back.
+- During a stage run target-only mutants for what changed. Before a release run
+  the full mutation table.
+- Run long commands in the foreground with a time limit, never in the
+  background with a sleep loop.
+- Run the strict lint in CI from the first commit: a guard test calling
+  `lintFeature(text, file, { strict: true })` on every `.feature` file.
+- Fix a vague Then (`vague-then`) with a stronger binding or a recorded ruling.
+  Never reword the step down to what the binding already proves.
+- Raise a concurrency level, thread count or number of mutants at once only
+  after repeated green unmutated whole runs at the new value under its real
+  load. Record the measurement where the default lives.
+- Use one time factor for waits (ABDD_TIME_SCALE, 1.0 when unset).
+- Start no more heavy runs at once than the machine's limit (ABDD_HEAVY_JOBS),
+  counted across all agents. When it is unset, run one at a time.
+- Mutation is `cino:binding`'s catch alone. Spend the time a faster suite frees
+  on the other catches: assert what the far-side system observes, replay a
+  recording of it through the installed door, count a universal against its own
+  list or record. A report that ran only mutation says it reviewed one rung,
+  never "verified".
+- The step-role line on a failed step is information. Never count or discard a
+  catch by a step's role.
+```
 
 ## N-version verification
 
@@ -804,7 +972,7 @@ Findings carry `{ rule, severity, line, message }`:
 | `dialect` | error | anything the [rejection table](#deliberately-unsupported--and-rejected-loudly) rejects — the exact `GherkinSyntaxError`, as a finding (the parser stops at the first violation, so it arrives alone) |
 | `no-scenarios` | error | a `Feature:` header with no scenarios under it — the file enforces nothing and reads as passing. The same parser refusal as `dialect` (and so also always alone), under its own rule name: "add a scenario or delete the file" is a different remedy than "fix this line" |
 | `no-then` | warn | a scenario whose steps never resolve to `Then` — runs code, asserts nothing (`And`/`But`/`*` inherit the preceding primary keyword, across a `Background`) |
-| `vague-then` | warn | a `Then`-resolved step containing *works · correctly · properly · as expected · handles · appropriate* — words that assert nothing checkable |
+| `vague-then` | warn | a `Then`-resolved step containing *works · correctly · properly · as expected · handles · appropriate* — words that assert nothing checkable. The finding also names the trap in the fix: rewording the step down to what its binding proves narrows the contract, so either strengthen the binding or record the narrowing as a ruling. |
 | `single-row-outline` | warn | a `Scenario Outline` with one `Examples` row — a scenario with extra ceremony, and usually a missing case |
 | `near-miss-keyword` | warn | a silently dropped line that was almost certainly meant as syntax: a wrong-case step keyword inside a scenario or `Background` body (`when I add 5`, `GIVEN a counter`), or — anywhere — a construct header that isn't the one exact form the parser recognizes (`scenario: b`, `Scenario : b`, `SCENARIO OUTLINE: b`). Prose trips it too when a Feature description wraps a sentence so that a line begins with a construct word and a colon (`…would pass every contract` / `scenario: the wrong session moved, …`); rewrap the line. |
 | `dropped-prose` | warn | any *other* line inside a scenario, outline, or `Background` body that the parser dropped as narrative — and any non-tag, non-comment line *above* the `Feature:` header. The floor under `near-miss-keyword`: no dropped line goes unaccounted. Prose in a body reads like a requirement and enforces nothing; make it a step, or a `#` comment if it's commentary. The `Feature` narrative (below the header) stays exempt — prose is its job |
