@@ -17,11 +17,22 @@ host that reads `SKILL.md`. Instructions below cover **Claude Code** and
 
 ## Version
 
-**scope 5.5.0-beta.1**, grounded against **gherkin-node-test 0.11.0 and
-docketry 0.2.0**. A tester branch (`scope/screens`), not a release.
+**scope 5.6.0**, grounded against **gherkin-node-test 0.12.0 and
+docketry 0.2.0**.
 
-5.5.0-beta.1 is a skill-only revision with protocol content, **untested
-in the field**: scoping a graphical screen. A new companion, `screens.md`,
+5.6.0 is a skill-only revision. It accepts 5.5.0-beta.1's graphical-screen
+content into the release line and adds two things to the handoff. The
+build is pointed at the pinned runner's "Running the suite" README section
+and told to copy its block into `AGENTS.md` first, before the first step
+definition. And two rules are stated in full: a vague-Then fix is a
+stronger binding or a ratified narrowing, never a quiet rewording, and
+time saved by a faster suite goes to the rungs mutation cannot reach. It
+is grounded against 0.12.0 because that release's `vague-then` finding
+carries the same rule. The validation script's logic is unchanged.
+
+5.5.0-beta.1 was a tester-branch revision with protocol content, accepted
+into 5.6.0 and still **untested in the field**: scoping a graphical
+screen. A new companion, `screens.md`,
 is rule 2 for the medium a terminal cannot render, and it carries three
 instruments. The state spread asks each screen's states in Phase 3
 (empty, many, too many, longest text, waiting, failed, narrow, no

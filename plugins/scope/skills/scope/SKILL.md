@@ -712,7 +712,7 @@ zero-file refusal above exists for the same reason: this script's own history
 is a `cino:binding` specimen, and both guards are its mutation-derived fixes.)
 
 The skill and the linter version on separate lines: this revision is **scope
-5.5.0-beta.1**, grounded against **gherkin-node-test 0.11.0 and docketry 0.2.0**
+5.6.0**, grounded against **gherkin-node-test 0.12.0 and docketry 0.2.0**
 (strict mode,
 `dropped-prose`, and `no-scenarios` arrived in 0.9.0 — an older linter
 silently does not run them, which is why
@@ -720,7 +720,7 @@ the script probes for `strict-tag` behavior and refuses to proceed rather
 than trusting a version string; a clean report from an older linter has not
 checked what this contract requires). If `gherkin-node-test` is not installed
 where the interview runs, install the pinned dialect
-(`npm install --no-save gherkin-node-test@0.11.0`) or point `GNT` at a
+(`npm install --no-save gherkin-node-test@0.12.0`) or point `GNT` at a
 checkout's `index.js` — this plugin ships inside the gherkin-node-test
 repository, so the checkout that provided the plugin has `index.js` at its
 root. If neither resolves, say so explicitly in the handoff — never claim
@@ -960,6 +960,35 @@ not require such a consumer to exist: the five surfaces stand on their
 own, and the grammar costs nothing unread. (First such consumer:
 `gherkin-trace` — public beta on npm; named here as provenance, not as
 a dependency, because the five surfaces must stand without it.)
+
+How to run the suite goes to the build by pointer. The pinned runner's
+README has a section, "Running the suite", and in it a block written to be
+copied into the built project's `AGENTS.md`. Tell the build agent to copy
+that block, from the README of the runner version it pinned, into
+`AGENTS.md` as its first act, before the first step definition. This skill
+does not restate the section: it names runner features that change by
+release, there are two runners, and a copy here would drift — the same
+reason the failure ladder (`docs/failure-ladder.md`) is a pointer.
+
+Two rules are stated in full in the handoff, because they are about the
+contract and hold under either runner. **A vague-Then fix is a stronger
+binding or a ratified narrowing, never a quiet rewording.** When the strict
+lint flags `vague-then` on a ratified scenario and the binding proves less
+than the step promised, the build either strengthens the binding or returns
+the narrowing to the visionary, and the ruling is recorded in the docket as
+an `amends` of the ruling the scenario came from. Rewording the step down
+to what the binding proves is a contract change; made without a record it
+is a `cino:spec` sighting. The linter's own finding says the same thing
+from 0.12.0. This binds after ratification: during the interview, naming
+the observable result is ordinary drafting.
+
+**What the saved time is for.** Mutation is `cino:binding`'s catch and no
+other rung's. Time a faster suite frees goes to the rungs mutation cannot
+reach: rebinding far-side, replaying a recording of the foreign system
+through the door as it is installed, and counting a universal against the
+foreign system's own list or record. A build
+report that ran only mutation says it reviewed one rung; it never says
+"verified".
 
 ## Run statistics — the run record
 
