@@ -660,8 +660,10 @@ failing test above; run the whole directory there.
   that clears or rebuilds `process.env` must leave it, or the worker sees no
   reporter: shards fail with "add the reporter" (the message names the
   variable), and the filter guard on a whole-directory call is silently off
-  (when a name filter is given and no `runFeatures` call reported at all, the
-  reporter prints a note saying so).
+  (when a name filter is given and no `runFeatures` call reported at all, in a
+  run of all test files, the reporter prints a note saying so; in a run of some
+  test files it says nothing, since a plain unit-test file with `-t` is the
+  everyday case).
 - **Versions.** The reporter needs vitest 3.0 or newer (the
   `onTestRunStart`/`onTestRunEnd` hooks and `globTestSpecifications()`) and
   refuses to start on an older one with one error naming the minimum; the

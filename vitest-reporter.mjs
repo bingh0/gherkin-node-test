@@ -124,7 +124,7 @@ export default class GherkinNodeTestReporter {
     if (full) this.checkOwnChecks(claims, modules, problems);
     this.noteShardFlag(dirs, notes);
     this.writeManifests(dirs, claims, parts, poisoned, recorded, modules, full, problems, notes);
-    this.checkFilter(modules, unhandledErrors, claims, calls, invoked, problems, notes);
+    await this.checkFilter(modules, unhandledErrors, claims, calls, invoked, problems, notes);
     // Sorted, so the same run prints the same lines in the same order.
     for (const n of notes.sort()) console.error(`gherkin-node-test: ${n}`);
     if (problems.length === 0) return;
@@ -236,9 +236,18 @@ export default class GherkinNodeTestReporter {
       || v.config.project?.length || v.config.shard) return false;
     if (this.specs.some((s) => s.testLines?.length || s.testIds?.length || s.testNames?.length
       || s.testNamePattern || s.testTagsFilter?.length)) return false;
+    return this.ranAllFiles();
+  }
+
+  /**
+   * Were the specifications this run ran all of the ones vitest globs (no file
+   * filter, `--changed`, `--shard` or partial watch re-run narrowed it)?
+   * @returns {Promise<boolean>}
+   */
+  async ranAllFiles() {
     const key = (/** @type {any} */ s) => `${s.project.name}\u0000${s.moduleId}`;
     const ran = new Set(this.specs.map(key));
-    return (await v.globTestSpecifications()).every((s) => ran.has(key(s)));
+    return (await this.vitest.globTestSpecifications()).every((s) => ran.has(key(s)));
   }
 
   /**
@@ -363,14 +372,18 @@ export default class GherkinNodeTestReporter {
    * any kind from a runFeatures call. Either gnt is not used in this run, or a
    * setup file cleared the worker's environment of the run-directory variable,
    * which silently switches the guard off. The reporter cannot know which, so it
-   * says so as a note, not a red.
+   * says so as a note, not a red — and only in a run of all test files.
    * @param {any[]} claims @param {any[]} calls @param {any[]} invoked
    * @param {string[]} problems @param {string[]} notes
    */
-  checkFilter(modules, unhandledErrors, claims, calls, invoked, problems, notes) {
+  async checkFilter(modules, unhandledErrors, claims, calls, invoked, problems, notes) {
     const pattern = readNamePattern(this.vitest);
     if (!pattern) return;
     if (calls.length === 0 && claims.length === 0 && modules.length > 0) {
+      // In a run of SOME test files, no gnt call reporting means nothing (a plain
+      // unit-test file with -t is the everyday case): only a run of all files can
+      // tell a cleared environment, or a project without gnt, from that.
+      if (!(await this.ranAllFiles())) return;
       notes.push('the filter guard did not run because no runFeatures call reported to this reporter (gherkin-node-test is '
         + `not used in this run, or a setup file cleared ${SHARD_ENV} from the worker environment)`);
       return;

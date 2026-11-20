@@ -371,6 +371,17 @@ test('G3: a name filter in a run no runFeatures call reported to gets a note, no
   assert.match(run.output, /gherkin-node-test: the filter guard did not run because no runFeatures call reported to this reporter \(gherkin-node-test is not used in this run, or a setup file cleared GNT_SHARD_DIR from the worker environment\)/);
 });
 
+test('G3: a name filter in a run narrowed to one plain unit-test file prints no gherkin-node-test line', () => {
+  const run = runShardProject('g3-narrowed', {
+    ...three(),
+    'unit.vitest-spec.mjs': { kind: 'plain' },
+  }, { args: ['unit.vitest-spec.mjs', '-t', 'a plain unit test'] });
+  assert.strictEqual(run.status, 0, run.output);
+  assert.match(run.output, /unit\.vitest-spec\.mjs/);
+  // step-lint: allow unearned-absence -- guarded: the run passed and ran the unit test (asserted above), so the reporter ran its end-of-run checks; only its lines are absent
+  assert.doesNotMatch(run.output, /gherkin-node-test:/);
+});
+
 test('G3: the no-reporter message names the variable a setup file may have cleared', () => {
   const run = runShardProject('g3-message', three(), { reporter: false });
   assert.match(run.output, /or the worker's environment was cleared of GNT_SHARD_DIR/);
