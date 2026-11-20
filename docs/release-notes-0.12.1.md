@@ -63,14 +63,21 @@ reg.define(/^these (\w+) rows$/, (w, kind: string, table: DataTable) => { … })
 ```
 
 Before, annotating any capture parameter (`n: string`) was already a compile
-error. Handlers with no annotations compile as they did. This is types only:
-no runtime line changed, and the args-consumption guard is what it was.
+error. Handlers with no annotations compile as they did, and `define` keeps
+its 0.12.0 signature as its first overload, so a subclass that overrides
+`define`, or a value typed as `define`, still compiles. This is types only: no
+runtime line changed, and the args-consumption guard is what it was.
 
 ## Read before you shard
 
 - The reporter needs vitest 3.0 or newer and says so at start-up on an older
-  one. It is tested on vitest 5.1 with the forks and threads pools. The
-  package's peer range is unchanged.
+  one. Its whole test lane was run on vitest 3.2, 4.1 and 5.1 (forks and
+  threads pools); nothing below 3.2 was run. It reads two vitest internals,
+  which the README names. The package's peer range is unchanged.
+- The reporter reaches the workers through one environment variable,
+  `GNT_SHARD_DIR`. A setup file that clears the workers' environment must
+  leave it; without it a shard fails saying so, and a whole-directory call
+  loses the filter guard (one note says the guard did not run).
 - A `--reporter` flag on the command line replaces the config's list and so
   drops the reporter; every shard then fails with the one test. Put extra
   reporters in the config.
@@ -80,10 +87,17 @@ no runtime line changed, and the args-consumption guard is what it was.
   `test.skip` on a host that cannot run them), the manifest for that directory
   is not written and one line says why. The run is not red for it, as long as
   the shard's own checks ran and passed. The whole-directory call already
-  behaved this way, silently. A `describe.skip` around a shard is red: it
-  skips the shard's checks with its scenarios.
-- Not tested: `vmThreads` and `vmForks`, `--watch`, `--shard`, `--changed`.
-  The reporter treats what it can recognise as partial and writes no manifest
+  behaved this way, silently. A `describe.skip` around a shard is red, with or
+  without a manifest: it skips the shard's checks with its scenarios. The note
+  is given only when the scenarios the shard did not record are exactly the
+  ones the test file skipped.
+- `--shard i/n` makes every run partial: no manifest and no check for feature
+  files nobody runs. One note says so. A CI that always splits this way needs
+  one unsplit run to get either.
+- `--watch`: the first run is a full run and writes the manifest. Re-runs
+  after a file change are not tested.
+- Not tested: `vmThreads` and `vmForks`, `--changed`, watch re-runs. The
+  reporter treats what it can recognise as partial and writes no manifest
   from a partial run.
 - A whole-directory call with no `only` behaves as in 0.12.0, with the reporter
   or without it, apart from the filter guard above.
@@ -96,9 +110,10 @@ the full list of what turns a run red and the exact lines.
 Found while building this, present in 0.12.0, and left for the next lockstep
 release because each needs a ruling or reaches both siblings:
 
-- With `retry` on, a whole-directory call whose scenario fails and is retried
-  writes its manifest before the second invocation is refused. The run is red;
-  the file on disk holds the first attempt.
+- With `retry` on, a whole-directory call writes its manifest before the
+  second invocation is refused, when the scenario that fails and is retried is
+  the last one to finish. The run is red; the file on disk holds the first
+  attempt. Shards do not have this: a re-run body withdraws its part.
 - A handler that calls `process.exit(0)` ends the run green on node, bun and
   Deno. vitest is red.
 - Under `bun test`, a filter that reaches only an `@skip` scenario is green
@@ -109,8 +124,9 @@ release because each needs a ruling or reaches both siblings:
 Scenarios in `features/vitest/sharding.feature` start a real vitest against
 generated projects; they run in the vitest CI lane only (`npm run
 test:sharding`), so the node, bun and Deno lanes still run with nothing
-installed. Three adversarial review passes planted 67 faults between them and ran the
-reporter in the modes listed above; each pass found defects, and each was
-fixed with a test that fails without the fix. The
-design-tier corpus of a real consumer was run both ways and the manifests
-compared byte for byte.
+installed; that lane runs on Linux, Windows and macOS. Three adversarial
+review passes planted 67 faults between them and ran the reporter in the
+modes listed above, and a fourth, independent review read every scenario
+against its binding. Each pass found defects, and each was fixed with a test
+that fails without the fix. The design-tier corpus of a real consumer was run
+both ways and the manifests compared byte for byte.
