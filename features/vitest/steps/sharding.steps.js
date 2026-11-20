@@ -8,8 +8,8 @@ const fs = require('node:fs');
 const { runShardProject } = require('./shard-project');
 
 /** @param {string[]} names @returns {Record<string, any>} one shard per feature file */
-const oneEach = (names) => Object.fromEntries(names.map((n) => [`${n}.vitest-spec.mjs`,
-  { dir: 'sharded', only: [n], manifest: 'm.ndjson' }]));
+const oneEach = (names, dir = 'sharded') => Object.fromEntries(names.map((n) => [`${n}.vitest-spec.mjs`,
+  { dir, only: [n], manifest: 'm.ndjson' }]));
 
 /** @param {any} w @param {string} name @param {any} [opt] */
 const runLayout = (w, name, opt) => runShardProject(name, w.layout, opt);
@@ -23,13 +23,17 @@ const withWip = (w) => {
 module.exports = (reg) => {
   // --- Givens -----------------------------------------------------------
 
-  reg.define(/^a feature directory of 3 feature files$/, (w) => {
-    w.names = ['alpha', 'beta', 'gamma'];
+  reg.define(/^a feature directory of 3 feature files holding every kind of row, and hostile titles$/, (w) => {
+    // features/sharded-rich: passed, failed, skipped, todo and wip-held rows, an
+    // outline, and titles with an astral character, a quote and a backslash.
+    w.names = ['one', 'two', 'three'];
+    w.wip = [{ feature: 'two', scenarios: ['pending thing'] }];
   });
 
   reg.define(/^one test file that runs it whole, and 3 test files that each run one feature file$/, (w) => {
-    w.whole = { 'all.vitest-spec.mjs': { dir: 'sharded', manifest: 'single.ndjson' } };
-    w.layout = oneEach(w.names);
+    w.whole = { 'all.vitest-spec.mjs': { dir: 'richDefs', manifest: 'single.ndjson', wip: w.wip } };
+    w.layout = oneEach(w.names, 'richDefs');
+    withWip(w);
   });
 
   reg.define(/^a feature directory of 3 feature files, one shard per feature file$/, (w) => {
@@ -103,8 +107,11 @@ module.exports = (reg) => {
     if (w.whole) w.wholeRun = runShardProject('whole', w.whole);
   });
 
-  reg.define(/^the suite runs again with a name filter$/, (w) => {
-    w.filtered = w.project.rerun(['-t', 'alpha passes']);
+  reg.define(/^the suite runs again with a name filter that matches every scenario$/, (w) => {
+    // `.` matches every test name, so every shard runs every scenario and every
+    // part completes: only the reporter's own name-filter gate keeps the manifest
+    // from being rewritten.
+    w.filtered = w.project.rerun(['-t', '.']);
   });
 
   reg.define(/^again with one test file named$/, (w) => {
@@ -119,16 +126,20 @@ module.exports = (reg) => {
 
   reg.define(/^on each pool the shards wrote one manifest$/, (w) => {
     for (const { pool, shards } of w.pools) {
-      assert.strictEqual(shards.status, 0, `${pool}: ${shards.output}`);
-      assert.ok(shards.manifestBytes('m.ndjson'), `${pool}: the shards wrote a manifest`);
+      assert.ok(shards.manifestBytes('m.ndjson'), `${pool}: the shards wrote a manifest\n${shards.output}`);
     }
   });
 
   reg.define(/^it is byte-for-byte the whole-directory call's manifest$/, (w) => {
     for (const { pool, whole, shards } of w.pools) {
-      assert.strictEqual(whole.status, 0, `${pool}: ${whole.output}`);
+      // The corpus has a failing scenario: both ways are red, the same red.
+      assert.strictEqual(shards.status, whole.status, `${pool}: ${shards.output}`);
       const bytes = whole.manifestBytes('single.ndjson');
-      assert.ok(bytes && bytes.split('\n').length > 7, `${pool}: the whole call's account has its rows`);
+      for (const status of ['passed', 'failed', 'skipped', 'todo', 'unbound']) {
+        assert.ok(bytes && bytes.includes(`"status":"${status}"`), `${pool}: the account has a ${status} row`);
+      }
+      assert.ok(bytes && bytes.includes('say \\"hi\\" and back\\\\slash'), `${pool}: hostile titles are escaped in the account`);
+      assert.ok(bytes && bytes.includes('shelved ☃ 𝒳'), `${pool}: the astral title is in the account`);
       assert.strictEqual(shards.manifestBytes('m.ndjson'), bytes, pool);
     }
   });
@@ -159,7 +170,8 @@ module.exports = (reg) => {
     assert.strictEqual(fs.statSync(file).mtimeMs, w.beforeStat, 'not even rewritten in place');
   });
 
-  reg.define(/^the run with one test file named is green$/, (w) => {
+  reg.define(/^both of those runs are green$/, (w) => {
+    assert.strictEqual(w.filtered.status, 0, w.filtered.output);
     assert.strictEqual(w.oneFile.status, 0, w.oneFile.output);
   });
 

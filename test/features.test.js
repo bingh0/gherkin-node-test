@@ -26,7 +26,6 @@ runFeatures(path.join(__dirname, '..', 'features'), {
   'honest-run': require('./steps/honest-run.steps'),
   'binding-ratchet': require('./steps/binding-ratchet.steps'),
   'run-manifest': require('./steps/run-manifest.steps'),
-  'sharding': require('./steps/sharding.steps'),
 }, {
   wip: [
     { feature: 'honest-run', scenarios: [

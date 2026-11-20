@@ -582,29 +582,44 @@ Pass the same `wip` list and the same `manifest` to every shard.
   that belong to other shards. An entry naming *no* feature file fails exactly
   once per run, in the shard that runs the first feature file (sorted).
 - **The manifest** is written by the reporter, after a full run, once every
-  feature file of the directory has its part: the same bytes the single call
-  writes. A name-filtered run, a run of some files only, a bailed or crashed run
-  writes nothing and leaves an existing manifest untouched.
+  claimed feature has its part: the same bytes the single call writes. A
+  name-filtered run, a run of some files only, a bailed run, or a run with an
+  unhandled error or a spec that failed to collect writes nothing and leaves an
+  existing manifest untouched. On a full run a claimed feature with no part (a
+  shard inside a skipped `describe`, say) is a named red, never a silently stale
+  manifest. A scenario body vitest runs a second time (`retry`, `repeats`)
+  withdraws its shard's part, so the directory's manifest is not written; the
+  failing test says why, as on the single call.
 - **Red runs** (named in the output): a feature file in a sharded directory that
-  no test file runs (full runs only); a feature file run by two test files; a
-  whole-directory call and shards over the same directory in one run; shards of
-  one directory that disagree about `manifest`; two directories sharing one
-  manifest path. A name in `only` with no feature file, and a definer for a
+  no test file runs (full runs only); a feature file run by two test files, or by
+  one test file in two vitest projects; a whole-directory call and shards over
+  the same directory in one run; shards of one directory that disagree about
+  `manifest`, about the `wip` list, or about how the directory is spelled (a
+  symlink to it counts); two directories sharing one manifest path, whole-directory
+  calls included. A name in `only` with no feature file, and a definer for a
   feature not in `only`, are failing tests.
 - **No reporter, no run.** A call with `only` in a run without the reporter
-  registers one failing test saying to add it, and nothing else.
+  registers one failing test saying to add it, and nothing else. A reporter
+  counts only for its own run: the variable that names its run directory carries
+  the reporter's process id, and a vitest started from inside another run, or
+  with a stale variable, does not accept it. A whole-directory call then
+  behaves exactly as without the reporter.
 - Several feature directories, each with its own manifest, work in one run.
 
 Limits: `only` is vitest-only. Native node, bun and Deno runs get the one
-failing test above; run the whole directory there. The reporter needs a vitest
-with the `onTestRunStart`/`onTestRunEnd` reporter hooks and
-`getGlobalTestNamePattern()` (vitest 3+); it is tested on vitest 5.1, forks and
-threads pools. It is not tested with `vmThreads`/`vmForks`, `--watch`,
-`--shard`, `--changed`, multiple vitest `projects`, or `--bail`. In those modes
-it treats the run as partial where it can tell (it never writes a manifest from
-one) and the filter guard (a name filter that runs no scenario) is not
-covered under vitest at all. Shards and reporter meet in a temp directory the
-reporter makes at init and removes at exit.
+failing test above; run the whole directory there. The reporter needs vitest
+3.0 or newer (the `onTestRunStart`/`onTestRunEnd` hooks,
+`getGlobalTestNamePattern()`, `globTestSpecifications()`) and refuses to start
+on an older one with one error naming the minimum; the package's own peer range
+is unchanged. It is tested on vitest 5.1, forks and threads pools, and `retry`.
+It is not tested with `vmThreads`/`vmForks`, `--watch`, `--shard` or
+`--changed`. In those modes it treats the run as partial where it can tell and
+never writes a manifest from a partial run. Shards and reporter meet in a temp directory
+the reporter makes at init and removes at exit.
+
+The sharding scenarios (`features/vitest`) start a real vitest, so they run in
+the vitest CI lane only (`npm run test:sharding`); the node, bun and Deno lanes
+run with nothing installed and do not see them.
 
 ## Running the suite
 

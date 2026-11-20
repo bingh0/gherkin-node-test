@@ -6,7 +6,7 @@ Feature: Sharding a feature directory on vitest
   run without the reporter that sees the whole run.
 
   Scenario: shards write the manifest the whole-directory call writes
-    Given a feature directory of 3 feature files
+    Given a feature directory of 3 feature files holding every kind of row, and hostile titles
     And one test file that runs it whole, and 3 test files that each run one feature file
     When each way runs on vitest's forks pool and again on its threads pool
     Then on each pool the shards wrote one manifest
@@ -40,10 +40,10 @@ Feature: Sharding a feature directory on vitest
 
   Scenario: a filtered or partial run writes no manifest
     Given a full run that has written the shards' manifest
-    When the suite runs again with a name filter
+    When the suite runs again with a name filter that matches every scenario
     And again with one test file named
-    Then the manifest is untouched, bytes and timestamp
-    And the run with one test file named is green
+    Then both of those runs are green
+    And the manifest is untouched, bytes and timestamp
 
   Scenario: a shard without the reporter is one failing test
     Given a test file that runs one feature file as a shard
