@@ -31,16 +31,28 @@
 //
 // No vitest import and no dependency: a plain class with the hook methods
 // vitest calls (onInit, onTestRunStart, onTestRunEnd). Needs vitest 3.0 or
-// newer (the run hooks, `getGlobalTestNamePattern()`, `globTestSpecifications()`);
+// newer (the run hooks and `globTestSpecifications()`; the name pattern is read
+// with `getGlobalTestNamePattern()` where there is one, else from vitest's
+// `configOverride`/`config`, which 3.x keeps it in);
 // onInit throws one clear error when the running vitest lacks them.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import gnt from './index.js';
 
-const { SHARD_ENV, SHARD_KINDS, manifestText } = gnt.shardProtocol;
+const { SHARD_ENV, SHARD_KINDS, manifestText, testFileKey } = gnt.shardProtocol;
 
 const MIN_VITEST = 3;
+
+/**
+ * The global test name pattern (`-t`, or the watch-mode `t` key). Vitest 4 and
+ * up have `getGlobalTestNamePattern()`; vitest 3 keeps it in `configOverride`
+ * (what the watch key sets) over `config` — internals, seen on 3.2.7.
+ * @param {any} v @returns {RegExp | string | undefined}
+ */
+const readNamePattern = (v) => (typeof v.getGlobalTestNamePattern === 'function'
+  ? v.getGlobalTestNamePattern()
+  : v.configOverride?.testNamePattern ?? v.config.testNamePattern);
 
 /** @param {string} file @returns {string} */
 const rel = (file) => path.relative(process.cwd(), file) || file;
@@ -52,13 +64,13 @@ export default class GherkinNodeTestReporter {
 
   /** @param {any} vitest */
   onInit(vitest) {
-    const missing = ['getGlobalTestNamePattern', 'globTestSpecifications']
+    const missing = ['globTestSpecifications']
       .filter((k) => typeof vitest?.[k] !== 'function');
     const major = Number.parseInt(String(vitest?.version ?? ''), 10);
     if (missing.length > 0 || (Number.isFinite(major) && major < MIN_VITEST)) {
       throw new Error(
         `gherkin-node-test/vitest/reporter needs vitest ${MIN_VITEST}.0 or newer (the onTestRunStart/onTestRunEnd `
-        + `hooks, getGlobalTestNamePattern() and globTestSpecifications()); this is vitest ${vitest?.version ?? '(unknown)'}`
+        + `hooks and globTestSpecifications()); this is vitest ${vitest?.version ?? '(unknown)'}`
         + (missing.length ? `, which lacks ${missing.join(', ')}` : '')
         + ' — remove the reporter from `reporters`, or upgrade vitest');
     }
@@ -67,7 +79,12 @@ export default class GherkinNodeTestReporter {
     // any worker starts, so forks and threads both inherit it). The pid says
     // whose run directory it is: a child process that inherits the variable
     // is not this process's worker (see shardRun in index.js).
-    this.runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gnt-shard-'));
+    try {
+      this.runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gnt-shard-'));
+    } catch (e) {
+      throw new Error(`gherkin-node-test/vitest/reporter cannot make its run directory under ${os.tmpdir()} `
+        + `(${/** @type {any} */ (e)?.code ?? e}): point TMPDIR (TEMP on Windows) at a directory that exists and is writable`);
+    }
     for (const kind of SHARD_KINDS) fs.mkdirSync(path.join(this.runDir, kind));
     process.env[SHARD_ENV] = `${process.pid}:${this.runDir}`;
     const dir = this.runDir;
@@ -96,6 +113,7 @@ export default class GherkinNodeTestReporter {
     const poisoned = this.readAll('poison');
     const calls = this.readAll('calls');
     const invoked = this.readAll('invoked');
+    const recorded = this.readAll('recorded');
     /** @type {string[]} */
     const problems = [];
     /** @type {string[]} */
@@ -103,8 +121,10 @@ export default class GherkinNodeTestReporter {
     const dirs = this.groupByDirectory(claims, problems);
     const full = await this.isFullRun(modules, unhandledErrors, reason);
     if (full) this.checkUnclaimed(dirs, problems);
-    this.writeManifests(dirs, claims, parts, poisoned, modules, full, problems, notes);
-    this.checkFilter(modules, unhandledErrors, calls, invoked, problems);
+    if (full) this.checkOwnChecks(claims, modules, problems);
+    this.noteShardFlag(dirs, notes);
+    this.writeManifests(dirs, claims, parts, poisoned, recorded, modules, full, problems, notes);
+    this.checkFilter(modules, unhandledErrors, claims, calls, invoked, problems, notes);
     // Sorted, so the same run prints the same lines in the same order.
     for (const n of notes.sort()) console.error(`gherkin-node-test: ${n}`);
     if (problems.length === 0) return;
@@ -112,7 +132,7 @@ export default class GherkinNodeTestReporter {
     process.exitCode = 1;
   }
 
-  /** @param {'claims' | 'parts' | 'poison' | 'calls' | 'invoked'} kind @returns {any[]} */
+  /** @param {typeof SHARD_KINDS[number]} kind @returns {any[]} */
   readAll(kind) {
     const dir = path.join(this.runDir, kind);
     return fs.readdirSync(dir).sort()
@@ -212,7 +232,7 @@ export default class GherkinNodeTestReporter {
     if (reason === 'interrupted' || v.isCancelling === true) return false;
     if (unhandledErrors.length > 0) return false;
     if (modules.some((m) => m.errors().length > 0)) return false;
-    if (v.getGlobalTestNamePattern() || v.config.tagsFilter?.length
+    if (readNamePattern(v) || v.config.tagsFilter?.length
       || v.config.project?.length || v.config.shard) return false;
     if (this.specs.some((s) => s.testLines?.length || s.testIds?.length || s.testNames?.length
       || s.testNamePattern || s.testTagsFilter?.length)) return false;
@@ -226,36 +246,44 @@ export default class GherkinNodeTestReporter {
    * shard never recorded every scenario's outcome. The whole-directory call on a
    * host whose test wrapper skips scenarios is green and writes no manifest, so
    * a shard in that exact shape is not red either: a note, and no manifest. The
-   * shape is narrow, and all three of these must hold for the shard's test file:
-   *  - every check test its calls registered (the registry check, the
-   *    per-feature ratchet, the only-names check, the orphan check where the
-   *    shard has it) ran and passed — a skipped describe, or a wrapper that
-   *    skips every title, would otherwise skip the ratchets with the scenarios;
-   *  - at least one of its SCENARIO tests ended skipped: a skipped test whose
-   *    name starts with one of the call's scenario titles (the wrapper renames
-   *    with a suffix) and is not a scenario the feature file itself skips
-   *    (@skip, which the shard records); an unrelated `test.skip` in the file
-   *    explains nothing.
+   * shape is narrow, and for the shard's test file all of it must hold:
+   *  - every check test its calls registered ran and passed (see
+   *    checkOwnChecks: a skipped describe or a wrapper that skips every title
+   *    would otherwise skip the ratchets with the scenarios);
+   *  - the scenarios whose outcome was NOT recorded (the shard writes which it
+   *    recorded, as an incomplete-part record that is never a source of manifest
+   *    rows) are exactly the scenario tests the test file skipped: each
+   *    unrecorded scenario has a skipped test whose name is its title or its
+   *    title plus a suffix (the wrapper renames); a feature file's own @skip does
+   *    not count. A wrapper that also registers an empty body for another
+   *    scenario leaves that one unrecorded and unskipped: not this shape.
    * Anything else with a missing part is a named red.
    * @param {string} dir @param {any[]} shards @param {string[]} lacking
-   * @param {readonly any[]} modules @param {string[]} problems @param {string[]} notes
+   * @param {any[]} recorded @param {readonly any[]} modules
+   * @param {string[]} problems @param {string[]} notes
    */
-  explainMissing(dir, shards, lacking, modules, problems, notes) {
+  explainMissing(dir, shards, lacking, recorded, modules, problems, notes) {
     const files = [...new Set(shards.filter((c) => lacking.includes(c.feature)).map((c) => c.testFile))].sort();
     /** @type {string[]} */
     const skipped = [];
     /** @type {string[]} */
     const unexplained = [];
     for (const file of files) {
-      const mine = shards.filter((c) => c.testFile === file);
+      const key = testFileKey(file);
+      const mine = shards.filter((c) => testFileKey(c.testFile) === key);
       const own = new Set(mine.flatMap((c) => c.ownSkips));
-      const scenarios = [...new Set(mine.flatMap((c) => c.scenarios))];
       const checks = new Set(mine.flatMap((c) => c.checks));
-      const tests = modules.filter((m) => m.moduleId === file).flatMap((m) => [...m.children.allTests()]);
+      const tests = modules.filter((m) => testFileKey(m.moduleId) === key).flatMap((m) => [...m.children.allTests()]);
       const checksPassed = [...checks].every((name) => tests.some((t) => t.name === name && t.result().state === 'passed'));
-      const names = tests.filter((t) => t.result().state === 'skipped' && !own.has(t.name)
-        && scenarios.some((title) => t.name.startsWith(title))).map((t) => t.name);
-      if (checksPassed && names.length > 0) skipped.push(...names); else unexplained.push(file);
+      const unrecorded = recorded.filter((r) => testFileKey(r.testFile) === key)
+        .flatMap((r) => r.wrapped.filter((/** @type {string} */ t) => !r.recorded.includes(t)));
+      const skippedTests = tests.filter((t) => t.result().state === 'skipped' && !own.has(t.name));
+      const matches = (/** @type {string} */ name, /** @type {string} */ title) => name === title || name.startsWith(`${title} `);
+      const exact = unrecorded.length > 0
+        && unrecorded.every((title) => skippedTests.some((t) => matches(t.name, title)));
+      if (checksPassed && exact) {
+        skipped.push(...skippedTests.filter((t) => unrecorded.some((title) => matches(t.name, title))).map((t) => t.name));
+      } else unexplained.push(file);
     }
     if (skipped.length > 0) {
       notes.push(`run manifest not written for ${rel(dir)}: ${skipped.length} test${skipped.length === 1 ? ' was' : 's were'} skipped `
@@ -265,10 +293,43 @@ export default class GherkinNodeTestReporter {
     if (unexplained.length > 0) {
       problems.push(`${rel(dir)}: no manifest part for ${lacking.map((f) => `"${f}"`).join(', ')} on a full run — `
         + `${unexplained.map(rel).join(', ')} did not record every scenario's outcome, and its skipped scenarios (if any) `
-        + 'do not explain it: every check test of its calls must have run and passed, and a scenario must have been skipped by '
-        + 'the test file (a describe.skip, a wrapper that skips every test, or one that does not run a scenario body?); '
-        + 'the manifest was not written and would have gone stale');
+        + 'do not explain it: every check test of its calls must have run and passed, and the scenarios with no outcome must '
+        + 'be exactly the ones the test file skipped (a describe.skip, a wrapper that skips every test, or one that also '
+        + 'runs a scenario without its body?); the manifest was not written and would have gone stale');
     }
+  }
+
+  /**
+   * Every full run, manifest or not: the check tests of every shard's calls (the
+   * registry check, the per-feature ratchet, the only-names check, the orphan
+   * check where the shard has it) must have run. A skipped describe or a wrapper
+   * that skips the runner's checks would otherwise hide the unbound-step and
+   * stale-entry ratchets in silence. A check that ran and failed is already red.
+   * @param {any[]} claims @param {readonly any[]} modules @param {string[]} problems
+   */
+  checkOwnChecks(claims, modules, problems) {
+    const files = [...new Set(claims.filter((c) => c.feature !== null).map((c) => c.testFile))].sort();
+    for (const file of files) {
+      const key = testFileKey(file);
+      const checks = new Set(claims.filter((c) => c.feature !== null && testFileKey(c.testFile) === key).flatMap((c) => c.checks));
+      const tests = modules.filter((m) => testFileKey(m.moduleId) === key).flatMap((m) => [...m.children.allTests()]);
+      const unrun = [...checks].filter((name) => !tests.some((t) => t.name === name
+        && ['passed', 'failed'].includes(t.result().state))).sort();
+      if (unrun.length === 0) continue;
+      problems.push(`${rel(file)}: its own check${unrun.length === 1 ? '' : 's'} did not run (first: "${unrun[0]}") — a skipped describe, or a `
+        + 'wrapper that skips the runner\'s checks, would hide the unbound-step and stale-entry ratchets of its features');
+    }
+  }
+
+  /**
+   * `--shard i/n` runs a part of the test files: no manifest, no unrun-feature
+   * check. Said once, as a note (the run is not wrong, it is partial).
+   * @param {Map<string, any>} dirs @param {string[]} notes
+   */
+  noteShardFlag(dirs, notes) {
+    if (!this.vitest.config.shard || dirs.size === 0) return;
+    notes.push('vitest ran with --shard: a part of the test files, so no manifest is written for a sharded directory '
+      + 'and feature files no test file runs are not checked; both need a run of every test file');
   }
 
   /**
@@ -286,18 +347,32 @@ export default class GherkinNodeTestReporter {
    * skipped from one the test file or an @skip tag skipped, so the general line
    * names all the causes.
    * @param {readonly any[]} modules @param {readonly unknown[]} unhandledErrors
-   * @param {any[]} calls @param {any[]} invoked @param {string[]} problems
+   * One thing it can only note: a name pattern, test modules, and NO record of
+   * any kind from a runFeatures call. Either gnt is not used in this run, or a
+   * setup file cleared the worker's environment of the run-directory variable,
+   * which silently switches the guard off. The reporter cannot know which, so it
+   * says so as a note, not a red.
+   * @param {any[]} claims @param {any[]} calls @param {any[]} invoked
+   * @param {string[]} problems @param {string[]} notes
    */
-  checkFilter(modules, unhandledErrors, calls, invoked, problems) {
-    const pattern = this.vitest.getGlobalTestNamePattern();
+  checkFilter(modules, unhandledErrors, claims, calls, invoked, problems, notes) {
+    const pattern = readNamePattern(this.vitest);
     if (!pattern) return;
+    if (calls.length === 0 && claims.length === 0 && modules.length > 0) {
+      notes.push('the filter guard did not run because no runFeatures call reported to this reporter (gherkin-node-test is '
+        + `not used in this run, or a setup file cleared ${SHARD_ENV} from the worker environment)`);
+      return;
+    }
     if (calls.reduce((n, c) => n + c.runnable, 0) === 0 || invoked.length > 0) return;
     if (unhandledErrors.length > 0 || modules.some((m) => m.state() === 'failed')) return;
     /** @type {Map<string, Set<string>>} */
     const ours = new Map();
-    for (const c of calls) ours.set(c.testFile, new Set([...(ours.get(c.testFile) || []), ...c.titles]));
+    for (const c of calls) {
+      const k = testFileKey(c.testFile);
+      ours.set(k, new Set([...(ours.get(k) || []), ...c.titles]));
+    }
     const tests = modules.flatMap((m) => [...m.children.allTests()].map((t) => ({ file: m.moduleId, t })));
-    if (tests.some(({ file, t }) => t.result().state === 'passed' && !ours.get(file)?.has(t.name))) return;
+    if (tests.some(({ file, t }) => t.result().state === 'passed' && !ours.get(testFileKey(file))?.has(t.name))) return;
     const shown = `"${pattern instanceof RegExp ? pattern.source : String(pattern)}"`;
     problems.push(tests.some(({ t }) => t.options?.mode === 'todo')
       ? `the name filter ${shown} matched only todo tests (wip-held scenarios register as todo); no scenario ran`
@@ -336,11 +411,11 @@ export default class GherkinNodeTestReporter {
    * marker (a re-invoked body: retry/repeats) writes nothing; the failing test
    * already named why.
    * @param {Map<string, { shards: any[], dirBad: boolean }>} dirs
-   * @param {any[]} claims @param {any[]} parts @param {any[]} poisoned
+   * @param {any[]} claims @param {any[]} parts @param {any[]} poisoned @param {any[]} recorded
    * @param {readonly any[]} modules
    * @param {boolean} full @param {string[]} problems @param {string[]} notes
    */
-  writeManifests(dirs, claims, parts, poisoned, modules, full, problems, notes) {
+  writeManifests(dirs, claims, parts, poisoned, recorded, modules, full, problems, notes) {
     // Which directories use which manifest path — whole-directory calls too:
     // a whole call over directory B and shards of directory A sharing a path
     // would have the reporter overwrite B's account.
@@ -363,7 +438,7 @@ export default class GherkinNodeTestReporter {
       const have = new Set(mine.flatMap((p) => p.features));
       const lacking = [...new Set(shards.map((c) => c.feature))].filter((f) => !have.has(f)).sort();
       if (lacking.length > 0) {
-        this.explainMissing(dir, shards, lacking, modules, problems, notes);
+        this.explainMissing(dir, shards, lacking, recorded, modules, problems, notes);
         continue;
       }
       try {

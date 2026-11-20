@@ -1739,7 +1739,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
     if (amb) {
       // A refusal is a check, not a runnable scenario body: never counted.
       const refuse = async () => { throw amb; };
-      register(title, {}, recorder ? recorder.wrap(parsed.file, sc.name, refuse) : refuse);
+      register(title, {}, recorder ? recorder.wrap(parsed.file, sc.name, refuse, undefined, title) : refuse);
       continue;
     }
     const tags = new Set(sc.tags);
@@ -1781,7 +1781,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
       // 'failed' when the tag is stale, so a red run's account explains
       // itself (see wrap's mapping doc).
       register(title, {}, counted(recorder
-        ? recorder.wrap(parsed.file, sc.name, inverted, { ok: 'todo', err: 'failed' })
+        ? recorder.wrap(parsed.file, sc.name, inverted, { ok: 'todo', err: 'failed' }, title)
         : inverted));
       continue;
     }
@@ -1794,7 +1794,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
       continue;
     }
     if (recorder) {
-      register(title, {}, counted(recorder.wrap(parsed.file, sc.name, body)));
+      register(title, {}, counted(recorder.wrap(parsed.file, sc.name, body, undefined, title)));
       continue;
     }
     register(title, {}, counted(body));
@@ -1924,16 +1924,24 @@ function manifestText(rows) {
  * rows and writes the one account.
  * @param {string} manifestPath
  * @param {(rows: { file: string, title: string, status: ManifestStatus }[]) => void} [sink]
+ * @param {(wrapped: string[], recorded: string[]) => void} [onProgress] called at the end
+ *   of registration and after every recorded outcome: which scenario tests the
+ *   writer wraps and which of them have an outcome (a shard writes this as an
+ *   incomplete-part record; it is never a source of manifest rows)
  * @param {() => void} [onPoison] called once when a body is re-invoked: a shard
  *   uses it to withdraw the part it already wrote (retry re-runs a failed
  *   last scenario AFTER its outcome was recorded and the part written)
  */
-function createManifestWriter(manifestPath, sink, onPoison) {
+function createManifestWriter(manifestPath, sink, onPoison, onProgress) {
   /** @type {{ file: string, title: string, status: ManifestStatus }[]} */
   const rows = [];
   let pending = 0;        // wrapped scenario bodies not yet resolved
   let registered = false; // set by done() once every row source is known
   let poisoned = false;   // a body was re-invoked; the account is unreliable
+  /** @type {string[]} */
+  const wrapped = [];     // test titles of every wrapped scenario body
+  /** @type {string[]} */
+  const recorded = [];    // ... of those whose outcome has been recorded
   const base = path.dirname(path.resolve(manifestPath));
   /** @param {string} f */
   const norm = (f) => path.relative(base, path.resolve(f)).split(path.sep).join('/');
@@ -1969,8 +1977,9 @@ function createManifestWriter(manifestPath, sink, onPoison) {
      * @param {{ ok: ManifestStatus, err: ManifestStatus }} [statuses]
      * @returns {() => Promise<void>}
      */
-    wrap(file, title, fn, statuses = { ok: 'passed', err: 'failed' }) {
+    wrap(file, title, fn, statuses = { ok: 'passed', err: 'failed' }, testTitle = title) {
       pending += 1;
+      wrapped.push(testTitle);
       let invoked = false;
       return async () => {
         if (invoked) {
@@ -1995,7 +2004,9 @@ function createManifestWriter(manifestPath, sink, onPoison) {
           throw e;
         } finally {
           rows.push({ file: norm(file), title, status: threw ? statuses.err : statuses.ok });
+          recorded.push(testTitle);
           pending -= 1;
+          onProgress?.(wrapped, recorded);
           try {
             maybeWrite();
           } catch (e) {
@@ -2011,6 +2022,7 @@ function createManifestWriter(manifestPath, sink, onPoison) {
     /** Every registration has happened; write now if nothing is pending. */
     done() {
       registered = true;
+      onProgress?.(wrapped, recorded);
       maybeWrite();
     },
   };
@@ -2054,7 +2066,7 @@ const manifestClaims = new Map();
 // reporter there is no run directory, and a call with `only` registers one
 // failing test saying so (see runFeatures): a shard cannot run unwatched.
 const SHARD_ENV = 'GNT_SHARD_DIR';
-const SHARD_KINDS = ['claims', 'parts', 'poison', 'calls', 'invoked'];
+const SHARD_KINDS = ['claims', 'parts', 'poison', 'calls', 'invoked', 'recorded'];
 
 /**
  * The live reporter run, or null: the run directory AND the vitest worker's
@@ -2096,6 +2108,20 @@ function shardRun() {
   });
   if (!layout) return null;
   return { runDir, testFile, project: String(worker.ctx?.projectName ?? '') };
+}
+
+/**
+ * A test file's path as one comparable string: the reporter matches a vitest
+ * test module's id against the path a worker reported, and the two need not be
+ * spelled alike on Windows (`C:\\x\\a.mjs`, `C:/x/a.mjs`, `/c:/x/a.mjs`).
+ * Separators become `/`, a leading slash before a drive letter goes, and the
+ * drive letter is lower-cased. Nothing else is touched (the rest of a path is
+ * case-sensitive on the platforms where it is).
+ * @param {string} p @returns {string}
+ */
+function testFileKey(p) {
+  return String(p).replace(/\\/g, '/').replace(/^\/([A-Za-z]:)/, '$1')
+    .replace(/^([A-Za-z]):/, (_, d) => `${d.toLowerCase()}:`);
 }
 
 /**
@@ -2410,9 +2436,11 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     register('runFeatures: only needs the gherkin-node-test reporter', {}, () => {
       throw new Error(
         `runFeatures(${JSON.stringify(dir)}, …, { only }) found no gherkin-node-test reporter in this `
-        + 'run — a shard cannot run without it (nothing would write the manifest, check the debt register '
-        + 'or notice an unrun feature file). Add "gherkin-node-test/vitest/reporter" to `reporters` in the '
-        + 'vitest config. Native node, bun and Deno runs do not support `only`; run the whole directory.');
+        + `run, or the worker's environment was cleared of ${SHARD_ENV} — a shard cannot run without it: the `
+        + 'reporter writes the manifest, checks that every feature file is run by exactly one shard and that the '
+        + 'shards agree. Add "gherkin-node-test/vitest/reporter" to `reporters` in the vitest config (and keep '
+        + `${SHARD_ENV} in the environment a setup file leaves). Native node, bun and Deno runs do not support `
+        + '`only`; run the whole directory.');
     });
     return;
   }
@@ -2548,6 +2576,8 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
       // this directory.
       if (partFile) fs.rmSync(partFile, { force: true });
       writeShardFile(shard.runDir, 'poison', identity, body);
+    }, (w, r) => {
+      writeShardFile(shard.runDir, 'recorded', identity, { ...body, wrapped: w, recorded: r });
     });
   } else if (opts.manifest) {
     const manifest = opts.manifest;
@@ -2688,5 +2718,5 @@ module.exports = {
   runFeature, runFeatureFile, runFeatures,
   bindRunner, DataTable, buildSnippet, GherkinSyntaxError,
   // Internal: the reporter's half of the sharding protocol. Not public API.
-  shardProtocol: { SHARD_ENV, SHARD_KINDS, manifestText },
+  shardProtocol: { SHARD_ENV, SHARD_KINDS, manifestText, testFileKey },
 };

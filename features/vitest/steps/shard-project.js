@@ -44,6 +44,19 @@ export const richDefs = {
 };
 // gamma without its @todo scenario's step: that scenario is unbound, the other still runs
 export const gammaBare = { gamma: bound };
+// Two features whose definers collide on purpose: the same sentences, different
+// behaviour, each leaving its mark in the world. Shared registries or a shared
+// world would make one of them fail.
+export const twoWorlds = {
+  aa: (reg) => {
+    reg.define(/^a bound step$/, (w) => { w.seen = 'aa'; });
+    reg.define(/^the outcome is visible$/, (w) => { if (w.seen !== 'aa') throw new Error('aa saw ' + w.seen); });
+  },
+  zz: (reg) => {
+    reg.define(/^a bound step$/, (w) => { if (w.seen !== undefined) throw new Error('zz saw ' + w.seen); w.seen = 'zz'; });
+    reg.define(/^the outcome is visible$/, (w) => { if (w.seen !== 'zz') throw new Error('zz saw ' + w.seen); });
+  },
+};
 export const twofiles = { aa: bound, zz: bound };
 export const pick = (defs, names) => Object.fromEntries(Object.entries(defs).filter(([k]) => names.includes(k)));
 `;
@@ -53,12 +66,12 @@ export const pick = (defs, names) => Object.fromEntries(Object.entries(defs).fil
 const SEED_TEXT = '{"run-manifest":1}\n{"file":"seed.feature","title":"already here","status":"passed"}\n';
 const SEED_TIME = new Date('2001-01-01T00:00:00Z');
 
-const CORPUS = { sharded: 'sharded', shardedRed: 'sharded', lastRed: 'sharded', gammaBare: 'sharded', richDefs: 'sharded-rich', twofiles: 'twofiles' };
+const CORPUS = { sharded: 'sharded', shardedRed: 'sharded', lastRed: 'sharded', gammaBare: 'sharded', twoWorlds: 'twofiles', richDefs: 'sharded-rich', twofiles: 'twofiles' };
 
 /**
- * @typedef {{ dir: 'sharded' | 'shardedRed' | 'lastRed' | 'gammaBare' | 'richDefs' | 'twofiles', only?: string[],
+ * @typedef {{ dir: 'sharded' | 'shardedRed' | 'lastRed' | 'gammaBare' | 'twoWorlds' | 'richDefs' | 'twofiles', only?: string[],
  *   definers?: string[], wip?: any[], manifest?: string, link?: string, wrap?: 'describe.skip',
- *   skipScenario?: string, noopScenario?: string, badRunDir?: boolean }
+ *   skipScenario?: string, noopScenario?: string, repeatScenario?: string, badRunDir?: boolean }
  *   | { kind: 'plain' | 'skipUnrelated' | 'collectError' | 'unhandled' }
  *   | { kind: 'nested', bin: string, cwd: string, report: string }} Call
  * @typedef {Call | Call[]} TestFileSpec
@@ -85,18 +98,27 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { isMainThread } from 'node:worker_threads';
 import { describe, test } from 'vitest';
 import * as defs from './defs.mjs';
 
-const WRAPPERS = {
-  skipScenario: (needle) => (name, fn) => (name.includes(needle) ? test.skip(name + ' [host skip: no such host]', fn) : test(name, fn)),
-  noopScenario: (needle) => (name, fn) => (name.includes(needle) ? test(name, () => {}) : test(name, fn)),
+// One wrapper around vitest's test(): the matching titles are skipped with a
+// renamed title (skipScenario) or registered with an empty body (noopScenario);
+// repeatScenario registers the matching tests with repeats: 1.
+const wrapperFor = (c) => (name, fn) => {
+  if (c.skipScenario !== undefined && name.includes(c.skipScenario)) return test.skip(name + ' [host skip: no such host]', fn);
+  if (c.noopScenario !== undefined && name.includes(c.noopScenario)) return test(name, () => {});
+  if (c.repeatScenario !== undefined && name.includes(c.repeatScenario)) return test(name, { repeats: 1 }, fn);
+  return test(name, fn);
 };
 const WRAPS = { 'describe.skip': describe.skip };
 
 export async function run(specUrl) {
   const file = url.fileURLToPath(specUrl);
   const params = JSON.parse(fs.readFileSync(file.replace(/\\.vitest-spec\\.mjs$/, '.params.json'), 'utf8'));
+  // Which pool this file really ran in: a forked child runs it on its main thread,
+  // a threads pool on a worker thread.
+  fs.writeFileSync(file.replace(/\\.vitest-spec\\.mjs$/, '.pool.json'), JSON.stringify({ isMainThread }));
   const load = (name) => import(url.pathToFileURL(path.join(params.root, name)).href);
   for (const c of params.calls) {
     if (c.kind === 'plain') { test('a plain unit test', () => {}); continue; }
@@ -119,10 +141,10 @@ export async function run(specUrl) {
     if (c.badRunDir) process.env.GNT_SHARD_DIR = process.pid + ':/no/such/run-dir';
     const table = defs[c.dir];
     const definers = c.names ? defs.pick(table, c.names) : table;
-    const wrapperName = ['skipScenario', 'noopScenario'].find((k) => c[k] !== undefined);
-    const gnt = wrapperName ? (await load('index.js')).default : null;
-    const runner = wrapperName
-      ? gnt.bindRunner(Object.assign(WRAPPERS[wrapperName](c[wrapperName]), { skip: test.skip, todo: test.todo }))
+    const wrapped = ['skipScenario', 'noopScenario', 'repeatScenario'].some((k) => c[k] !== undefined);
+    const gnt = wrapped ? (await load('index.js')).default : null;
+    const runner = wrapped
+      ? gnt.bindRunner(Object.assign(wrapperFor(c), { skip: test.skip, todo: test.todo }))
       : await load('vitest.mjs');
     const go = () => runner.runFeatures(c.target, definers, c.opts);
     if (c.wrap) WRAPS[c.wrap]('wrapped', go); else go();
@@ -139,7 +161,7 @@ const CONFIG = "import fs from 'node:fs';\nexport default JSON.parse(fs.readFile
  *   array is several calls in one file)
  * @param {{ pool?: string, reporter?: boolean, args?: string[], projects?: string[],
  *   config?: Record<string, any>, env?: Record<string, string>, run?: boolean,
- *   seed?: string[] }} [opt]
+ *   seed?: string[], reporterName?: string }} [opt]
  */
 function runShardProject(name, files, opt = {}) {
   const dir = path.join(OUT, name);
@@ -152,7 +174,7 @@ function runShardProject(name, files, opt = {}) {
     include: ['*.vitest-spec.mjs'],
     pool: opt.pool || 'forks',
     // vitest's own JSON results ride along on every run: `results()` reads them
-    reporters: ['default', ['json', { outputFile: 'results.json' }], ...(opt.reporter === false ? [] : [reporterUrl])],
+    reporters: ['default', ['json', { outputFile: 'results.json' }], ...(opt.reporter === false ? [] : [opt.reporterName || reporterUrl])],
     ...(opt.config || {}),
   };
   const projects = opt.projects
@@ -173,7 +195,8 @@ function runShardProject(name, files, opt = {}) {
         dir: spec.dir, target, names: spec.definers || spec.only || null,
         opts: { ...(spec.wip ? { wip: spec.wip } : {}), ...(spec.only ? { only: spec.only } : {}),
           ...(spec.manifest ? { manifest: path.join(dir, spec.manifest) } : {}) },
-        wrap: spec.wrap, skipScenario: spec.skipScenario, noopScenario: spec.noopScenario, badRunDir: spec.badRunDir,
+        wrap: spec.wrap, skipScenario: spec.skipScenario, noopScenario: spec.noopScenario,
+        repeatScenario: spec.repeatScenario, badRunDir: spec.badRunDir,
       };
     });
     fs.writeFileSync(path.join(dir, file), SPEC);
@@ -217,6 +240,9 @@ function runShardProject(name, files, opt = {}) {
       const mod = json.testResults.find((/** @type {any} */ r) => r.name.endsWith(`/${file}`));
       return new Map(mod ? mod.assertionResults.map((/** @type {any} */ a) => [a.title, a.status]) : []);
     },
+    /** Which pool each spec file really ran in: its `isMainThread` (true under forks, false under threads). */
+    pools: () => Object.fromEntries(Object.keys(files).map((f) => [f,
+      JSON.parse(fs.readFileSync(path.join(dir, f.replace(/\.vitest-spec\.mjs$/, '.pool.json')), 'utf8')).isMainThread])),
     /** @param {string} file the seeded manifest still has its seeded bytes and its old mtime */
     untouched: (file) => {
       const p = path.join(dir, file);

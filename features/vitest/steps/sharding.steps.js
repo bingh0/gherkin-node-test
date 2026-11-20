@@ -159,7 +159,10 @@ module.exports = (reg) => {
   });
 
   reg.define(/^the suite runs with a name filter that matches only a wip-held scenario title$/, (w) => {
+    // Both ways: the shards, and the whole-directory call under the same reporter.
     w.run = runLayout(w, 'filter-held', { args: ['-t', 'pending thing'] });
+    w.wholeRun = runShardProject('filter-held-whole', w.whole, { args: ['-t', 'pending thing'] });
+    w.heldBoth = true;
   });
 
   reg.define(/^the suite runs on vitest with no reporter configured$/, (w) => {
@@ -171,6 +174,11 @@ module.exports = (reg) => {
   reg.define(/^on each pool the shards wrote one manifest$/, (w) => {
     for (const { pool, shards } of w.pools) {
       assert.ok(shards.manifestBytes('m.ndjson'), `${pool}: the shards wrote a manifest\n${shards.output}`);
+      // The pool each spec file REALLY ran in, reported by the file itself: a
+      // forked child runs it on its main thread, a threads pool on a worker thread.
+      const mainThread = Object.values(shards.pools());
+      assert.strictEqual(mainThread.length, 3, pool);
+      assert.ok(mainThread.every((m) => m === (pool === 'forks')), `${pool}: every shard ran in a ${pool} worker: ${JSON.stringify(mainThread)}`);
     }
   });
 
@@ -190,10 +198,13 @@ module.exports = (reg) => {
 
   reg.define(/^the run is red$/, (w) => {
     assert.notStrictEqual(w.run.status, 0, w.run.output);
+    // a scenario that also ran the whole-directory call beside the shards: red there too
+    if (w.wholeRun && w.heldBoth) assert.notStrictEqual(w.wholeRun.status, 0, w.wholeRun.output);
   });
 
   reg.define(/^exactly one test fails: the stale-entry check of the shard that runs that feature$/, (w) => {
     assert.deepStrictEqual(w.run.failed, ['beta.vitest-spec.mjs > beta :: step definitions are unambiguous'], w.run.output);
+    assert.match(w.run.output, /'beta' is fully bound — remove it from wip/);
   });
 
   reg.define(/^exactly one test fails: the orphan check of the shard that runs the first feature file$/, (w) => {
@@ -206,8 +217,10 @@ module.exports = (reg) => {
   });
 
   reg.define(/^the run says the filter matched only todo tests$/, (w) => {
-    assert.match(w.run.output,
-      /the name filter "pending thing" matched only todo tests \(wip-held scenarios register as todo\); no scenario ran/);
+    for (const run of [w.run, w.wholeRun]) {
+      assert.match(run.output,
+        /the name filter "pending thing" matched only todo tests \(wip-held scenarios register as todo\); no scenario ran/);
+    }
   });
 
   reg.define(/^the manifest on disk is untouched, bytes and timestamp$/, (w) => {
@@ -271,7 +284,9 @@ module.exports = (reg) => {
   });
 
   reg.define(/^the report names the whole-directory test file and the shards$/, (w) => {
-    assert.match(w.run.output, /is run whole by .*whole\.vitest-spec\.mjs and as shards by .*alpha\.vitest-spec\.mjs/);
+    const line = w.run.output.split('\n').find((l) => l.includes('is run whole by')) ?? '';
+    assert.match(line, /is run whole by .*whole\.vitest-spec\.mjs and as shards by /);
+    for (const shard of ['alpha', 'beta', 'gamma']) assert.ok(line.includes(`${shard}.vitest-spec.mjs`), `names ${shard}: ${line}`);
   });
 
   reg.define(/^each manifest is byte-for-byte what that directory's whole-directory call writes$/, (w) => {
