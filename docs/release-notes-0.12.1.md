@@ -212,9 +212,9 @@ regex patterns. That is a separate discussion and nothing is decided.
 ## How it was checked
 
 Scenarios in `features/vitest/sharding.feature` start a real vitest against
-generated projects; they run in the vitest CI lane only (`npm run
-test:sharding`), so the node, bun and Deno lanes still run with nothing
-installed; that lane runs on Linux, Windows and macOS. Three adversarial
+generated projects; they run in a CI job of their own (`npm run
+test:sharding`) on Linux, Windows and macOS, so the node, bun and Deno lanes
+still run with nothing installed. Three adversarial
 review passes planted 67 faults between them and ran the reporter in the
 modes listed above, and a fourth, independent review read every scenario
 against its binding. Each pass found defects, and each was fixed with a test

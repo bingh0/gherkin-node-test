@@ -369,6 +369,12 @@ the directory must exist (the writer never `mkdir`s — a write failure is
 loud, though a scenario's own failure outranks it). Under Deno, opting in
 needs `--allow-write=<that directory>` on top of the usual `--allow-read`.
 
+On vitest a feature directory can be split over several test files
+([sharding](#sharding-a-feature-directory-over-vitests-workers)). It is still
+one manifest per feature directory, with the same bytes: each test file hands
+its rows to the reporter, and the reporter writes the file once, after a full
+run.
+
 ## Runs on Bun and Deno — natively
 
 **Bun.** Under Bun this runner registers scenarios directly on
@@ -695,8 +701,8 @@ check for feature files nobody runs): to run only the shards as a full run,
 narrow `include` in a config.
 
 The sharding scenarios (`features/vitest`) start a real vitest, so they run in
-the vitest CI lane only (`npm run test:sharding`); the node, bun and Deno lanes
-run with nothing installed and do not see them.
+a CI job of their own (`npm run test:sharding`, on Linux, macOS and Windows);
+the node, bun and Deno lanes run with nothing installed and do not see them.
 
 ## Running the suite
 
@@ -716,10 +722,13 @@ features.
   | node | `node --test --test-name-pattern "<Feature> :: <Scenario>" test/<file>.test.js` |
   | bun | `bun test -t "<Feature> :: <Scenario>" test/<file>.test.js` |
   | Deno | `deno test --allow-read --filter "<Feature> :: <Scenario>" test/<file>.test.js` |
+  | vitest | `vitest run -t "<Feature> :: <Scenario>"` (add the test file's path to run that file only) |
 
   On node a second, different `--test-name-pattern` is refused: run them one at
   a time. A filter that runs no scenario is red, and the red means the
-  selection is wrong, not the code. The rules and the per-runtime differences
+  selection is wrong, not the code. On vitest that red needs the
+  [reporter](#sharding-a-feature-directory-over-vitests-workers) in the config,
+  and it is judged over the whole run, not per test file. The rules and the per-runtime differences
   are in [One behavior on all three runtimes](#one-behavior-on-all-three-runtimes).
 - **Before handing work back**, run the whole suite, once.
 - **Per stage**, run target-only mutants for what changed, each against its
@@ -781,6 +790,10 @@ runner version the project pinned. It fills in the test file names.
   - node: `node --test --test-name-pattern "<Feature> :: <Scenario>" test/<file>.test.js`
   - bun: `bun test -t "<Feature> :: <Scenario>" test/<file>.test.js`
   - Deno: `deno test --allow-read --filter "<Feature> :: <Scenario>" test/<file>.test.js`
+  - vitest: `vitest run -t "<Feature> :: <Scenario>"`
+- On vitest keep `gherkin-node-test/vitest/reporter` in the config's `reporters`.
+  Never pass `--reporter` on the command line: it drops that reporter. A run of
+  some files, or with a name filter, writes no run manifest: that is correct.
 - A second name filter is refused on node. A filter that ran no scenario is red:
   the selection is wrong, not the code.
 - Run the whole suite once before handing work back.
@@ -1223,6 +1236,7 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 | `executeSteps(steps, registry, world?)` | run a flat step list against a shared world (installs `world.defer`); every invocation passes the args-consumption check — produced vs declared, defaults refused, rest exempt |
 | `runFeature(parsed, registry)` | register one runner test per scenario (`@skip`/`@todo` mapped; `@only`, duplicate titles, and unconsumed definitions → failing test; unbound → TODO) — the registry is one feature's, so a registry shared across files answers for full consumption in each |
 | `runFeatureFile(file, registry)` | read + parse + run a single `.feature` file |
+| `gherkin-node-test/vitest/reporter` *(default export)* | the vitest reporter that [sharding](#sharding-a-feature-directory-over-vitests-workers) and the filter guard on vitest need: add it to `reporters` in the vitest config; needs vitest 3.0 or newer |
 | `bindRunner(testFn)` | rebind `runFeature`/`runFeatureFile`/`runFeatures` to a method-form `test` function (`.skip`/`.todo`) — how [`gherkin-node-test/vitest`](#and-under-vitest--via-the-adapter) is built |
 | `DataTable` | cucumber-compatible step table: `raw` / `rows` / `hashes` / `rowsHash` / `transpose` |
 | `buildSnippet(text)` | paste-ready step definition for an unbound step (body throws) |
