@@ -85,6 +85,11 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm run test:vitest
+      # The sharding scenarios (features/vitest) start a real vitest, so they run
+      # here only: the node, bun and deno lanes prove the package runs with
+      # nothing installed. The lane's own committed manifest must match its run.
+      - run: npm run test:sharding
+      - run: git diff --exit-code features/vitest/run-manifest.ndjson
       # Strict consumer typecheck (skipLibCheck OFF) of both shipped .d.ts
       # entry points — hand-written vitest.d.ts has no other gate. Run under
       # BOTH supported TypeScript majors: the 5.x and 7.x lines disagree

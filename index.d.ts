@@ -18,7 +18,7 @@ declare namespace gnt {
  * @param {any} testFn a `test` function with `.skip` and `.todo` methods
  * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry<any>) => void,
  *             runFeatureFile: (file: string, registry: StepRegistry<any>) => void,
- *             runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: { wip?: Iterable<WipEntry>, manifest?: string }) => void }}
+ *             runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: { wip?: Iterable<WipEntry>, manifest?: string, only?: readonly string[] }) => void }}
  */
 export function bindRunner(testFn: any): {
     runFeature: (parsed: ParsedFeature, registry: StepRegistry<any>) => void;
@@ -26,6 +26,7 @@ export function bindRunner(testFn: any): {
     runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: {
         wip?: Iterable<WipEntry>;
         manifest?: string;
+        only?: readonly string[];
     }) => void;
 };
 export type Step = {
@@ -533,8 +534,8 @@ export type WipEntry = string | {
  * runnable scenario and the file ended with none run. The runner's own
  * checks never count; a test that already failed outranks the refusal. On
  * node a skip pattern that leaves nothing to run is red too, and a second,
- * different --test-name-pattern is refused at load. Not covered when the
- * runner is bound to vitest (bindRunner). See the README for the lines'
+ * different --test-name-pattern is refused at load. Bound to vitest
+ * (bindRunner), covered only with the reporter, per run. See the README for the lines'
  * exact text and the per-runtime limits.
  *
  * `manifest` (opt-in) names a file to receive the run manifest: one sorted
@@ -553,14 +554,16 @@ export type WipEntry = string | {
  *   annotate an entry `Definer<MyWorld>` to type its steps' world — the record
  *   stays `any` deliberately: each feature has its OWN world, and one type
  *   parameter here would collapse them all into one
- * @param {{ wip?: Iterable<WipEntry>, manifest?: string }} [opts] features (or
- *   scenarios) still bootstrapping (TODO allowed); run-manifest output path
+ * @param {{ wip?: Iterable<WipEntry>, manifest?: string, only?: readonly string[] }} [opts] features
+ *   (or scenarios) still bootstrapping (TODO allowed); run-manifest output
+ *   path; the feature basenames this call runs (a shard)
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  */
 export function runFeatures(dir: string, definers: Record<string, Definer<any>>, opts?: {
     wip?: Iterable<WipEntry>;
     manifest?: string;
+    only?: readonly string[];
 }, register?: typeof registerTest): void;
 
 }
