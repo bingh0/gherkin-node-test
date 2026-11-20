@@ -57,24 +57,85 @@ const CORPUS = { sharded: 'sharded', shardedRed: 'sharded', lastRed: 'sharded', 
 
 /**
  * @typedef {{ dir: 'sharded' | 'shardedRed' | 'lastRed' | 'gammaBare' | 'richDefs' | 'twofiles', only?: string[],
- *   definers?: string[], wip?: any[], manifest?: string, link?: string, wrap?: 'describe.skip', skipScenario?: string, noopScenario?: string }
- *   | { raw: string }} Call
+ *   definers?: string[], wip?: any[], manifest?: string, link?: string, wrap?: 'describe.skip',
+ *   skipScenario?: string, noopScenario?: string, badRunDir?: boolean }
+ *   | { kind: 'plain' | 'skipUnrelated' | 'collectError' | 'unhandled' }
+ *   | { kind: 'nested', bin: string, cwd: string, report: string }} Call
  * @typedef {Call | Call[]} TestFileSpec
- *   `dir` names the definers export (and so the corpus); `only` absent = a
- *   whole-directory call; `definers` defaults to `only` (or to every definer);
- *   `manifest` is a file name inside the project; `link` runs the call through
- *   a symlink of that name to the corpus directory; `skipScenario` runs the call
- *   through a test-function wrapper that turns the scenario with that title into
- *   `test.skip` (what a consumer does on a host that cannot run it);
- *   `noopScenario` through one that registers the matching tests with an empty
- *   body (for both, `''` matches every test, the runner's checks included); `raw`
- *   is a spec file's own source.
+ *   A `runFeatures` call: `dir` names the definers table entry (and so the
+ *   corpus); `only` absent = a whole-directory call; `definers` defaults to
+ *   `only` (or to every definer); `manifest` is a file name inside the project;
+ *   `link` runs the call through a symlink of that name to the corpus
+ *   directory; `skipScenario` runs the call through a test-function wrapper
+ *   that turns the matching scenarios into `test.skip` with a renamed title
+ *   (what a consumer does on a host that cannot run them); `noopScenario`
+ *   through one that registers the matching tests with an empty body (for both,
+ *   `''` matches every test, the runner's checks included); `badRunDir` points
+ *   the run-directory variable at this very process and a missing directory
+ *   first. Or a fixed behaviour by `kind`. NOTHING a caller passes is ever
+ *   spliced into JavaScript source: each spec file is one fixed line, the
+ *   fixed runner module reads the spec's parameters from a JSON file beside it.
  */
+
+// The fixed runner every generated spec calls. No generated text: it reads
+// `<spec name>.params.json` at run time and picks definers, wrappers and
+// behaviours BY NAME from the tables here.
+const RUNNER = `
+import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { describe, test } from 'vitest';
+import * as defs from './defs.mjs';
+
+const WRAPPERS = {
+  skipScenario: (needle) => (name, fn) => (name.includes(needle) ? test.skip(name + ' [host skip: no such host]', fn) : test(name, fn)),
+  noopScenario: (needle) => (name, fn) => (name.includes(needle) ? test(name, () => {}) : test(name, fn)),
+};
+const WRAPS = { 'describe.skip': describe.skip };
+
+export async function run(specUrl) {
+  const file = url.fileURLToPath(specUrl);
+  const params = JSON.parse(fs.readFileSync(file.replace(/\\.vitest-spec\\.mjs$/, '.params.json'), 'utf8'));
+  const load = (name) => import(url.pathToFileURL(path.join(params.root, name)).href);
+  for (const c of params.calls) {
+    if (c.kind === 'plain') { test('a plain unit test', () => {}); continue; }
+    if (c.kind === 'skipUnrelated') { test.skip('some unrelated pending unit test', () => {}); continue; }
+    if (c.kind === 'collectError') throw new Error('cannot collect');
+    if (c.kind === 'unhandled') {
+      test('an unhandled rejection', async () => {
+        setTimeout(() => Promise.reject(new Error('nobody catches this')), 0);
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      continue;
+    }
+    if (c.kind === 'nested') {
+      test('the inner run', () => {
+        const r = spawnSync('node', [c.bin, 'run', '--config', 'vitest.config.mjs'], { cwd: c.cwd, encoding: 'utf8' });
+        fs.writeFileSync(c.report, JSON.stringify({ status: r.status, output: r.stdout + r.stderr }));
+      });
+      continue;
+    }
+    if (c.badRunDir) process.env.GNT_SHARD_DIR = process.pid + ':/no/such/run-dir';
+    const table = defs[c.dir];
+    const definers = c.names ? defs.pick(table, c.names) : table;
+    const wrapperName = ['skipScenario', 'noopScenario'].find((k) => c[k] !== undefined);
+    const gnt = wrapperName ? (await load('index.js')).default : null;
+    const runner = wrapperName
+      ? gnt.bindRunner(Object.assign(WRAPPERS[wrapperName](c[wrapperName]), { skip: test.skip, todo: test.todo }))
+      : await load('vitest.mjs');
+    const go = () => runner.runFeatures(c.target, definers, c.opts);
+    if (c.wrap) WRAPS[c.wrap]('wrapped', go); else go();
+  }
+}
+`;
+const SPEC = "import { run } from './runner.mjs';\nawait run(import.meta.url);\n";
+const CONFIG = "import fs from 'node:fs';\nexport default JSON.parse(fs.readFileSync(new URL('./config.json', import.meta.url), 'utf8'));\n";
 
 /**
  * Build a project and run vitest in it.
  * @param {string} name
- * @param {Record<string, TestFileSpec>} files spec file name → its content (an
+ * @param {Record<string, TestFileSpec>} files spec file name → its call(s) (an
  *   array is several calls in one file)
  * @param {{ pool?: string, reporter?: boolean, args?: string[], projects?: string[],
  *   config?: Record<string, any>, env?: Record<string, string>, run?: boolean,
@@ -84,9 +145,9 @@ function runShardProject(name, files, opt = {}) {
   const dir = path.join(OUT, name);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
-  const vitestUrl = url.pathToFileURL(path.join(ROOT, 'vitest.mjs')).href;
   const reporterUrl = url.pathToFileURL(path.join(ROOT, 'vitest-reporter.mjs')).href;
   fs.writeFileSync(path.join(dir, 'defs.mjs'), DEFS);
+  fs.writeFileSync(path.join(dir, 'runner.mjs'), RUNNER);
   const test = {
     include: ['*.vitest-spec.mjs'],
     pool: opt.pool || 'forks',
@@ -96,42 +157,26 @@ function runShardProject(name, files, opt = {}) {
   const projects = opt.projects
     ? { projects: opt.projects.map((n) => ({ test: { name: n, include: ['*.vitest-spec.mjs'], pool: test.pool } })) }
     : {};
-  fs.writeFileSync(path.join(dir, 'vitest.config.mjs'),
-    `export default { test: ${JSON.stringify({ ...test, ...projects })} };\n`);
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ test: { ...test, ...projects } }));
+  fs.writeFileSync(path.join(dir, 'vitest.config.mjs'), CONFIG);
   for (const [file, specs] of Object.entries(files)) {
     const calls = (Array.isArray(specs) ? specs : [specs]).map((spec) => {
-      if ('raw' in spec) return { raw: spec.raw, names: [] };
+      if ('kind' in spec) return spec;
       const corpusDir = path.join(ROOT, 'features', CORPUS[spec.dir]);
       let target = corpusDir;
       if (spec.link) {
         target = path.join(dir, spec.link);
         if (!fs.existsSync(target)) fs.symlinkSync(corpusDir, target);
       }
-      const opts = { ...(spec.wip ? { wip: spec.wip } : {}), ...(spec.only ? { only: spec.only } : {}),
-        ...(spec.manifest ? { manifest: path.join(dir, spec.manifest) } : {}) };
-      const names = spec.definers || spec.only;
-      const definers = names ? `pick(${spec.dir}, ${JSON.stringify(names)})` : spec.dir;
-      const args = `${JSON.stringify(target)}, ${definers}, ${JSON.stringify(opts)}`;
-      const wrapper = spec.skipScenario !== undefined
-        ? `(name, fn) => (name.includes(${JSON.stringify(spec.skipScenario)}) ? test.skip(name + ' [host skip: no such host]', fn) : test(name, fn))`
-        : spec.noopScenario !== undefined
-          ? `(name, fn) => (name.includes(${JSON.stringify(spec.noopScenario)}) ? test(name, () => {}) : test(name, fn))`
-          : null;
-      const call = wrapper
-        ? `gnt.bindRunner(Object.assign(${wrapper}, { skip: test.skip, todo: test.todo })).runFeatures(${args});`
-        : `runFeatures(${args});`;
-      return { raw: spec.wrap ? `${spec.wrap}('wrapped', () => { ${call} });` : call, names: [spec.dir] };
+      return {
+        dir: spec.dir, target, names: spec.definers || spec.only || null,
+        opts: { ...(spec.wip ? { wip: spec.wip } : {}), ...(spec.only ? { only: spec.only } : {}),
+          ...(spec.manifest ? { manifest: path.join(dir, spec.manifest) } : {}) },
+        wrap: spec.wrap, skipScenario: spec.skipScenario, noopScenario: spec.noopScenario, badRunDir: spec.badRunDir,
+      };
     });
-    const raws = calls.filter((c) => c.names.length === 0);
-    if (raws.length > 0 && calls.length === 1) { fs.writeFileSync(path.join(dir, file), raws[0].raw); continue; }
-    const used = [...new Set(calls.flatMap((c) => c.names)), 'pick'];
-    fs.writeFileSync(path.join(dir, file), `import { describe, test } from 'vitest';
-import gnt from ${JSON.stringify(url.pathToFileURL(path.join(ROOT, 'index.js')).href)};
-import { runFeatures } from ${JSON.stringify(vitestUrl)};
-import { ${used.join(', ')} } from './defs.mjs';
-void describe; void test; void gnt;
-${calls.map((c) => c.raw).join('\n')}
-`);
+    fs.writeFileSync(path.join(dir, file), SPEC);
+    fs.writeFileSync(path.join(dir, file.replace(/\.vitest-spec\.mjs$/, '.params.json')), JSON.stringify({ root: ROOT, calls }));
   }
   for (const f of opt.seed || []) {
     fs.writeFileSync(path.join(dir, f), SEED_TEXT);

@@ -80,7 +80,7 @@ module.exports = (reg) => {
   });
 
   reg.define(/^a test file of plain unit tests sits beside them$/, (w) => {
-    w.layout['plain.vitest-spec.mjs'] = { raw: "import { test } from 'vitest';\ntest('a plain unit test', () => {});\n" };
+    w.layout['plain.vitest-spec.mjs'] = { kind: 'plain' };
   });
 
   reg.define(/^a test file that runs one feature file as a shard$/, (w) => {

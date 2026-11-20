@@ -2104,7 +2104,7 @@ function shardRun() {
  * @param {object} body
  */
 function writeShardFile(runDir, kind, identity, body) {
-  const name = crypto.createHash('sha1').update(JSON.stringify(identity)).digest('hex').slice(0, 20);
+  const name = crypto.createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 32);
   fs.writeFileSync(path.join(runDir, kind, `${name}.json`), JSON.stringify(body));
   return path.join(runDir, kind, `${name}.json`);
 }
