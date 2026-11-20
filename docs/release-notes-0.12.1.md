@@ -119,6 +119,75 @@ release because each needs a ruling or reaches both siblings:
 - Under `bun test`, a filter that reaches only an `@skip` scenario is green
   (the same cause as the wip-held case the README lists).
 
+## Coming in 0.13.0
+
+0.13.0 is the next release of both siblings together. It is not built and has
+no date. Unlike this release, it **can turn a green suite red**: most of it is
+new refusals for things that are silently accepted today. Each item below has
+been decided and has a working prototype on every lane; wording and details
+may still change. On our own suites (about 5,000 step definitions and 175
+feature files) none of the refusals fires, except where a test does the thing
+on purpose.
+
+**New refusals**
+
+- **A pattern must cover the whole sentence** (both siblings). Today
+  `/a counter at (\d+)/` also binds "given that a counter at 7 is set and more
+  words". In 0.13.0 a regex that does not start with `^`, end with `$`, and
+  keep any `|` inside a group is refused when it is defined, naming what is
+  missing. The fix is to write `/^…$/`, and `/^(?:a|b)$/` for an alternation.
+  Exact-string patterns are unaffected.
+- **The `g` and `y` regex flags are refused** when a pattern is defined
+  (gherkin-node-test). With `g` a step receives no captures; with `y` the same
+  sentence binds once and then fails.
+- **A handler whose parameters cannot be read is refused** (gherkin-node-test):
+  a bound function or a Proxy. Today the args-consumption guard lets these
+  through. Pass a plain function. A related bug goes too: a comment or string
+  containing the text `[native code]` switches the guard off on node, Deno and
+  vitest.
+- **Defining a step while scenarios are running is refused**
+  (gherkin-node-test). A definition added by a handler gets past the ambiguity
+  check today.
+- **Five invisible characters are refused in feature files** (both siblings):
+  U+2028 and U+2029 (invisible line breaks some editors insert), a carriage
+  return not followed by a line feed, U+0085, and a byte-order mark anywhere
+  but the very start of the file. One byte-order mark at the start is skipped.
+  Today one of these makes gherkin-node-test drop a step silently, and the two
+  siblings disagree about the others.
+
+**The verdict**
+
+- **An exit before the run finished is red** (both siblings). Today a step, or
+  code it calls, that calls `process.exit(0)` or `std::process::exit(0)` ends
+  the run green, even after a scenario failed. vitest is already red.
+- **A failure outside every scenario is not lost on Deno**: a timer callback
+  or a worker thread that throws while a later scenario runs exits 0 there
+  today.
+- **The run manifest is not written by a run that was refused or saw a failure
+  outside every scenario**, where the runtime lets the runner see it (not on
+  Bun). This covers the `retry` item under "Known" above. An earlier manifest
+  on disk is left as it is, never deleted.
+- **Work a step started and did not wait for** can still fail after the last
+  scenario and be lost on Bun, Deno and vitest. That will not change. 0.13.0
+  adds one report line at the end of a test file when timers a step started
+  are still pending, and the README will say it plainly: the verdict covers
+  what a step returned or awaited, and the process's exit. In Rust the same
+  holds for a spawned thread; spawn inside `std::thread::scope`, or join and
+  unwrap.
+
+**Also planned**
+
+- The step lint will sight rest-form callbacks written with TypeScript types
+  (`(w: W, ...args: string[])`), which it misses today. A suite that requires
+  zero lint findings will see new ones.
+- A way to tell the runner which scenarios a host cannot run, so they are
+  recorded as skipped with a reason and the manifest is still written. This is
+  being scoped; the note for scenarios a test file skips itself (above) is the
+  stopgap.
+
+**Not in 0.13.0:** typed step arguments, or sentence templates in place of
+regex patterns. That is a separate discussion and nothing is decided.
+
 ## How it was checked
 
 Scenarios in `features/vitest/sharding.feature` start a real vitest against
