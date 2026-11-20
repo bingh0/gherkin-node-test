@@ -71,8 +71,9 @@ const CORPUS = { sharded: 'sharded', shardedRed: 'sharded', lastRed: 'sharded', 
 /**
  * @typedef {{ dir: 'sharded' | 'shardedRed' | 'lastRed' | 'gammaBare' | 'twoWorlds' | 'richDefs' | 'twofiles', only?: string[],
  *   definers?: string[], wip?: any[], manifest?: string, link?: string, wrap?: 'describe.skip',
- *   skipScenario?: string, noopScenario?: string, repeatScenario?: string, badRunDir?: boolean }
- *   | { kind: 'plain' | 'skipUnrelated' | 'collectError' | 'unhandled' }
+ *   skipScenario?: string, noopScenario?: string, repeatScenario?: string, dropScenario?: string, badRunDir?: boolean }
+ *   | { kind: 'plain' | 'skipUnrelated' | 'todoOwn' | 'collectError' | 'unhandled' }
+ *   | { kind: 'skipTest', title: string }
  *   | { kind: 'nested', bin: string, cwd: string, report: string }} Call
  * @typedef {Call | Call[]} TestFileSpec
  *   A `runFeatures` call: `dir` names the definers table entry (and so the
@@ -108,6 +109,7 @@ import * as defs from './defs.mjs';
 const wrapperFor = (c) => (name, fn) => {
   if (c.skipScenario !== undefined && name.includes(c.skipScenario)) return test.skip(name + ' [host skip: no such host]', fn);
   if (c.noopScenario !== undefined && name.includes(c.noopScenario)) return test(name, () => {});
+  if (c.dropScenario !== undefined && name.includes(c.dropScenario)) return undefined; // registers nothing at all
   if (c.repeatScenario !== undefined && name.includes(c.repeatScenario)) return test(name, { repeats: 1 }, fn);
   return test(name, fn);
 };
@@ -123,6 +125,8 @@ export async function run(specUrl) {
   for (const c of params.calls) {
     if (c.kind === 'plain') { test('a plain unit test', () => {}); continue; }
     if (c.kind === 'skipUnrelated') { test.skip('some unrelated pending unit test', () => {}); continue; }
+    if (c.kind === 'todoOwn') { test.todo('a consumer todo'); continue; }
+    if (c.kind === 'skipTest') { test.skip(c.title, () => {}); continue; }
     if (c.kind === 'collectError') throw new Error('cannot collect');
     if (c.kind === 'unhandled') {
       test('an unhandled rejection', async () => {
@@ -141,7 +145,7 @@ export async function run(specUrl) {
     if (c.badRunDir) process.env.GNT_SHARD_DIR = process.pid + ':/no/such/run-dir';
     const table = defs[c.dir];
     const definers = c.names ? defs.pick(table, c.names) : table;
-    const wrapped = ['skipScenario', 'noopScenario', 'repeatScenario'].some((k) => c[k] !== undefined);
+    const wrapped = ['skipScenario', 'noopScenario', 'dropScenario', 'repeatScenario'].some((k) => c[k] !== undefined);
     const gnt = wrapped ? (await load('index.js')).default : null;
     const runner = wrapped
       ? gnt.bindRunner(Object.assign(wrapperFor(c), { skip: test.skip, todo: test.todo }))
@@ -196,7 +200,7 @@ function runShardProject(name, files, opt = {}) {
         opts: { ...(spec.wip ? { wip: spec.wip } : {}), ...(spec.only ? { only: spec.only } : {}),
           ...(spec.manifest ? { manifest: path.join(dir, spec.manifest) } : {}) },
         wrap: spec.wrap, skipScenario: spec.skipScenario, noopScenario: spec.noopScenario,
-        repeatScenario: spec.repeatScenario, badRunDir: spec.badRunDir,
+        repeatScenario: spec.repeatScenario, dropScenario: spec.dropScenario, badRunDir: spec.badRunDir,
       };
     });
     fs.writeFileSync(path.join(dir, file), SPEC);

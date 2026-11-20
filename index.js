@@ -2548,12 +2548,15 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   const titles = [];
   /** @type {string[]} */
   const ownSkips = [];
+  /** @type {string[]} */
+  const heldTitles = [];
   if (live) {
     const inner = register;
     /** @type {typeof registerTest} */
     register = (title, o, fn) => {
       titles.push(title);
       if (o.skip) ownSkips.push(title);
+      if (o.todo) heldTitles.push(title); // an unbound placeholder, held by the wip register
       return inner(title, o, fn);
     };
     probe.onInvoke = () => {
@@ -2691,7 +2694,7 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     // runnable scenario bodies this call registered (counted exactly as the
     // native probe counts them), and the file that says one was invoked.
     writeShardFile(live.runDir, 'calls', liveIdentity, { dir: realDir, testFile: live.testFile,
-      project: live.project, runnable: probe.runnable, held: probe.held, titles });
+      project: live.project, runnable: probe.runnable, held: probe.held, titles, heldTitles });
     // The reporter's view of this call: one claim per feature it runs (a
     // whole-directory call claims the directory itself, feature: null). Each
     // claim carries the call's whole debt register (normalized, sorted), so the

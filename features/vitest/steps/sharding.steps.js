@@ -99,6 +99,14 @@ module.exports = (reg) => {
     w.layout['plain.vitest-spec.mjs'] = { kind: 'plain' };
   });
 
+  reg.define(/^one shard is given a debt register with an entry the others do not have$/, (w) => {
+    w.layout['beta.vitest-spec.mjs'].wip = ['ghost'];
+  });
+
+  reg.define(/^one test file that runs a feature directory whole, with the reporter configured$/, (w) => {
+    w.layout = { 'all.vitest-spec.mjs': { dir: 'sharded' } };
+  });
+
   reg.define(/^a test file that runs one feature file as a shard$/, (w) => {
     w.layout = { 'alpha.vitest-spec.mjs': { dir: 'sharded', only: ['alpha'] } };
   });
@@ -165,6 +173,42 @@ module.exports = (reg) => {
     w.heldBoth = true;
   });
 
+  reg.define(/^the suite runs and (.+)$/, (w, what) => {
+    // Each way a run can end without having seen every scenario exactly once.
+    // `reason` is what the red must say, so the red is for that cause.
+    const lastFails = () => { for (const [f, s] of Object.entries(w.layout)) w.layout[f] = { ...s, dir: 'lastRed' }; };
+    const ways = {
+      'a failing scenario is retried by the runner': () => {
+        lastFails();
+        w.reason = /invoked again after its outcome was recorded/;
+        return { config: { retry: 1 } };
+      },
+      'every scenario is repeated by the runner': () => {
+        for (const [f, s] of Object.entries(w.layout)) w.layout[f] = { ...s, repeatScenario: '' };
+        w.reason = /invoked again after its outcome was recorded/;
+        return {};
+      },
+      'the run bails at the first failing test file': () => {
+        w.layout['alpha.vitest-spec.mjs'].dir = 'shardedRed';
+        w.reason = /FAIL {2}alpha\.vitest-spec\.mjs > Alpha :: alpha passes/;
+        return { args: ['--bail', '1', '--no-file-parallelism'] };
+      },
+      'a test file throws before its scenarios are collected': () => {
+        w.layout['boom.vitest-spec.mjs'] = { kind: 'collectError' };
+        w.reason = /cannot collect/;
+        return {};
+      },
+      'an unhandled error is raised outside every test': () => {
+        w.layout['boom.vitest-spec.mjs'] = { kind: 'unhandled' };
+        w.reason = /nobody catches this/;
+        return {};
+      },
+    };
+    const way = /** @type {Record<string, () => any>} */ (ways)[what];
+    assert.ok(way, `a way this step knows: ${what}`);
+    w.run = runLayout(w, 'goes-wrong', way());
+  });
+
   reg.define(/^the suite runs on vitest with no reporter configured$/, (w) => {
     w.run = runLayout(w, 'no-reporter', { reporter: false });
   });
@@ -198,6 +242,8 @@ module.exports = (reg) => {
 
   reg.define(/^the run is red$/, (w) => {
     assert.notStrictEqual(w.run.status, 0, w.run.output);
+    // a variant that names why it is red: the red is for that reason, not another
+    if (w.reason) assert.match(w.run.output, w.reason);
     // a scenario that also ran the whole-directory call beside the shards: red there too
     if (w.wholeRun && w.heldBoth) assert.notStrictEqual(w.wholeRun.status, 0, w.wholeRun.output);
   });
@@ -216,10 +262,10 @@ module.exports = (reg) => {
       /the name filter "no such scenario title" ran no scenario in this run: it is misspelled, or it names a scenario in a test file outside this run, or it matches only skipped scenarios, or only the runner's own checks/);
   });
 
-  reg.define(/^the run says the filter matched only todo tests$/, (w) => {
+  reg.define(/^the run says the filter matched only wip-held scenarios$/, (w) => {
     for (const run of [w.run, w.wholeRun]) {
       assert.match(run.output,
-        /the name filter "pending thing" matched only todo tests \(wip-held scenarios register as todo\); no scenario ran/);
+        /the name filter "pending thing" matched no runnable scenario, only wip-held ones, in this run; nothing ran/);
     }
   });
 
@@ -256,6 +302,11 @@ module.exports = (reg) => {
 
   reg.define(/^no manifest is written$/, (w) => {
     assert.strictEqual(w.run.manifestBytes('m.ndjson'), null);
+  });
+
+  reg.define(/^the report names that entry and a test file on each side$/, (w) => {
+    assert.match(w.run.output,
+      /disagree about the wip register: "ghost" is in the register given to .*beta\.vitest-spec\.mjs but not in the one given to .*(alpha|gamma)\.vitest-spec\.mjs/);
   });
 
   reg.define(/^the report names the third feature file as run by no test file$/, (w) => {

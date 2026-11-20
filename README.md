@@ -597,19 +597,27 @@ Pass the same `wip` list and the same `manifest` to every shard.
 - **Scenarios the test file itself skips.** A wrapper around the test function
   that turns some scenarios into `test.skip` on a host that cannot run them
   means those shards never record every outcome. The whole-directory call on
-  such a host is green and writes no manifest; so does the shard run, but only
-  in exactly this shape, on a full run: a claimed feature has no part, **and**
-  every check test of that test file's calls (the registry check, the
-  per-feature ratchet, the `only`/definer check, the wip orphan check where the
-  shard has it) ran and passed, **and** the tests that ended skipped are that
-  file's own scenario tests (the name starts with a scenario's title, so a
-  wrapper may rename with a suffix; a feature file's own `@skip` does not
-  count). Then the run is not red for it, the manifest is not written, and one
-  line says so, ending with how to refresh the manifest (a full run on a host
-  that runs every scenario). Anything else with a missing part is a named red:
-  a `describe.skip` around a shard, or a wrapper that skips every test, skips
-  the shard's own checks with the scenarios, so it is red; an unrelated
-  `test.skip` in the file explains nothing.
+  such a host is green and writes no manifest; so does the shard run, in
+  exactly this shape and no other, on a full run: a claimed feature has no
+  part, **and** every check test of that test file's calls (the registry check,
+  the per-feature ratchet, the `only`/definer check, the wip orphan check where
+  the shard has it) ran and passed, **and** the scenarios with no recorded
+  outcome are exactly the scenarios the test file skipped. Two rules make
+  "exactly" strict. Each skipped test counts for one scenario only: the one
+  with the longest title its name starts with (the title itself, or the title,
+  a space and a suffix, which is how a wrapper renames); so a skipped
+  "alpha passes again" never explains "alpha passes". And a scenario counts as
+  skipped by the test file only if none of its own tests ran: if any test
+  credited to it ended passed or failed (an empty body, say), a skipped decoy
+  beside it explains nothing. A feature file's own `@skip` does not count.
+  Then the run is not red for it, the manifest is not written, and one line
+  says so, ending with how to refresh the manifest (a full run on a host that
+  runs every scenario). This is the one place where a green run stands without
+  a full account of every scenario: the note is how it says so, and the
+  manifest stays unwritten until a host runs every scenario. Anything else with
+  a missing part is a named red: a `describe.skip` around a shard, or a wrapper
+  that skips every test, skips the shard's own checks with the scenarios; an
+  unrelated `test.skip` in the file explains nothing.
 - **Red runs** (named in the output): a feature file in a sharded directory that
   no test file runs (full runs only); a feature file run by two test files, or by
   one test file in two vitest projects; a whole-directory call and shards over
@@ -638,8 +646,9 @@ Pass the same `wip` list and the same `manifest` to every shard.
   names the causes it cannot tell apart (a misspelled filter, a scenario in a
   test file outside the run, only skipped scenarios, only the runner's own
   checks). When the pattern
-  matched a `todo` test the line says so: wip-held scenarios register as todo,
-  but the reporter cannot tell them from another `test.todo`. Only the global
+  matched only wip-held scenarios (each call reports which of its tests are
+  wip-held placeholders) the line says "only wip-held ones"; a consumer's own
+  `test.todo` gets the general line. Only the global
   `-t` pattern is read. Without the reporter, vitest stays uncovered.
 
 Limits: `only` is vitest-only. Native node, bun and Deno runs get the one

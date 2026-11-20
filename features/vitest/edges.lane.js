@@ -469,3 +469,44 @@ test('G12: the reporter names a missing temp directory in one line', async () =>
     if (saveVar === undefined) delete process.env.GNT_SHARD_DIR; else process.env.GNT_SHARD_DIR = saveVar;
   }
 });
+
+// --- Round 7 ------------------------------------------------------------------------------------
+
+test('R1: a filter that matched only a consumer\'s own test.todo gets the general line, not the wip-held one', () => {
+  const run = runShardProject('r1-own-todo', { ...three(), 'todo.vitest-spec.mjs': { kind: 'todoOwn' } },
+    { args: ['-t', 'a consumer todo'] });
+  assert.notStrictEqual(run.status, 0, run.output);
+  assert.match(run.output, /the name filter "a consumer todo" ran no scenario in this run: it is misspelled/);
+  // step-lint: allow unearned-absence -- guarded: the general line is asserted above, so the reporter ran this very check; only the wip-held wording is absent
+  assert.doesNotMatch(run.output, /only wip-held ones/);
+});
+
+test('R3a: a skipped test is credited to the scenario with the longest title: a prefix title is not explained by it', () => {
+  // features/sharded/alpha.feature has "alpha passes" and "alpha passes again".
+  const layout = three();
+  layout['alpha.vitest-spec.mjs'] = { ...layout['alpha.vitest-spec.mjs'], skipScenario: 'passes again', noopScenario: 'alpha passes' };
+  const run = runShardProject('r3a-longest', layout, { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /no manifest part for "alpha" on a full run/);
+  // step-lint: allow unearned-absence -- guarded: the run is red on the named missing-part line (asserted above); only the note is absent
+  assert.doesNotMatch(run.output, /run manifest not written for/);
+});
+
+test('R3a: the same, when the shorter scenario\'s test is not registered at all', () => {
+  const layout = three();
+  layout['alpha.vitest-spec.mjs'] = { ...layout['alpha.vitest-spec.mjs'], skipScenario: 'passes again', dropScenario: 'alpha passes' };
+  const run = runShardProject('r3a-dropped', layout, { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /no manifest part for "alpha" on a full run/);
+});
+
+test('R3b: a scenario whose own test ran is not skipped by the test file, whatever decoy is skipped beside it', () => {
+  const layout = three();
+  layout['beta.vitest-spec.mjs'] = [
+    { ...layout['beta.vitest-spec.mjs'], noopScenario: 'sweep 1' },
+    { kind: 'skipTest', title: 'Beta :: sweep 1 [1] decoy' },
+  ];
+  const run = runShardProject('r3b-decoy', layout, { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /no manifest part for "beta" on a full run/);
+});

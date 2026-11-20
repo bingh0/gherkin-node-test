@@ -109,9 +109,39 @@ Feature: Sharding a feature directory on vitest
     When the suite runs with a name filter that matches only a plain unit test
     Then the run is green
 
-  Scenario: a name filter that reaches only todo tests, wip-held scenarios among them, is red and says so
+  Scenario: a name filter that reaches only wip-held scenarios is red and says so
     Given a feature directory of 3 feature files holding every kind of row, and hostile titles
     And one test file that runs it whole, and 3 test files that each run one feature file
     When the suite runs with a name filter that matches only a wip-held scenario title
     Then the run is red
-    And the run says the filter matched only todo tests
+    And the run says the filter matched only wip-held scenarios
+
+  Scenario: shards given different debt registers turn the run red
+    Given a feature directory of 3 feature files, one shard per feature file
+    And one shard is given a debt register with an entry the others do not have
+    And a manifest is already on disk
+    When the full run completes
+    Then the run is red
+    And the report names that entry and a test file on each side
+    And the manifest on disk is untouched, bytes and timestamp
+
+  Scenario Outline: a run that did not observe every scenario once leaves the manifest untouched
+    Given a feature directory of 3 feature files, one shard per feature file
+    And a manifest is already on disk
+    When the suite runs and <what goes wrong>
+    Then the run is red
+    And the manifest on disk is untouched, bytes and timestamp
+
+    Examples:
+      | what goes wrong                                       |
+      | a failing scenario is retried by the runner           |
+      | every scenario is repeated by the runner              |
+      | the run bails at the first failing test file          |
+      | a test file throws before its scenarios are collected |
+      | an unhandled error is raised outside every test       |
+
+  Scenario: the filter guard also covers a whole-directory call
+    Given one test file that runs a feature directory whole, with the reporter configured
+    When the suite runs with a name filter that matches no scenario title
+    Then the run is red
+    And the run says the filter ran no scenario

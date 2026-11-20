@@ -252,11 +252,12 @@ export default class GherkinNodeTestReporter {
    *    would otherwise skip the ratchets with the scenarios);
    *  - the scenarios whose outcome was NOT recorded (the shard writes which it
    *    recorded, as an incomplete-part record that is never a source of manifest
-   *    rows) are exactly the scenario tests the test file skipped: each
-   *    unrecorded scenario has a skipped test whose name is its title or its
-   *    title plus a suffix (the wrapper renames); a feature file's own @skip does
-   *    not count. A wrapper that also registers an empty body for another
-   *    scenario leaves that one unrecorded and unskipped: not this shape.
+   *    rows) are exactly the scenarios the test file skipped. Each skipped test is
+   *    credited to ONE scenario, the longest title its name starts with (title, or
+   *    title plus a space and a suffix, as a wrapper renames); an unrecorded
+   *    scenario is explained only by a skipped test credited to it, and only when
+   *    none of the tests credited to it ran (a decoy skip beside an empty body
+   *    explains nothing). A feature file's own @skip does not count.
    * Anything else with a missing part is a named red.
    * @param {string} dir @param {any[]} shards @param {string[]} lacking
    * @param {any[]} recorded @param {readonly any[]} modules
@@ -277,12 +278,21 @@ export default class GherkinNodeTestReporter {
       const checksPassed = [...checks].every((name) => tests.some((t) => t.name === name && t.result().state === 'passed'));
       const unrecorded = recorded.filter((r) => testFileKey(r.testFile) === key)
         .flatMap((r) => r.wrapped.filter((/** @type {string} */ t) => !r.recorded.includes(t)));
+      // Each test is credited to ONE scenario: the one with the longest title its
+      // name starts with (the title, or the title plus a space and a suffix, which
+      // is how a wrapper renames). "alpha passes" and "alpha passes again" never
+      // share a skipped test.
+      const titles = [...new Set(mine.flatMap((c) => c.scenarios))].sort((x, y) => y.length - x.length);
+      const creditOf = (/** @type {string} */ name) => titles.find((title) => name === title || name.startsWith(`${title} `));
       const skippedTests = tests.filter((t) => t.result().state === 'skipped' && !own.has(t.name));
-      const matches = (/** @type {string} */ name, /** @type {string} */ title) => name === title || name.startsWith(`${title} `);
-      const exact = unrecorded.length > 0
-        && unrecorded.every((title) => skippedTests.some((t) => matches(t.name, title)));
+      // A scenario is skipped by the test file only if a skipped test is credited
+      // to it and NONE of the tests credited to it ran (passed or failed): a
+      // decoy `test.skip` beside an empty body explains nothing.
+      const exact = unrecorded.length > 0 && unrecorded.every((title) =>
+        skippedTests.some((t) => creditOf(t.name) === title)
+        && !tests.some((t) => creditOf(t.name) === title && ['passed', 'failed'].includes(t.result().state)));
       if (checksPassed && exact) {
-        skipped.push(...skippedTests.filter((t) => unrecorded.some((title) => matches(t.name, title))).map((t) => t.name));
+        skipped.push(...skippedTests.filter((t) => unrecorded.includes(creditOf(t.name) ?? '')).map((t) => t.name));
       } else unexplained.push(file);
     }
     if (skipped.length > 0) {
@@ -343,9 +353,11 @@ export default class GherkinNodeTestReporter {
    * through vitest's programmatic API, which this reporter does not cover. What
    * it can tell about the lines: a `todo` test left in the run (vitest keeps a
    * held scenario's `todo` mode when the pattern matches it, `skip` when not)
-   * means the pattern reached todo tests; it cannot tell a scenario the filter
-   * skipped from one the test file or an @skip tag skipped, so the general line
-   * names all the causes.
+   * means the pattern reached todo tests. Each call reports which of its titles
+   * are wip-held placeholders, so when every todo test left is one of those the
+   * line says "only wip-held ones"; a consumer's own `test.todo` gets the
+   * general line. It cannot tell a scenario the filter skipped from one the test
+   * file or an @skip tag skipped, so the general line names all the causes.
    * @param {readonly any[]} modules @param {readonly unknown[]} unhandledErrors
    * One thing it can only note: a name pattern, test modules, and NO record of
    * any kind from a runFeatures call. Either gnt is not used in this run, or a
@@ -374,8 +386,17 @@ export default class GherkinNodeTestReporter {
     const tests = modules.flatMap((m) => [...m.children.allTests()].map((t) => ({ file: m.moduleId, t })));
     if (tests.some(({ file, t }) => t.result().state === 'passed' && !ours.get(testFileKey(file))?.has(t.name))) return;
     const shown = `"${pattern instanceof RegExp ? pattern.source : String(pattern)}"`;
-    problems.push(tests.some(({ t }) => t.options?.mode === 'todo')
-      ? `the name filter ${shown} matched only todo tests (wip-held scenarios register as todo); no scenario ran`
+    // A wip-held scenario registers as a todo test, and its call reported its
+    // title as held; a todo test nobody reported as held is the consumer's own.
+    const heldBy = new Map();
+    for (const c of calls) {
+      const k = testFileKey(c.testFile);
+      heldBy.set(k, new Set([...(heldBy.get(k) || []), ...c.heldTitles]));
+    }
+    const todos = tests.filter(({ t }) => t.options?.mode === 'todo');
+    const onlyHeld = todos.length > 0 && todos.every(({ file, t }) => heldBy.get(testFileKey(file))?.has(t.name));
+    problems.push(onlyHeld
+      ? `the name filter ${shown} matched no runnable scenario, only wip-held ones, in this run; nothing ran`
       : `the name filter ${shown} ran no scenario in this run: it is misspelled, or it names a scenario in a test file `
         + 'outside this run, or it matches only skipped scenarios, or only the runner\'s own checks');
   }
