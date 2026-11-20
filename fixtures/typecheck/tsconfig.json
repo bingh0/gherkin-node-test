@@ -9,7 +9,8 @@
     "types": ["node"],
     "paths": {
       "gherkin-node-test": ["../../index.d.ts"],
-      "gherkin-node-test/vitest": ["../../vitest.d.ts"]
+      "gherkin-node-test/vitest": ["../../vitest.d.ts"],
+      "gherkin-node-test/vitest/reporter": ["../../vitest-reporter.d.ts"]
     }
   },
   "include": ["consumer.ts"]

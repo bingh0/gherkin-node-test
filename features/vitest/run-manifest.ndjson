@@ -1,0 +1,23 @@
+{"run-manifest":1}
+{"file":"sharding.feature","title":"a debt entry naming no feature file fails once","status":"passed"}
+{"file":"sharding.feature","title":"a feature file no test file runs turns the run red","status":"passed"}
+{"file":"sharding.feature","title":"a feature file run by two test files turns the run red","status":"passed"}
+{"file":"sharding.feature","title":"a filtered or partial run writes no manifest","status":"passed"}
+{"file":"sharding.feature","title":"a name filter that reaches only wip-held scenarios is red and says so","status":"passed"}
+{"file":"sharding.feature","title":"a name filter that runs a scenario in one test file is not refused","status":"passed"}
+{"file":"sharding.feature","title":"a name filter that runs no scenario anywhere in the run is red","status":"passed"}
+{"file":"sharding.feature","title":"a name filter that runs only a plain unit test is not refused","status":"passed"}
+{"file":"sharding.feature","title":"a run that did not observe every scenario once leaves the manifest untouched [1]","status":"passed"}
+{"file":"sharding.feature","title":"a run that did not observe every scenario once leaves the manifest untouched [2]","status":"passed"}
+{"file":"sharding.feature","title":"a run that did not observe every scenario once leaves the manifest untouched [3]","status":"passed"}
+{"file":"sharding.feature","title":"a run that did not observe every scenario once leaves the manifest untouched [4]","status":"passed"}
+{"file":"sharding.feature","title":"a run that did not observe every scenario once leaves the manifest untouched [5]","status":"passed"}
+{"file":"sharding.feature","title":"a shard whose own checks are skipped is red","status":"passed"}
+{"file":"sharding.feature","title":"a shard without the reporter is one failing test","status":"passed"}
+{"file":"sharding.feature","title":"a stale debt entry fails in the one shard that owns it","status":"passed"}
+{"file":"sharding.feature","title":"a whole-directory call beside shards turns the run red","status":"passed"}
+{"file":"sharding.feature","title":"scenarios the test file itself skips leave the manifest unwritten, and the run says so","status":"passed"}
+{"file":"sharding.feature","title":"shards given different debt registers turn the run red","status":"passed"}
+{"file":"sharding.feature","title":"shards write the manifest the whole-directory call writes","status":"passed"}
+{"file":"sharding.feature","title":"the filter guard also covers a whole-directory call","status":"passed"}
+{"file":"sharding.feature","title":"two sharded directories in one run each get their manifest","status":"passed"}

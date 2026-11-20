@@ -98,3 +98,25 @@ jobs:
       # for now: see fixtures/typecheck/tsconfig.checkjs.json for what this
       # lane does and does not pin, and why tsc 7 is excluded.
       - run: npm run typecheck:js
+
+  # The sharding scenarios and edge tests (features/vitest) start a real vitest,
+  # so they run here and not in the node, bun and deno lanes (which prove the
+  # package runs with nothing installed). Every OS: the reporter matches a test
+  # module's id against a worker's reported path, which is spelled differently
+  # on Windows. The lane's committed manifest must match its run (ubuntu).
+  sharding:
+    name: sharding lane / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run test:sharding
+      - run: git diff --exit-code features/vitest/run-manifest.ndjson
+        if: matrix.os == 'ubuntu-latest'

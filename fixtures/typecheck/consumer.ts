@@ -6,9 +6,10 @@
 // `npm run typecheck`; the CI vitest lane runs it too. Never executed.
 import {
   bindRunner, lintFeature, parseFeature, StepRegistry,
-  type Definer, type Registry,
+  type DataTable, type Definer, type Registry, type StepFn,
 } from 'gherkin-node-test';
 import * as vitestEntry from 'gherkin-node-test/vitest';
+import Reporter from 'gherkin-node-test/vitest/reporter';
 
 export function typecheckMainEntry(): void {
   const parsed = parseFeature('Feature: F\nScenario: s\n  Given a\n  Then b\n', 'f.feature');
@@ -30,6 +31,11 @@ export function typecheckMainEntry(): void {
   bound.runFeature(parsed, reg);
   // 0.8.0 run manifest through the bound surface (never executed — types only).
   bound.runFeatures('features', {}, { manifest: 'features/run-manifest.ndjson' });
+  // 0.12.1 sharding: `only` through both entries, and the reporter class.
+  bound.runFeatures('features', {}, { only: ['a', 'b'], wip: ['c'], manifest: 'm.ndjson' });
+  vitestEntry.runFeatures('features', {}, { only: ['a'] });
+  const reporter = new Reporter();
+  reporter.onInit({});
 }
 
 // Typed worlds. W describes the world's ACCRETED shape (it is born {}), so
@@ -59,6 +65,33 @@ export function typecheckTypedWorld(): void {
   void alias;
 }
 
+// A handler can declare what its sentence produces: captures as string, a
+// table as DataTable, with no cast and no helper. The args list is inferred
+// from the handler's own parameters, so a table declared as DataTable cannot
+// be read as a string, and the existing union stays the default for a handler
+// that declares nothing.
+export function typecheckTableStep(): void {
+  const reg = new StepRegistry<CounterWorld>();
+  reg.define(/^a table$/, (w, table: DataTable) => { void w; void table.hashes(); });
+  reg.define(/^a counter at (\d+) with$/, async (w, start: string, table: DataTable) => {
+    w.count = Number(start) + table.raw().length;
+  });
+  reg.define(/^a counter at (\d+)$/, (w, start: string) => { w.count = Number(start); });
+  reg.define(/^no arguments$/, () => {});
+  reg.define(/^anything (\d+)$/, (w, ...rest) => { void w; void rest; });
+  reg.define(/^unread (\d+)$/, (w, _n: unknown) => { void w; });
+  // @ts-expect-error — a table declared as DataTable cannot be read as a string
+  reg.define(/^a table$/, (w, table: DataTable) => { void w; table.toUpperCase(); });
+  // @ts-expect-error — a capture declared as string cannot be read as a table
+  reg.define(/^a counter at (\d+)$/, (w, start: string) => { void w; start.hashes(); });
+  // @ts-expect-error — nothing arrives as a number, with or without a table
+  reg.define(/^a counter at (\d+) with$/, (w, start: number, table: DataTable) => { void w; void start; void table; });
+  // @ts-expect-error — a parameter typed narrower than what can arrive is still refused
+  reg.define(/^a counter at (\d+)$/, (w, start: string | number) => { void w; void start; });
+  // The same registry class backs the vitest entry:
+  new vitestEntry.StepRegistry().define(/^a table$/, (w, table: DataTable) => { void w; void table.hashes(); });
+}
+
 export function typecheckVitestEntry(): void {
   const reg = new vitestEntry.StepRegistry();
   // 0.7.0 exported types: Registry/Definer spare consumers the
@@ -70,4 +103,22 @@ export function typecheckVitestEntry(): void {
   vitestEntry.runFeatures('features', { counter: definer }, { wip, manifest: 'features/run-manifest.ndjson' });
   vitestEntry.runFeature(vitestEntry.parseFeature('Feature: F\nScenario: s\n  Given a\n  Then b\n'), reg);
   void vitestEntry.lintFeature('Feature: F\n');
+}
+
+// Two shapes a consumer wrote against 0.12.0 that must keep compiling whatever
+// happens to the typing of `define`: a subclass that overrides it with the
+// non-generic signature, and a value typed as the registry's own `define`
+// assigned a non-generic function.
+export class LoggingRegistry<W = Record<string, any>> extends StepRegistry<W> {
+  override define(pattern: RegExp | string, fn: StepFn<W>): this {
+    return super.define(pattern, fn);
+  }
+}
+export function typecheckDefineShapes(): void {
+  const viaType: StepRegistry<CounterWorld>['define'] = function (this: any, pattern: RegExp | string, fn: StepFn<CounterWorld>) {
+    void pattern; void fn;
+    return this;
+  };
+  void viaType;
+  void new LoggingRegistry<CounterWorld>().define(/^a$/, (w) => { void w.count; });
 }

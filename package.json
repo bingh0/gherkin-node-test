@@ -1,6 +1,6 @@
 {
   "name": "gherkin-node-test",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "The smallest honest Gherkin runner and feature-file linter — zero dependencies, native on node:test, bun:test, and Deno, with a vitest adapter, built for agent-driven BDD.",
   "license": "MIT",
   "author": "Bing Ho <reps-attic-riot@duck.com>",
@@ -19,6 +19,10 @@
     "./vitest": {
       "types": "./vitest.d.ts",
       "default": "./vitest.mjs"
+    },
+    "./vitest/reporter": {
+      "types": "./vitest-reporter.d.ts",
+      "default": "./vitest-reporter.mjs"
     },
     "./index.js": "./index.js",
     "./package.json": "./package.json"
@@ -39,12 +43,15 @@
     "index.d.ts",
     "vitest.mjs",
     "vitest.d.ts",
+    "vitest-reporter.mjs",
+    "vitest-reporter.d.ts",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "test": "node --test",
     "test:vitest": "vitest run",
+    "test:sharding": "node --test features/vitest/sharding.lane.js features/vitest/edges.lane.js",
     "typecheck": "tsc -p fixtures/typecheck",
     "typecheck:ts5": "npx -y -p typescript@5 tsc -p fixtures/typecheck",
     "typecheck:js": "npx -y -p typescript@5 tsc -p fixtures/typecheck/tsconfig.checkjs.json"

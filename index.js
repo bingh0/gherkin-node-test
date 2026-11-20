@@ -77,6 +77,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert');
 const url = require('node:url');
+const { isMainThread } = require('node:worker_threads');
+const crypto = require('node:crypto');
 
 // Under Bun, register tests natively on bun:test: Bun's node:test shim is
 // partial (its own compat docs say "use bun:test instead") and deliberately
@@ -151,7 +153,7 @@ function methodRegister(t, title, opts, fn) {
  * @param {any} testFn a `test` function with `.skip` and `.todo` methods
  * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry<any>) => void,
  *             runFeatureFile: (file: string, registry: StepRegistry<any>) => void,
- *             runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: { wip?: Iterable<WipEntry>, manifest?: string }) => void }}
+ *             runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: { wip?: Iterable<WipEntry>, manifest?: string, only?: readonly string[] }) => void }}
  */
 function bindRunner(testFn) {
   if (typeof testFn !== 'function' || typeof testFn.skip !== 'function' || typeof testFn.todo !== 'function') {
@@ -244,8 +246,13 @@ function currentTestFile() {
  * the regex capture strings plus, when the step has a table, a trailing
  * DataTable — typed as the union because that is what actually arrives; a
  * captured number is a string until the step coerces it.
+ * The second parameter, `A`, is the handler's own argument list. It defaults
+ * to the union above; a handler that annotates its parameters narrows it —
+ * `(w, count: string, table: DataTable)` declares a step with one capture and
+ * a table, and the compiler then rejects reading that table as a string.
  * @template [W=Record<string, any>]
- * @typedef {(world: W & { defer(fn: (world: W) => (void | Promise<void>)): void }, ...args: (string | DataTable)[]) => (void | Promise<void>)} StepFn
+ * @template {(string | DataTable)[]} [A=(string | DataTable)[]]
+ * @typedef {(world: W & { defer(fn: (world: W) => (void | Promise<void>)): void }, ...args: A) => (void | Promise<void>)} StepFn
  */
 /**
  * A step-definer module: receives a feature's scoped registry, defines its
@@ -1655,7 +1662,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
   const counted = (fn) => {
     if (!probe) return fn;
     probe.runnable += 1;
-    return async () => { probe.invoked += 1; await fn(); };
+    return async () => { probe.invoked += 1; probe.onInvoke?.(); await fn(); };
   };
   const base = featureBase(parsed.file);
   if (parsed.scenarios.some((sc) => sc.tags.includes('@only'))) {
@@ -1711,6 +1718,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
   for (const sc of parsed.scenarios) {
     const steps = [...parsed.background, ...sc.steps];
     const title = `${parsed.feature} :: ${sc.name}`;
+    probe?.scenarios.push(title);
     const missing = steps.filter((s) => !registry.find(s.text));
     if (missing.length) {
       const reason = `${missing.length} undefined step(s); first: "${missing[0].text}"`;
@@ -1736,7 +1744,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
     if (amb) {
       // A refusal is a check, not a runnable scenario body: never counted.
       const refuse = async () => { throw amb; };
-      register(title, {}, recorder ? recorder.wrap(parsed.file, sc.name, refuse) : refuse);
+      register(title, {}, recorder ? recorder.wrap(parsed.file, sc.name, refuse, undefined, title) : refuse);
       continue;
     }
     const tags = new Set(sc.tags);
@@ -1778,7 +1786,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
       // 'failed' when the tag is stale, so a red run's account explains
       // itself (see wrap's mapping doc).
       register(title, {}, counted(recorder
-        ? recorder.wrap(parsed.file, sc.name, inverted, { ok: 'todo', err: 'failed' })
+        ? recorder.wrap(parsed.file, sc.name, inverted, { ok: 'todo', err: 'failed' }, title)
         : inverted));
       continue;
     }
@@ -1791,7 +1799,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
       continue;
     }
     if (recorder) {
-      register(title, {}, counted(recorder.wrap(parsed.file, sc.name, body)));
+      register(title, {}, counted(recorder.wrap(parsed.file, sc.name, body, undefined, title)));
       continue;
     }
     register(title, {}, counted(body));
@@ -1841,6 +1849,23 @@ function compareCodePoints(a, b) {
     j += cb > 0xffff ? 2 : 1;
   }
   return (a.length - i) - (b.length - j);
+}
+
+/**
+ * The account's bytes: the schema declaration, then every row sorted by file,
+ * title, status (code-point order), one fixed-key JSON object per line. The
+ * ONE serializer — the single-call writer and the sharding reporter both call
+ * it, so the two routes write the same bytes by construction.
+ * @param {{ file: string, title: string, status: ManifestStatus }[]} rows
+ * @returns {string}
+ */
+function manifestText(rows) {
+  return MANIFEST_VERSION_LINE + '\n' + [...rows]
+    .sort((a, b) => compareCodePoints(a.file, b.file)
+      || compareCodePoints(a.title, b.title)
+      || compareCodePoints(a.status, b.status))
+    .map((r) => JSON.stringify({ file: r.file, title: r.title, status: r.status }) + '\n')
+    .join('');
 }
 
 /**
@@ -1898,32 +1923,41 @@ function compareCodePoints(a, b) {
  *    further is written. A run without failures never triggers retry, so
  *    deterministic suites never see the refusal; bun's --rerun-each re-runs
  *    whole files (fresh recorder per run) and is naturally immune.
+ * A shard (runFeatures with `only`) passes a `sink`: the same "every outcome
+ * recorded, never poisoned" rule decides WHEN it fires, but it receives the
+ * rows instead of the file being written — the reporter merges the shards'
+ * rows and writes the one account.
  * @param {string} manifestPath
+ * @param {(rows: { file: string, title: string, status: ManifestStatus }[]) => void} [sink]
+ * @param {(wrapped: string[], recorded: string[]) => void} [onProgress] called at the end
+ *   of registration and after every recorded outcome: which scenario tests the
+ *   writer wraps and which of them have an outcome (a shard writes this as an
+ *   incomplete-part record; it is never a source of manifest rows)
+ * @param {() => void} [onPoison] called once when a body is re-invoked: a shard
+ *   uses it to withdraw the part it already wrote (retry re-runs a failed
+ *   last scenario AFTER its outcome was recorded and the part written)
  */
-function createManifestWriter(manifestPath) {
+function createManifestWriter(manifestPath, sink, onPoison, onProgress) {
   /** @type {{ file: string, title: string, status: ManifestStatus }[]} */
   const rows = [];
   let pending = 0;        // wrapped scenario bodies not yet resolved
   let registered = false; // set by done() once every row source is known
   let poisoned = false;   // a body was re-invoked; the account is unreliable
+  /** @type {string[]} */
+  const wrapped = [];     // test titles of every wrapped scenario body
+  /** @type {string[]} */
+  const recorded = [];    // ... of those whose outcome has been recorded
   const base = path.dirname(path.resolve(manifestPath));
   /** @param {string} f */
   const norm = (f) => path.relative(base, path.resolve(f)).split(path.sep).join('/');
   const maybeWrite = () => {
     if (poisoned || !registered || pending > 0) return;
-    // Every account begins with the in-band schema declaration — the file
-    // must explain itself to whoever holds it, with no other context. The
-    // key names the FORMAT, not the tool: the cargo sibling writes these
-    // exact bytes too. Zero rows (unreachable from the public path — an
-    // empty directory is refused before a recorder exists) still write the
+    // Every account begins with the in-band schema declaration — see
+    // manifestText. Zero rows (unreachable from the public path — an empty
+    // directory is refused before a recorder exists) still write the
     // declaration line: whatever this writer writes is an account.
-    const text = MANIFEST_VERSION_LINE + '\n' + [...rows]
-      .sort((a, b) => compareCodePoints(a.file, b.file)
-        || compareCodePoints(a.title, b.title)
-        || compareCodePoints(a.status, b.status))
-      .map((r) => JSON.stringify({ file: r.file, title: r.title, status: r.status }) + '\n')
-      .join('');
-    fs.writeFileSync(manifestPath, text);
+    if (sink) sink(rows);
+    else fs.writeFileSync(manifestPath, manifestText(rows));
   };
   return {
     /**
@@ -1948,8 +1982,9 @@ function createManifestWriter(manifestPath) {
      * @param {{ ok: ManifestStatus, err: ManifestStatus }} [statuses]
      * @returns {() => Promise<void>}
      */
-    wrap(file, title, fn, statuses = { ok: 'passed', err: 'failed' }) {
+    wrap(file, title, fn, statuses = { ok: 'passed', err: 'failed' }, testTitle = title) {
       pending += 1;
+      wrapped.push(testTitle);
       let invoked = false;
       return async () => {
         if (invoked) {
@@ -1957,6 +1992,7 @@ function createManifestWriter(manifestPath) {
           // already observed every first invocation and written — later
           // completions must not write again on top of a refused run.
           poisoned = true;
+          onPoison?.();
           throw new Error(
             `run manifest: scenario "${title}" was invoked again after its outcome was recorded — `
             + 'this runner re-runs test bodies (vitest retry/repeats?). Retry and repeats assign '
@@ -1973,7 +2009,9 @@ function createManifestWriter(manifestPath) {
           throw e;
         } finally {
           rows.push({ file: norm(file), title, status: threw ? statuses.err : statuses.ok });
+          recorded.push(testTitle);
           pending -= 1;
+          onProgress?.(wrapped, recorded);
           try {
             maybeWrite();
           } catch (e) {
@@ -1989,6 +2027,7 @@ function createManifestWriter(manifestPath) {
     /** Every registration has happened; write now if nothing is pending. */
     done() {
       registered = true;
+      onProgress?.(wrapped, recorded);
       maybeWrite();
     },
   };
@@ -2009,6 +2048,97 @@ function createManifestWriter(manifestPath) {
 // in-process guard's sight — keep one path per feature directory.
 /** @type {Map<string, { identity: string, dir: string }>} */
 const manifestClaims = new Map();
+
+// --- Sharding: one feature file (or a few) per test file -----------------------
+//
+// `runFeatures(dir, definers, { only: [...] })` runs only the named features,
+// so vitest can spread one directory's features over its workers. A shard sees
+// one test file; the things that need the whole run (the manifest, the debt
+// register's orphan check, "every feature file is claimed by some test file",
+// "no whole-directory call beside shards") live in the reporter
+// (vitest-reporter.mjs), which runs in vitest's main process. The two meet in
+// a private run directory the reporter makes at init and publishes to workers
+// in SHARD_ENV. A shard writes there:
+//   claims/  one JSON file per (directory, feature, test file) at registration
+//            — { dir, feature, testFile, manifest }; a whole-directory call
+//            writes one with feature: null, so the reporter can refuse a mix;
+//   parts/   one JSON file per shard whose every expected outcome is recorded
+//            — { dir, manifest, testFile, features, rows }, the rows exactly
+//            as a whole-directory call would hold them (file relative to the
+//            manifest's directory).
+// The names are content hashes, so a watch-mode re-run of the same test file
+// rewrites its own files instead of adding a second claim. Without the
+// reporter there is no run directory, and a call with `only` registers one
+// failing test saying so (see runFeatures): a shard cannot run unwatched.
+const SHARD_ENV = 'GNT_SHARD_DIR';
+const SHARD_KINDS = ['claims', 'parts', 'poison', 'calls', 'invoked', 'recorded'];
+
+/**
+ * The live reporter run, or null: the run directory AND the vitest worker's
+ * test file. Both are required — the file identity comes from the worker
+ * state, not the stack, because a helper that wraps runFeatures would
+ * otherwise make every test file look like the helper.
+ *
+ * The variable is `<pid>:<dir>`, the pid being the reporter's own process. A
+ * worker accepts it only when that pid is its own (the caller is a worker
+ * thread, threads pools) or its parent's (the caller is the main thread of a
+ * forked child, forks pools), and the directory has the layout the reporter makes.
+ * Environment variables are inherited by every child, so without the pid a
+ * vitest run with NO reporter started from inside a run that has one (or with
+ * a stale variable) would write into the outer run's directory. A refused
+ * variable means "no reporter": a shard gets its one failing test, a
+ * whole-directory call behaves exactly as without the reporter.
+ * @returns {{ runDir: string, testFile: string, project: string } | null}
+ */
+function shardRun() {
+  // The worker check comes FIRST: outside a vitest worker the environment is
+  // never read (Deno refuses an env read without --allow-env, and a
+  // whole-directory call must not need a permission it did not need before).
+  const worker = /** @type {any} */ (globalThis).__vitest_worker__;
+  const testFile = worker?.filepath;
+  if (typeof testFile !== 'string') return null;
+  const raw = process.env[SHARD_ENV];
+  const colon = raw ? raw.indexOf(':') : -1;
+  if (!raw || colon < 1) return null;
+  const pid = Number(raw.slice(0, colon));
+  // Whose run is it? A worker THREAD shares the reporter's process, so its
+  // pid is the reporter's. A forked worker's main thread is the reporter's
+  // child, so its parent is. The two are not interchangeable: a vitest started
+  // from inside a worker thread is a child of the reporter's process too, and
+  // its own worker threads would see the reporter's pid as their ppid.
+  if (pid !== (isMainThread ? process.ppid : process.pid)) return null;
+  const runDir = raw.slice(colon + 1);
+  const layout = SHARD_KINDS.every((k) => {
+    try { return fs.statSync(path.join(runDir, k)).isDirectory(); } catch { return false; }
+  });
+  if (!layout) return null;
+  return { runDir, testFile, project: String(worker.ctx?.projectName ?? '') };
+}
+
+/**
+ * A test file's path as one comparable string: the reporter matches a vitest
+ * test module's id against the path a worker reported, and the two need not be
+ * spelled alike on Windows (`C:\\x\\a.mjs`, `C:/x/a.mjs`, `/c:/x/a.mjs`).
+ * Separators become `/`, a leading slash before a drive letter goes, and the
+ * drive letter is lower-cased. Nothing else is touched (the rest of a path is
+ * case-sensitive on the platforms where it is).
+ * @param {string} p @returns {string}
+ */
+function testFileKey(p) {
+  return String(p).replace(/\\/g, '/').replace(/^\/([A-Za-z]:)/, '$1')
+    .replace(/^([A-Za-z]):/, (_, d) => `${d.toLowerCase()}:`);
+}
+
+/**
+ * @param {string} runDir @param {typeof SHARD_KINDS[number]} kind
+ * @param {(string | null)[]} identity what makes the file the same file on a re-run
+ * @param {object} body
+ */
+function writeShardFile(runDir, kind, identity, body) {
+  const name = crypto.createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 32);
+  fs.writeFileSync(path.join(runDir, kind, `${name}.json`), JSON.stringify(body));
+  return path.join(runDir, kind, `${name}.json`);
+}
 
 // --- High-level runner --------------------------------------------------------
 
@@ -2040,13 +2170,14 @@ const manifestClaims = new Map();
 //   bun   afterAll(); throws. (bun test -t <typo> already exits 1 by itself.)
 //   Deno  the unload event, which fires per test file; Deno.exit(1) is the one
 //         way to fail the run from there. Our own line is printed first.
-// vitest is not covered: with every test filtered out neither hook runs.
+// vitest is not covered by these hooks: with every test filtered out neither
+// runs. With the reporter (vitest-reporter.mjs) the guard runs per RUN instead.
 // Filter text is readable on node only. Two different name patterns on node
 // are refused at load (see nameFilterConflict).
 
 /**
  * @typedef {{ runnable: number, invoked: number, held: number, heldInvoked: number,
- *   failed: boolean }} FilterProbe
+ *   failed: boolean, scenarios: string[], onInvoke?: () => void }} FilterProbe
  */
 
 /**
@@ -2182,8 +2313,8 @@ function installFilterGuard(probe, dir) {
  * runnable scenario and the file ended with none run. The runner's own
  * checks never count; a test that already failed outranks the refusal. On
  * node a skip pattern that leaves nothing to run is red too, and a second,
- * different --test-name-pattern is refused at load. Not covered when the
- * runner is bound to vitest (bindRunner). See the README for the lines'
+ * different --test-name-pattern is refused at load. Bound to vitest
+ * (bindRunner), covered only with the reporter, per run. See the README for the lines'
  * exact text and the per-runtime limits.
  *
  * `manifest` (opt-in) names a file to receive the run manifest: one sorted
@@ -2202,8 +2333,25 @@ function installFilterGuard(probe, dir) {
  *   annotate an entry `Definer<MyWorld>` to type its steps' world — the record
  *   stays `any` deliberately: each feature has its OWN world, and one type
  *   parameter here would collapse them all into one
- * @param {{ wip?: Iterable<WipEntry>, manifest?: string }} [opts] features (or
- *   scenarios) still bootstrapping (TODO allowed); run-manifest output path
+ * `only` (vitest, with the reporter) makes the call a shard: a non-empty
+ * array of feature basenames. The call still lists the whole directory but
+ * parses, registers and runs only those features, so one directory's features
+ * can be spread over test files and vitest's workers. Pass the WHOLE `wip`
+ * list to every shard: each uses the entries for its own features, ignores
+ * entries for features that belong to other shards, and an entry naming no
+ * feature file fails once per run (in the shard running the first feature
+ * file). A name in `only` with no feature file, and a definer for a feature
+ * not in `only`, are registered failing tests. The reporter
+ * (`gherkin-node-test/vitest/reporter`, in the vitest config's `reporters`)
+ * writes the one manifest after a full run, turns the run red when a feature
+ * file in a sharded directory is claimed by no test file or by two, and when
+ * a whole-directory call and shards share a directory. Without the reporter a
+ * call with `only` registers one failing test saying so — native node, bun
+ * and Deno runs do not support `only`.
+ *
+ * @param {{ wip?: Iterable<WipEntry>, manifest?: string, only?: readonly string[] }} [opts] features
+ *   (or scenarios) still bootstrapping (TODO allowed); run-manifest output
+ *   path; the feature basenames this call runs (a shard)
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  */
@@ -2269,6 +2417,39 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     throw new TypeError(`manifest must be a non-empty file path, got ${JSON.stringify(opts.manifest)}`);
   }
 
+  // `only` makes this call a shard (see the sharding section). A malformed
+  // value throws at load like a malformed wip: '' or [] must not silently
+  // become "run everything" or "run nothing".
+  /** @type {string[] | null} */
+  let only = null;
+  if (opts.only !== undefined) {
+    const o = opts.only;
+    if (!Array.isArray(o) || o.length === 0 || o.some((n) => typeof n !== 'string' || n === '')
+      || new Set(o).size !== o.length) {
+      throw new TypeError(
+        `only must be a non-empty array of distinct feature basenames, got ${JSON.stringify(o)}`);
+    }
+    only = [...o];
+  }
+  // A shard needs the reporter: without it nothing writes the manifest, checks
+  // the debt register's orphans, or notices a feature file no test file runs.
+  // One failing test, nothing else registered — a shard must never run green
+  // unwatched. The slot is consumed: this DID register.
+  const shard = only ? shardRun() : null;
+  if (only && !shard) {
+    if (native) filesWithRunFeatures.add(testFile.key);
+    register('runFeatures: only needs the gherkin-node-test reporter', {}, () => {
+      throw new Error(
+        `runFeatures(${JSON.stringify(dir)}, …, { only }) found no gherkin-node-test reporter in this `
+        + `run, or the worker's environment was cleared of ${SHARD_ENV} — a shard cannot run without it: the `
+        + 'reporter writes the manifest, checks that every feature file is run by exactly one shard and that the '
+        + 'shards agree. Add "gherkin-node-test/vitest/reporter" to `reporters` in the vitest config (and keep '
+        + `${SHARD_ENV} in the environment a setup file leaves). Native node, bun and Deno runs do not support `
+        + '`only`; run the whole directory.');
+    });
+    return;
+  }
+
   // Directory refusals are REGISTERED failing tests, not throws, for the
   // Deno-swallow reason the one-call rule documents — and they consume the
   // one-call slot, because they DID register. A missing directory would
@@ -2309,12 +2490,13 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     return;
   }
   const bases = files.map(featureBase);
+  const realDir = fs.realpathSync(dir);
 
   // The filter guard (native runners only; see its comment). Every test this
   // call registers goes through `reg`, so a real failure is seen before the
   // guard could speak. A declared-debt todo placeholder never counts as one.
   /** @type {FilterProbe} */
-  const probe = { runnable: 0, invoked: 0, held: 0, heldInvoked: 0, failed: false };
+  const probe = { runnable: 0, invoked: 0, held: 0, heldInvoked: 0, failed: false, scenarios: [] };
   const rawRegister = register;
   /** @type {typeof registerTest} */
   const tracked = (title, opts, fn) => rawRegister(title, opts, opts.todo ? fn : async () => {
@@ -2324,7 +2506,7 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
 
   // Validate and parse EVERYTHING before registering any test: a bad definer
   // or an unparseable feature must fail at load, before half a suite exists.
-  const features = files.map((file) => {
+  const features = files.filter((file) => !only || only.includes(featureBase(file))).map((file) => {
     const base = featureBase(file);
     const featureFile = path.join(dir, file);
     const definer = definers[base];
@@ -2355,7 +2537,57 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   // every scenario below still registers and runs.
   /** @type {ManifestRecorder | null} */
   let recorder = null;
-  if (opts.manifest) {
+  const wholeRun = only ? null : shardRun();
+  const live = shard || wholeRun;
+  const liveIdentity = live ? [realDir, only ? [...only].sort().join('\u0000') : null, live.testFile, live.project] : [];
+  // Every title this call registers, and the ones it registers as skipped
+  // (its own @skip scenarios): the reporter needs the first to tell a test the
+  // consumer's own code ran from the runner's, and the second to tell a
+  // scenario the TEST FILE skipped from one the feature file did.
+  /** @type {string[]} */
+  const titles = [];
+  /** @type {string[]} */
+  const ownSkips = [];
+  /** @type {string[]} */
+  const heldTitles = [];
+  if (live) {
+    const inner = register;
+    /** @type {typeof registerTest} */
+    register = (title, o, fn) => {
+      titles.push(title);
+      if (o.skip) ownSkips.push(title);
+      if (o.todo) heldTitles.push(title); // an unbound placeholder, held by the wip register
+      return inner(title, o, fn);
+    };
+    probe.onInvoke = () => {
+      probe.onInvoke = undefined;
+      writeShardFile(live.runDir, 'invoked', liveIdentity, {});
+    };
+  }
+  if (shard && opts.manifest) {
+    // Shards of one directory legitimately share a manifest path, so the
+    // in-process claim below does not apply; the reporter checks the paths.
+    // Two calls in one test file over different features are legal, so the
+    // part's identity includes the features the call runs.
+    const manifestPath = path.resolve(opts.manifest);
+    const ran = features.map((f) => f.base).sort();
+    const identity = [realDir, manifestPath, shard.testFile, shard.project, ran.join('\u0000')];
+    const body = { dir: realDir, manifest: manifestPath, testFile: shard.testFile,
+      project: shard.project, features: ran };
+    /** @type {string | null} */
+    let partFile = null;
+    recorder = createManifestWriter(opts.manifest, (rows) => {
+      partFile = writeShardFile(shard.runDir, 'parts', identity, { ...body, rows });
+    }, () => {
+      // A re-invoked body (retry/repeats) after the part was written: withdraw
+      // the part and leave a marker, so the reporter writes no manifest for
+      // this directory.
+      if (partFile) fs.rmSync(partFile, { force: true });
+      writeShardFile(shard.runDir, 'poison', identity, body);
+    }, (w, r) => {
+      writeShardFile(shard.runDir, 'recorded', identity, { ...body, wrapped: w, recorded: r });
+    });
+  } else if (opts.manifest) {
     const manifest = opts.manifest;
     const identity = `${testFile.key}\u0000${dir}`;
     const claim = manifestClaims.get(manifest);
@@ -2373,12 +2605,30 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     }
   }
 
-  register('step definers and wip entries map only to existing feature files', {}, () => {
-    const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));
-    assert.deepStrictEqual(orphaned, [], `definers with no matching .feature in ${dir}: ${orphaned.join(', ')}`);
+  const wipOrphans = () => {
     const wipOrphaned = [...wip, ...wipScenarios.keys()].filter((k) => !bases.includes(k));
     assert.deepStrictEqual(wipOrphaned, [], `wip entries with no matching .feature in ${dir}: ${wipOrphaned.join(', ')}`);
-  });
+  };
+  if (only) {
+    register('only names and step definers map to feature files this call runs', {}, () => {
+      const missing = only.filter((k) => !bases.includes(k));
+      assert.deepStrictEqual(missing, [], `only names with no matching .feature in ${dir}: ${missing.join(', ')}`);
+      const stray = Object.keys(definers).filter((k) => !only.includes(k));
+      assert.deepStrictEqual(stray, [],
+        `definers for features this call does not run (not in only) in ${dir}: ${stray.join(', ')}`);
+    });
+    // The whole wip list reaches every shard, so the orphan check must fail
+    // once per run, not once per shard: only the shard that runs the first
+    // feature file (sorted) registers it. A wip entry for a feature that
+    // exists but belongs to another shard is that shard's business.
+    if (only.includes(bases[0])) register('wip entries map only to existing feature files', {}, wipOrphans);
+  } else {
+    register('step definers and wip entries map only to existing feature files', {}, () => {
+      const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));
+      assert.deepStrictEqual(orphaned, [], `definers with no matching .feature in ${dir}: ${orphaned.join(', ')}`);
+      wipOrphans();
+    });
+  }
 
   for (const { base, parsed, registry } of features) {
     const titles = wipScenarios.get(base);
@@ -2437,7 +2687,34 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
         + stale.map((t) => `'${t}'`).join(', '));
     });
 
-    runFeature(parsed, registry, register, recorder, native ? probe : null);
+    runFeature(parsed, registry, register, recorder, native || live ? probe : null);
+  }
+  if (live) {
+    // The reporter's filter guard (per RUN, see vitest-reporter.mjs): how many
+    // runnable scenario bodies this call registered (counted exactly as the
+    // native probe counts them), and the file that says one was invoked.
+    writeShardFile(live.runDir, 'calls', liveIdentity, { dir: realDir, testFile: live.testFile,
+      project: live.project, runnable: probe.runnable, held: probe.held, titles, heldTitles });
+    // The reporter's view of this call: one claim per feature it runs (a
+    // whole-directory call claims the directory itself, feature: null). Each
+    // claim carries the call's whole debt register (normalized, sorted), so the
+    // reporter can refuse shards of one directory that were given different
+    // registers, and the directory as spelled, so it can refuse two spellings
+    // of one directory (they would write mixed `file` paths). Written after the
+    // registrations so it can carry the call's own @skip titles.
+    const manifestPath = opts.manifest ? path.resolve(opts.manifest) : null;
+    const wipList = [
+      ...[...wip].map((f) => JSON.stringify(f)),
+      ...[...wipScenarios].map(([f, t]) => JSON.stringify({ feature: f, scenarios: [...t].sort() })),
+    ].sort();
+    for (const feature of only ? features.map((f) => f.base) : [null]) {
+      writeShardFile(live.runDir, 'claims', [realDir, feature, live.testFile, live.project], {
+        dir: realDir, spelled: path.resolve(dir), feature, testFile: live.testFile,
+        project: live.project, manifest: manifestPath, wip: wipList, ownSkips,
+        // the call's scenario tests, and every other test it registered (its checks)
+        scenarios: probe.scenarios, checks: titles.filter((t) => !probe.scenarios.includes(t)),
+      });
+    }
   }
   // Every row source is now known. If nothing is left pending (every scenario
   // was @skip/@todo/unbound), this is also the write.
@@ -2448,4 +2725,6 @@ module.exports = {
   parseFeature, lintFeature, lintStepDefinitionSource, StepRegistry, executeSteps,
   runFeature, runFeatureFile, runFeatures,
   bindRunner, DataTable, buildSnippet, GherkinSyntaxError,
+  // Internal: the reporter's half of the sharding protocol. Not public API.
+  shardProtocol: { SHARD_ENV, SHARD_KINDS, manifestText, testFileKey },
 };

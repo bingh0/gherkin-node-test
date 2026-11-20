@@ -369,6 +369,12 @@ the directory must exist (the writer never `mkdir`s — a write failure is
 loud, though a scenario's own failure outranks it). Under Deno, opting in
 needs `--allow-write=<that directory>` on top of the usual `--allow-read`.
 
+On vitest a feature directory can be split over several test files
+([sharding](#sharding-a-feature-directory-over-vitests-workers)). It is still
+one manifest per feature directory, with the same bytes: each test file hands
+its rows to the reporter, and the reporter writes the file once, after a full
+run.
+
 ## Runs on Bun and Deno — natively
 
 **Bun.** Under Bun this runner registers scenarios directly on
@@ -488,9 +494,11 @@ What still differs — the honest list, pinned by tests:
 - **Node: `--test-only` can still run no scenario and stay green.** With no
   name or skip pattern the guard cannot tell that case from other causes, so it
   leaves it alone.
-- **vitest is not covered.** With every test filtered out, vitest runs no
-  `afterAll` and no exit handler, so a filter that matches nothing exits `0`
-  there. This is a known deviation.
+- **vitest is covered only with the reporter.** With every test filtered out,
+  vitest runs no `afterAll` and no exit handler, so a filter that matches
+  nothing exits `0` there. The [sharding reporter](#sharding-a-feature-directory-over-vitests-workers)
+  closes this per *run* rather than per file (see below); without it, vitest
+  stays a known deviation.
 
 One footnote: `bun test` and `deno test` run those runtimes' own test
 runners; `bun run test` runs this package's `test` script (`node --test`).
@@ -555,6 +563,147 @@ Details worth knowing:
   binding this package ships and CI-tests; anything else, you're holding the
   binding.
 
+### Sharding a feature directory over vitest's workers
+
+One `runFeatures(dir, …)` call puts every feature of the directory in one test
+file, so on vitest they all run on one worker. To spread them, give each test
+file `only` (the feature basenames it runs) and add the reporter:
+
+```ts
+// vitest.config.ts
+export default defineConfig({
+  test: { reporters: ['default', 'gherkin-node-test/vitest/reporter'] },
+});
+
+// features-a.test.ts — and one more file per shard
+import { runFeatures } from 'gherkin-node-test/vitest';
+import { wip } from './wip';
+runFeatures('features', { alpha: defineAlpha }, { only: ['alpha'], wip, manifest: 'features/run-manifest.ndjson' });
+```
+
+Nothing the whole-directory call gives is lost. Every shard still lists the
+whole directory; it parses, registers and runs only its `only` features.
+Pass the same `wip` list and the same `manifest` to every shard.
+
+- **The debt register.** A shard uses the `wip` entries for its own features
+  (both directions of the ratchet, unchanged) and ignores entries for features
+  that belong to other shards. An entry naming *no* feature file fails exactly
+  once per run, in the shard that runs the first feature file (sorted).
+- **The manifest** is written by the reporter, after a full run, once every
+  claimed feature has its part: the same bytes the single call writes. A
+  name-filtered run, a run of some files only, a bailed run, or a run with an
+  unhandled error or a spec that failed to collect writes nothing and leaves an
+  existing manifest untouched. On a full run a claimed feature with no part is a
+  named red, never a silently stale manifest, unless the test file itself
+  skipped tests (see below). A scenario body vitest runs a second time (`retry`, `repeats`)
+  withdraws its shard's part, so the directory's manifest is not written; the
+  failing test says why, as on the single call.
+- **A directory with a problem writes no manifest.** Any red below, for a
+  directory, also means the reporter leaves that directory's manifest alone.
+- **Scenarios the test file itself skips.** A wrapper around the test function
+  that turns some scenarios into `test.skip` on a host that cannot run them
+  means those shards never record every outcome. The whole-directory call on
+  such a host is green and writes no manifest; so does the shard run, in
+  exactly this shape and no other, on a full run: a claimed feature has no
+  part, **and** every check test of that test file's calls (the registry check,
+  the per-feature ratchet, the `only`/definer check, the wip orphan check where
+  the shard has it) ran and passed, **and** the scenarios with no recorded
+  outcome are exactly the scenarios the test file skipped. Two rules make
+  "exactly" strict. Each skipped test counts for one scenario only: the one
+  with the longest title its name starts with (the title itself, or the title,
+  a space and a suffix, which is how a wrapper renames); so a skipped
+  "alpha passes again" never explains "alpha passes". And a scenario counts as
+  skipped by the test file only if none of its own tests ran: if any test
+  credited to it ended passed or failed (an empty body, say), a skipped decoy
+  beside it explains nothing. A feature file's own `@skip` does not count.
+  Then the run is not red for it, the manifest is not written, and one line
+  says so, ending with how to refresh the manifest (a full run on a host that
+  runs every scenario). This is the one place where a green run stands without
+  a full account of every scenario: the note is how it says so, and the
+  manifest stays unwritten until a host runs every scenario. Anything else with
+  a missing part is a named red: a `describe.skip` around a shard, or a wrapper
+  that skips every test, skips the shard's own checks with the scenarios; an
+  unrelated `test.skip` in the file explains nothing.
+- **Red runs** (named in the output): a feature file in a sharded directory that
+  no test file runs (full runs only); a feature file run by two test files, or by
+  one test file in two vitest projects; a whole-directory call and shards over
+  the same directory in one run; shards of one directory that disagree about
+  `manifest`, about the `wip` list, or about how the directory is spelled (a
+  symlink to it counts); two directories sharing one manifest path, whole-directory
+  calls included. A name in `only` with no feature file, and a definer for a
+  feature not in `only`, are failing tests.
+- **No reporter, no run.** A call with `only` in a run without the reporter
+  registers one failing test saying to add it, and nothing else. A reporter
+  counts only for its own run: the variable that names its run directory carries
+  the reporter's process id, and a vitest started from inside another run (in a
+  forks or a threads pool, whatever its own pool), or with a stale variable,
+  does not accept it. A whole-directory call then
+  behaves exactly as without the reporter.
+- Several feature directories, each with its own manifest, work in one run.
+- **The filter guard, per run.** With the reporter, a name filter (`-t`) that
+  runs no scenario and no test of your own *anywhere in the run* (a plain unit
+  test beside the feature runners that the filter matches makes it an honest
+  run) is red, for sharded and whole-directory calls alike: the run has a name pattern, `runFeatures` calls registered at
+  least one runnable scenario (bound scenarios, `@todo` included; `@skip`,
+  wip-held placeholders and the runner's own checks never count), and none ran.
+  It is per run, not per file, because with one feature per test file a filter
+  naming one feature legitimately runs nothing in the others. One stderr line
+  names the pattern. A test that already failed outranks it. The general line
+  names the causes it cannot tell apart (a misspelled filter, a scenario in a
+  test file outside the run, only skipped scenarios, only the runner's own
+  checks). When the pattern
+  matched only wip-held scenarios (each call reports which of its tests are
+  wip-held placeholders) the line says "only wip-held ones"; a consumer's own
+  `test.todo` gets the general line. Only the global
+  `-t` pattern is read. Without the reporter, vitest stays uncovered.
+
+Limits: `only` is vitest-only. Native node, bun and Deno runs get the one
+failing test above; run the whole directory there.
+
+- **The variable.** Shards and reporter meet in a temp directory the reporter
+  makes at init and removes at exit, published to workers in the environment
+  variable `GNT_SHARD_DIR` (`<reporter pid>:<directory>`). A vitest setup file
+  that clears or rebuilds `process.env` must leave it, or the worker sees no
+  reporter: shards fail with "add the reporter" (the message names the
+  variable), and the filter guard on a whole-directory call is silently off
+  (when a name filter is given and no `runFeatures` call reported at all, in a
+  run of all test files, the reporter prints a note saying so; in a run of some
+  test files it says nothing, since a plain unit-test file with `-t` is the
+  everyday case).
+- **Versions.** The reporter needs vitest 3.0 or newer (the
+  `onTestRunStart`/`onTestRunEnd` hooks and `globTestSpecifications()`) and
+  refuses to start on an older one with one error naming the minimum; the
+  package's own peer range is unchanged. The whole sharding lane (scenarios and
+  edge tests) was run on vitest 3.2.7, 4.1.12 and 5.1.0 (forks and threads
+  pools, `retry`, nested runs, test-file skips, `--shard`, `--watch`); nothing
+  was run below 3.2. Two vitest internals are read, and were seen on those three
+  versions: the worker's `__vitest_worker__.filepath` and
+  `.ctx.projectName`, and, on vitest 3, `configOverride`/`config` for the name
+  pattern (vitest 4 and up have `getGlobalTestNamePattern()`).
+- **`--shard i/n`** runs a part of the test files, so no manifest is written
+  and unrun feature files are not checked; the reporter prints one note saying
+  so when a sharded directory is in the run.
+- **`--watch`.** The initial watch run is a full run and writes the manifest
+  (tested). A re-run of some files is partial and writes nothing; the reporter
+  empties its run directory at the start of every re-run (not tested).
+- Not tested by this lane: the `vmThreads`/`vmForks` pools (one review pass
+  during the build ran full runs and nested runs on them by hand), `--changed`.
+- **Windows.** The reporter compares a test module's id with the worker's test
+  file path after normalising separators and the drive letter's case (unit
+  tested with Windows-shaped inputs); the sharding lane runs on ubuntu, windows
+  and macos in CI.
+
+Two things about how you start vitest. A `--reporter` flag on the command line
+replaces the config's `reporters`, so it drops this reporter and every shard
+then fails with the one test above: put extra reporters in the config. And a
+test-file path on the command line makes the run partial (no manifest, no
+check for feature files nobody runs): to run only the shards as a full run,
+narrow `include` in a config.
+
+The sharding scenarios (`features/vitest`) start a real vitest, so they run in
+a CI job of their own (`npm run test:sharding`, on Linux, macOS and Windows);
+the node, bun and Deno lanes run with nothing installed and do not see them.
+
 ## Running the suite
 
 This section is for a project starting on this runner, and for the build agent
@@ -573,10 +722,13 @@ features.
   | node | `node --test --test-name-pattern "<Feature> :: <Scenario>" test/<file>.test.js` |
   | bun | `bun test -t "<Feature> :: <Scenario>" test/<file>.test.js` |
   | Deno | `deno test --allow-read --filter "<Feature> :: <Scenario>" test/<file>.test.js` |
+  | vitest | `vitest run -t "<Feature> :: <Scenario>"` (add the test file's path to run that file only) |
 
   On node a second, different `--test-name-pattern` is refused: run them one at
   a time. A filter that runs no scenario is red, and the red means the
-  selection is wrong, not the code. The rules and the per-runtime differences
+  selection is wrong, not the code. On vitest that red needs the
+  [reporter](#sharding-a-feature-directory-over-vitests-workers) in the config,
+  and it is judged over the whole run, not per test file. The rules and the per-runtime differences
   are in [One behavior on all three runtimes](#one-behavior-on-all-three-runtimes).
 - **Before handing work back**, run the whole suite, once.
 - **Per stage**, run target-only mutants for what changed, each against its
@@ -638,6 +790,10 @@ runner version the project pinned. It fills in the test file names.
   - node: `node --test --test-name-pattern "<Feature> :: <Scenario>" test/<file>.test.js`
   - bun: `bun test -t "<Feature> :: <Scenario>" test/<file>.test.js`
   - Deno: `deno test --allow-read --filter "<Feature> :: <Scenario>" test/<file>.test.js`
+  - vitest: `vitest run -t "<Feature> :: <Scenario>"`
+- On vitest keep `gherkin-node-test/vitest/reporter` in the config's `reporters`.
+  Never pass `--reporter` on the command line: it drops that reporter. A run of
+  some files, or with a name filter, writes no run manifest: that is correct.
 - A second name filter is refused on node. A filter that ran no scenario is red:
   the selection is wrong, not the code.
 - Run the whole suite once before handing work back.
@@ -846,6 +1002,10 @@ runFeatures('features', { counter });  // one world PER FEATURE — no type para
 
 Step args are typed `string | DataTable` — captures arrive as strings, so
 the `Number()` coercion stays in view instead of silently concatenating.
+A handler that annotates its parameters says what its sentence produces:
+`(w, start: string, table: DataTable) => ...` is accepted, and the compiler
+then refuses to read `table` as a string. A parameter typed as anything the
+step cannot receive (`number`) is still a compile error.
 Be honest about what this buys: it is enforced by *your* build, not by the
 runner, and it proves a world key is spelled consistently — never that a
 step has assigned it. Keep `W`'s fields optional; a required field on a
@@ -1067,7 +1227,7 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 
 | Export | Purpose |
 |---|---|
-| `runFeatures(dir, definers, { wip, manifest }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; `wip` takes basenames or `{ feature, scenarios }`; `manifest` opts into the [run manifest](#the-run-manifest); **one call per test file** (a second call is refused loudly) |
+| `runFeatures(dir, definers, { wip, manifest, only }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; `wip` takes basenames or `{ feature, scenarios }`; `manifest` opts into the [run manifest](#the-run-manifest); **one call per test file** (a second call is refused loudly); `only` makes it a [shard](#sharding-a-feature-directory-over-vitests-workers) (vitest, with the reporter) |
 | `parseFeature(text, filename?)` | parse → `{ feature, background, scenarios, outlines }`; throws `GherkinSyntaxError` |
 | `lintFeature(text, filename?)` | **linter**: dialect gate + spec lints as `{ rule, severity, line, message }[]` — pure text-in/findings-out, for use under another runner |
 | `lintStepDefinitionSource(text, filename?, config?)` | **step-source linter**: the other side of the contract — `unearned-absence` (literal-needle negations, every assertion dialect) and `rest-signature` sightings, warn-class, sanctioned by a statement-attached `// step-lint: allow <rule> -- <reason>` marker whose staleness is itself sighted; `config.rules` adds `{ pattern, reason }` pairs (all sharing the rule name `custom` — one `allow custom` marker sanctions every config rule on that statement). Scan everything your steps import — the field incident behind this rule came from files outside the lint's roots. |
@@ -1076,6 +1236,7 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 | `executeSteps(steps, registry, world?)` | run a flat step list against a shared world (installs `world.defer`); every invocation passes the args-consumption check — produced vs declared, defaults refused, rest exempt |
 | `runFeature(parsed, registry)` | register one runner test per scenario (`@skip`/`@todo` mapped; `@only`, duplicate titles, and unconsumed definitions → failing test; unbound → TODO) — the registry is one feature's, so a registry shared across files answers for full consumption in each |
 | `runFeatureFile(file, registry)` | read + parse + run a single `.feature` file |
+| `gherkin-node-test/vitest/reporter` *(default export)* | the vitest reporter that [sharding](#sharding-a-feature-directory-over-vitests-workers) and the filter guard on vitest need: add it to `reporters` in the vitest config; needs vitest 3.0 or newer |
 | `bindRunner(testFn)` | rebind `runFeature`/`runFeatureFile`/`runFeatures` to a method-form `test` function (`.skip`/`.todo`) — how [`gherkin-node-test/vitest`](#and-under-vitest--via-the-adapter) is built |
 | `DataTable` | cucumber-compatible step table: `raw` / `rows` / `hashes` / `rowsHash` / `transpose` |
 | `buildSnippet(text)` | paste-ready step definition for an unbound step (body throws) |
