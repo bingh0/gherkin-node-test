@@ -76,10 +76,12 @@ no runtime line changed, and the args-consumption guard is what it was.
   reporters in the config.
 - A test-file path on the command line makes the run partial: no manifest, and
   no check for feature files nobody runs.
-- If your test file itself skips scenarios (a wrapper that calls `test.skip`
-  on a host that cannot run them, or a `describe.skip`), the manifest for that
-  directory is not written and one line says why. The run is not red for it.
-  The whole-directory call already behaved this way, silently.
+- If your test file itself skips some scenarios (a wrapper that calls
+  `test.skip` on a host that cannot run them), the manifest for that directory
+  is not written and one line says why. The run is not red for it, as long as
+  the shard's own checks ran and passed. The whole-directory call already
+  behaved this way, silently. A `describe.skip` around a shard is red: it
+  skips the shard's checks with its scenarios.
 - Not tested: `vmThreads` and `vmForks`, `--watch`, `--shard`, `--changed`.
   The reporter treats what it can recognise as partial and writes no manifest
   from a partial run.
@@ -107,7 +109,8 @@ release because each needs a ruling or reaches both siblings:
 Scenarios in `features/vitest/sharding.feature` start a real vitest against
 generated projects; they run in the vitest CI lane only (`npm run
 test:sharding`), so the node, bun and Deno lanes still run with nothing
-installed. Two adversarial reviews planted 55 faults between them and ran the
-reporter in the modes listed above; a third pass checked the last fixes. The
+installed. Three adversarial review passes planted 67 faults between them and ran the
+reporter in the modes listed above; each pass found defects, and each was
+fixed with a test that fails without the fix. The
 design-tier corpus of a real consumer was run both ways and the manifests
 compared byte for byte.
