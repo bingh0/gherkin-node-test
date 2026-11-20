@@ -105,6 +105,22 @@ runtime line changed, and the args-consumption guard is what it was.
 The README section "Sharding a feature directory over vitest's workers" has
 the full list of what turns a run red and the exact lines.
 
+## The runtimes are not alike
+
+The same suite can end differently on node, bun, Deno and vitest when
+something goes wrong outside a scenario's own steps. The runtimes agree on
+the test API and differ around it: what happens to an error nobody caught,
+whether the process waits for work still pending after the last test, what a
+throw while a test file loads does, and what a function's source text looks
+like. Each of these decides whether a broken run is reported red.
+
+This release changes none of that. It is why every check in this project is
+run on all four, and all of them pass in CI for this release: node (22.17, 24
+and 26), bun and Deno on Linux, macOS and Windows, the vitest adapter, and
+the sharding lane on the same three systems. The differences we know of are
+listed below and in the README's limits; 0.13.0 closes the ones a runner can
+close.
+
 ## Known, not fixed here
 
 Found while building this, present in 0.12.0, and left for the next lockstep
@@ -161,8 +177,9 @@ on purpose.
   code it calls, that calls `process.exit(0)` or `std::process::exit(0)` ends
   the run green, even after a scenario failed. vitest is already red.
 - **A failure outside every scenario is not lost on Deno**: a timer callback
-  or a worker thread that throws while a later scenario runs exits 0 there
-  today.
+  that throws while a later scenario runs exits 0 there today. (A worker
+  thread that throws is also green on Deno today; no fix for that is proven
+  yet.)
 - **The run manifest is not written by a run that was refused or saw a failure
   outside every scenario**, where the runtime lets the runner see it (not on
   Bun). This covers the `retry` item under "Known" above. An earlier manifest
