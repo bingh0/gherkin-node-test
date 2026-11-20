@@ -49,14 +49,25 @@ Feature: Sharding a feature directory on vitest
     Then both of those runs are green
     And the manifest is untouched, bytes and timestamp
 
-  Scenario: a scenario the test file itself skips leaves the manifest unwritten, and says so
+  Scenario: scenarios the test file itself skips leave the manifest unwritten, and the run says so
     Given a feature directory of 3 feature files, one shard per feature file
-    And one shard's test file turns a scenario into a skipped test
+    And one shard's test file turns a scenario into a skipped test and leaves the runner's own checks alone
     And a manifest is already on disk
     When the full run completes
     Then the run is green
+    And that shard's own checks ran and passed
     And the manifest on disk is untouched, bytes and timestamp
     And the run says the manifest was not written because the test file skipped a test
+
+  Scenario: a shard whose own checks are skipped is red
+    Given a feature directory of 3 feature files, one shard per feature file
+    And one shard's test file skips the whole shard, the runner's own checks included
+    And that shard's feature has an unbound step outside the debt register
+    And a manifest is already on disk
+    When the full run completes
+    Then the run is red
+    And the report names that shard as having recorded no outcome
+    And the manifest on disk is untouched, bytes and timestamp
 
   Scenario: a shard without the reporter is one failing test
     Given a test file that runs one feature file as a shard

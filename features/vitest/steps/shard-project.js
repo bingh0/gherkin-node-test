@@ -151,7 +151,8 @@ function runShardProject(name, files, opt = {}) {
   const test = {
     include: ['*.vitest-spec.mjs'],
     pool: opt.pool || 'forks',
-    reporters: opt.reporter === false ? ['default'] : ['default', reporterUrl],
+    // vitest's own JSON results ride along on every run: `results()` reads them
+    reporters: ['default', ['json', { outputFile: 'results.json' }], ...(opt.reporter === false ? [] : [reporterUrl])],
     ...(opt.config || {}),
   };
   const projects = opt.projects
@@ -206,6 +207,15 @@ function runShardProject(name, files, opt = {}) {
     manifestBytes: (file) => {
       const p = path.join(dir, file);
       return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
+    },
+    /**
+     * The run's real per-test results from vitest's own JSON reporter.
+     * @param {string} file a spec file name @returns {Map<string, string>} test title → status
+     */
+    results: (file) => {
+      const json = JSON.parse(fs.readFileSync(path.join(dir, 'results.json'), 'utf8'));
+      const mod = json.testResults.find((/** @type {any} */ r) => r.name.endsWith(`/${file}`));
+      return new Map(mod ? mod.assertionResults.map((/** @type {any} */ a) => [a.title, a.status]) : []);
     },
     /** @param {string} file the seeded manifest still has its seeded bytes and its old mtime */
     untouched: (file) => {

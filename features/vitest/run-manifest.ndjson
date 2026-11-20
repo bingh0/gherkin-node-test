@@ -7,9 +7,10 @@
 {"file":"sharding.feature","title":"a name filter that runs a scenario in one test file is not refused","status":"passed"}
 {"file":"sharding.feature","title":"a name filter that runs no scenario anywhere in the run is red","status":"passed"}
 {"file":"sharding.feature","title":"a name filter that runs only a plain unit test is not refused","status":"passed"}
-{"file":"sharding.feature","title":"a scenario the test file itself skips leaves the manifest unwritten, and says so","status":"passed"}
+{"file":"sharding.feature","title":"a shard whose own checks are skipped is red","status":"passed"}
 {"file":"sharding.feature","title":"a shard without the reporter is one failing test","status":"passed"}
 {"file":"sharding.feature","title":"a stale debt entry fails in the one shard that owns it","status":"passed"}
 {"file":"sharding.feature","title":"a whole-directory call beside shards turns the run red","status":"passed"}
+{"file":"sharding.feature","title":"scenarios the test file itself skips leave the manifest unwritten, and the run says so","status":"passed"}
 {"file":"sharding.feature","title":"shards write the manifest the whole-directory call writes","status":"passed"}
 {"file":"sharding.feature","title":"two sharded directories in one run each get their manifest","status":"passed"}
