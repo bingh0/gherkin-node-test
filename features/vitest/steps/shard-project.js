@@ -42,6 +42,8 @@ export const richDefs = {
   two: bound,
   three: (reg) => { bound(reg); todoStep(reg); },
 };
+// gamma without its @todo scenario's step: that scenario is unbound, the other still runs
+export const gammaBare = { gamma: bound };
 export const twofiles = { aa: bound, zz: bound };
 export const pick = (defs, names) => Object.fromEntries(Object.entries(defs).filter(([k]) => names.includes(k)));
 `;
@@ -51,11 +53,11 @@ export const pick = (defs, names) => Object.fromEntries(Object.entries(defs).fil
 const SEED_TEXT = '{"run-manifest":1}\n{"file":"seed.feature","title":"already here","status":"passed"}\n';
 const SEED_TIME = new Date('2001-01-01T00:00:00Z');
 
-const CORPUS = { sharded: 'sharded', shardedRed: 'sharded', lastRed: 'sharded', richDefs: 'sharded-rich', twofiles: 'twofiles' };
+const CORPUS = { sharded: 'sharded', shardedRed: 'sharded', lastRed: 'sharded', gammaBare: 'sharded', richDefs: 'sharded-rich', twofiles: 'twofiles' };
 
 /**
- * @typedef {{ dir: 'sharded' | 'shardedRed' | 'lastRed' | 'richDefs' | 'twofiles', only?: string[],
- *   definers?: string[], wip?: any[], manifest?: string, link?: string, wrap?: 'describe.skip', skipScenario?: string, noopBodies?: boolean }
+ * @typedef {{ dir: 'sharded' | 'shardedRed' | 'lastRed' | 'gammaBare' | 'richDefs' | 'twofiles', only?: string[],
+ *   definers?: string[], wip?: any[], manifest?: string, link?: string, wrap?: 'describe.skip', skipScenario?: string, noopScenario?: string }
  *   | { raw: string }} Call
  * @typedef {Call | Call[]} TestFileSpec
  *   `dir` names the definers export (and so the corpus); `only` absent = a
@@ -64,7 +66,8 @@ const CORPUS = { sharded: 'sharded', shardedRed: 'sharded', lastRed: 'sharded', 
  *   a symlink of that name to the corpus directory; `skipScenario` runs the call
  *   through a test-function wrapper that turns the scenario with that title into
  *   `test.skip` (what a consumer does on a host that cannot run it);
- *   `noopBodies` through one that registers every test with an empty body; `raw`
+ *   `noopScenario` through one that registers the matching tests with an empty
+ *   body (for both, `''` matches every test, the runner's checks included); `raw`
  *   is a spec file's own source.
  */
 
@@ -110,8 +113,10 @@ function runShardProject(name, files, opt = {}) {
       const definers = names ? `pick(${spec.dir}, ${JSON.stringify(names)})` : spec.dir;
       const args = `${JSON.stringify(target)}, ${definers}, ${JSON.stringify(opts)}`;
       const wrapper = spec.skipScenario !== undefined
-        ? `(name, fn) => (name.includes(${JSON.stringify(spec.skipScenario)}) ? test.skip(name, fn) : test(name, fn))`
-        : spec.noopBodies ? '(name) => test(name, () => {})' : null;
+        ? `(name, fn) => (name.includes(${JSON.stringify(spec.skipScenario)}) ? test.skip(name + ' [host skip: no such host]', fn) : test(name, fn))`
+        : spec.noopScenario !== undefined
+          ? `(name, fn) => (name.includes(${JSON.stringify(spec.noopScenario)}) ? test(name, () => {}) : test(name, fn))`
+          : null;
       const call = wrapper
         ? `gnt.bindRunner(Object.assign(${wrapper}, { skip: test.skip, todo: test.todo })).runFeatures(${args});`
         : `runFeatures(${args});`;

@@ -80,10 +80,13 @@ runFeatures(${JSON.stringify(path.join(ROOT, 'features', 'sharded'))}, sharded);
 
 test('shards given different debt registers turn the run red, naming them', () => {
   const layout = three();
-  layout['beta.vitest-spec.mjs'].wip = ['ghost']; // the orphan, given to a shard that does not hold the first feature
+  // beta lacks "phantom" and has the entries the others have: the line must name the one that differs
+  layout['alpha.vitest-spec.mjs'].wip = ['ghost', 'phantom'];
+  layout['beta.vitest-spec.mjs'].wip = ['ghost'];
+  layout['gamma.vitest-spec.mjs'].wip = ['ghost', 'phantom'];
   const run = runShardProject('wip-disagree', layout, { seed: SEED });
   redUntouched(run);
-  assert.match(run.output, /disagree about the wip register: "ghost" is in the register given to .*beta\.vitest-spec\.mjs but not in the one given to .*(alpha|gamma)\.vitest-spec\.mjs/);
+  assert.match(run.output, /disagree about the wip register: "phantom" is in the register given to .*(alpha|gamma)\.vitest-spec\.mjs but not in the one given to .*beta\.vitest-spec\.mjs/);
 });
 
 test('the same debt register in a different order is the same register', () => {
@@ -121,21 +124,61 @@ test('two shard calls over different features in one test file are legal and wri
   assert.strictEqual(run.manifestBytes('m.ndjson'), wholeBytes());
 });
 
-test('a shard inside a skipped describe is not red: the test file skipped it, and the run says so', () => {
+test('a shard inside a skipped describe is red: its own checks were skipped too', () => {
   const layout = three();
   layout['beta.vitest-spec.mjs'] = { ...layout['beta.vitest-spec.mjs'], wrap: 'describe.skip' };
   const run = runShardProject('skipped-shard', layout, { seed: SEED });
-  assert.strictEqual(run.status, 0, run.output);
-  assert.ok(run.untouched('m.ndjson'));
-  assert.match(run.output, /gherkin-node-test: run manifest not written for .*sharded: 4 tests were skipped by the test file itself \(first: "[^"]+"\); a manifest needs every scenario's outcome/);
+  redUntouched(run);
+  assert.match(run.output, /no manifest part for "beta" on a full run/);
 });
 
 test('a missing part that no skipped test explains stays a named red', () => {
   const layout = three();
-  layout['beta.vitest-spec.mjs'] = { ...layout['beta.vitest-spec.mjs'], noopBodies: true };
+  layout['beta.vitest-spec.mjs'] = { ...layout['beta.vitest-spec.mjs'], noopScenario: '' };
   const run = runShardProject('noop-shard', layout, { seed: SEED });
   redUntouched(run);
-  assert.match(run.output, /no manifest part for "beta" on a full run — .*beta\.vitest-spec\.mjs did not record every scenario's outcome and skipped no test to explain it/);
+  assert.match(run.output, /no manifest part for "beta" on a full run — .*beta\.vitest-spec\.mjs did not record every scenario's outcome, and its skipped scenarios \(if any\) do not explain it/);
+});
+
+const twoShards = (/** @type {any} */ first, /** @type {any} */ second) => ({
+  'aa.vitest-spec.mjs': { dir: 'twofiles', only: ['aa'], manifest: 'm.ndjson', ...first },
+  'zz.vitest-spec.mjs': { dir: 'twofiles', only: ['zz'], manifest: 'm.ndjson', ...second },
+});
+
+test('a skipped describe around the first-feature shard does not hide the wip orphan check', () => {
+  const run = runShardProject('skip-hides-orphan',
+    twoShards({ wip: ['ghost'], wrap: 'describe.skip' }, { wip: ['ghost'] }), { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /no manifest part for "aa"/);
+});
+
+test('a wrapper that skips every test does not hide the unbound-step ratchet', () => {
+  const layout = three();
+  layout['gamma.vitest-spec.mjs'] = { dir: 'gammaBare', only: ['gamma'], manifest: 'm.ndjson', skipScenario: '' };
+  const run = runShardProject('skip-hides-unbound', layout, { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /no manifest part for "gamma"/);
+});
+
+test('the consumer\'s shape: a wrapper that skips some scenarios with a renamed title is green, with the note', () => {
+  const layout = three();
+  layout['beta.vitest-spec.mjs'] = { ...layout['beta.vitest-spec.mjs'], skipScenario: 'sweep' };
+  const skipped = runShardProject('consumer-shape-skip', layout, { seed: SEED });
+  assert.strictEqual(skipped.status, 0, skipped.output);
+  assert.ok(skipped.untouched('m.ndjson'));
+  assert.match(skipped.output, /run manifest not written for .*sharded: 2 tests were skipped by the test file itself \(first: "Beta :: sweep 1 \[1\] \[host skip: no such host\]"\)/);
+});
+
+test('an unrelated test.skip in the shard\'s file explains nothing', () => {
+  const run = runShardProject('unrelated-skip', {
+    ...three(),
+    'beta.vitest-spec.mjs': [
+      { dir: 'sharded', only: ['beta'], manifest: 'm.ndjson', noopScenario: 'sweep 2' },
+      { raw: "test.skip('some unrelated pending unit test', () => {});" },
+    ],
+  }, { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /no manifest part for "beta"/);
 });
 
 // --- D5: a shared manifest path, whole calls included ------------------------------
@@ -167,7 +210,7 @@ test('two sharded directories sharing a manifest path are red', () => {
 test('the same shard file in two vitest projects is a double claim', () => {
   const run = runShardProject('two-projects', three(), { projects: ['p1', 'p2'], seed: SEED });
   redUntouched(run);
-  assert.match(run.output, /is run by one test file in two projects: .*\(project p1\) and .*\(project p2\)/);
+  assert.match(run.output, /is run by one test file in two projects: .*\(project p1\) and .*\(project p2\) — each feature file belongs to exactly one shard; include the test file in one project only/);
 });
 
 // --- D7: one directory, two spellings ----------------------------------------------
@@ -292,7 +335,7 @@ test('no name filter, no filter line: shards inside a skipped describe are not a
   const layout = Object.fromEntries(Object.entries(three()).map(([f, spec]) => [f, { ...spec, wrap: 'describe.skip' }]));
   const run = runShardProject('filter-none-given', layout);
   // step-lint: allow unearned-absence -- guarded: the run says its manifest was not written for skipped tests (asserted first), so the reporter ran its checks; only the filter line is absent
-  assert.match(run.output, /run manifest not written for/);
+  assert.match(run.output, /no manifest part for/);
   assert.doesNotMatch(run.output, /the name filter/);
 });
 
