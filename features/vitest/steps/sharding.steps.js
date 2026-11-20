@@ -75,8 +75,24 @@ module.exports = (reg) => {
     w.seed = ['m.ndjson'];
   });
 
-  reg.define(/^one shard's test file turns a scenario into a skipped test$/, (w) => {
+  reg.define(/^one shard's test file turns a scenario into a skipped test and leaves the runner's own checks alone$/, (w) => {
+    // The wrapper matches a scenario title only; no check test's title contains it.
     w.layout['beta.vitest-spec.mjs'].skipScenario = 'sweep 2';
+    w.shardFile = 'beta.vitest-spec.mjs';
+  });
+
+  reg.define(/^one shard's test file skips the whole shard, the runner's own checks included$/, (w) => {
+    w.layout['gamma.vitest-spec.mjs'].skipScenario = ''; // '' matches every title, the checks too
+    w.shardFile = 'gamma.vitest-spec.mjs';
+  });
+
+  reg.define(/^that shard's feature has an unbound step outside the debt register$/, (w) => {
+    w.layout['gamma.vitest-spec.mjs'].dir = 'gammaBare'; // its @todo scenario's step is not defined; no wip entry
+    // The premise, proven by running that shard unskipped: its ratchet check fails.
+    const { skipScenario, ...bare } = w.layout['gamma.vitest-spec.mjs'];
+    void skipScenario;
+    const proof = runShardProject('unbound-proof', { 'gamma.vitest-spec.mjs': bare });
+    assert.deepStrictEqual(proof.failed, ['gamma.vitest-spec.mjs > gamma :: step definitions are complete and unambiguous'], proof.output);
   });
 
   reg.define(/^a test file of plain unit tests sits beside them$/, (w) => {
@@ -196,6 +212,24 @@ module.exports = (reg) => {
 
   reg.define(/^the manifest on disk is untouched, bytes and timestamp$/, (w) => {
     assert.ok(w.run.untouched('m.ndjson'), 'the manifest on disk kept its bytes and its timestamp');
+  });
+
+  reg.define(/^that shard's own checks ran and passed$/, (w) => {
+    // Read from vitest's own results, not from the reporter: every check test of
+    // this shard's file (beta has no unused definition, and is not the first
+    // feature file, so it registers exactly these two) is present and passed.
+    const status = w.run.results(w.shardFile);
+    for (const check of ['only names and step definers map to feature files this call runs',
+      'beta :: step definitions are complete and unambiguous']) {
+      assert.strictEqual(status.get(check), 'passed', `${check}: ${JSON.stringify([...status])}`);
+    }
+  });
+
+  reg.define(/^the report names that shard as having recorded no outcome$/, (w) => {
+    assert.match(w.run.output,
+      /no manifest part for "gamma" on a full run — .*gamma\.vitest-spec\.mjs did not record every scenario's outcome/);
+    // The red is the reporter's line, not a failing test: the skipped ratchet stayed skipped.
+    assert.deepStrictEqual(w.run.failed, [], w.run.output);
   });
 
   reg.define(/^the run says the manifest was not written because the test file skipped a test$/, (w) => {
