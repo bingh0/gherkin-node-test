@@ -643,15 +643,38 @@ Pass the same `wip` list and the same `manifest` to every shard.
   `-t` pattern is read. Without the reporter, vitest stays uncovered.
 
 Limits: `only` is vitest-only. Native node, bun and Deno runs get the one
-failing test above; run the whole directory there. The reporter needs vitest
-3.0 or newer (the `onTestRunStart`/`onTestRunEnd` hooks,
-`getGlobalTestNamePattern()`, `globTestSpecifications()`) and refuses to start
-on an older one with one error naming the minimum; the package's own peer range
-is unchanged. It is tested on vitest 5.1, forks and threads pools, and `retry`.
-It is not tested with `vmThreads`/`vmForks`, `--watch` (including the reporter
-emptying its run directory between watch re-runs), `--shard` or `--changed`. In those modes it treats the run as partial where it can tell and
-never writes a manifest from a partial run. Shards and reporter meet in a temp directory
-the reporter makes at init and removes at exit.
+failing test above; run the whole directory there.
+
+- **The variable.** Shards and reporter meet in a temp directory the reporter
+  makes at init and removes at exit, published to workers in the environment
+  variable `GNT_SHARD_DIR` (`<reporter pid>:<directory>`). A vitest setup file
+  that clears or rebuilds `process.env` must leave it, or the worker sees no
+  reporter: shards fail with "add the reporter" (the message names the
+  variable), and the filter guard on a whole-directory call is silently off
+  (when a name filter is given and no `runFeatures` call reported at all, the
+  reporter prints a note saying so).
+- **Versions.** The reporter needs vitest 3.0 or newer (the
+  `onTestRunStart`/`onTestRunEnd` hooks and `globTestSpecifications()`) and
+  refuses to start on an older one with one error naming the minimum; the
+  package's own peer range is unchanged. The whole sharding lane (scenarios and
+  edge tests) was run on vitest 3.2.7, 4.1.12 and 5.1.0 (forks and threads
+  pools, `retry`, nested runs, test-file skips, `--shard`, `--watch`); nothing
+  was run below 3.2. Two vitest internals are read, and were seen on those three
+  versions: the worker's `__vitest_worker__.filepath` and
+  `.ctx.projectName`, and, on vitest 3, `configOverride`/`config` for the name
+  pattern (vitest 4 and up have `getGlobalTestNamePattern()`).
+- **`--shard i/n`** runs a part of the test files, so no manifest is written
+  and unrun feature files are not checked; the reporter prints one note saying
+  so when a sharded directory is in the run.
+- **`--watch`.** The initial watch run is a full run and writes the manifest
+  (tested). A re-run of some files is partial and writes nothing; the reporter
+  empties its run directory at the start of every re-run (not tested).
+- Not tested by this lane: the `vmThreads`/`vmForks` pools (an independent
+  review ran the nested-run case on them), `--changed`.
+- **Windows.** The reporter compares a test module's id with the worker's test
+  file path after normalising separators and the drive letter's case (unit
+  tested with Windows-shaped inputs); the sharding lane runs on ubuntu, windows
+  and macos in CI.
 
 Two things about how you start vitest. A `--reporter` flag on the command line
 replaces the config's `reporters`, so it drops this reporter and every shard

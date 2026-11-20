@@ -298,7 +298,8 @@ export class StepRegistry<W = Record<string, any>> {
      * @param {StepFn<W>} fn
      * @returns {this}
      */
-    define<A extends (string | DataTable)[] = (string | DataTable)[]>(pattern: RegExp | string, fn: StepFn<W, A>): this;
+    define(pattern: RegExp | string, fn: StepFn<W>): this;
+    define<A extends (string | DataTable)[]>(pattern: RegExp | string, fn: StepFn<W, A>): this;
     /**
      * @param {string} text
      * @returns {{ fn: StepFn<W>, args: string[], re: RegExp } | null}

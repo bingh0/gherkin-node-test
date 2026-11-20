@@ -553,3 +553,16 @@ test('failure line: a cleanup-only failure says "cleanup failed", names no step,
   assert.ok(!lines[0].includes('step `'), lines[0]);
   assert.ok(out.includes('the cleanup itself broke'), `the cleanup's own error is shown:\n${out}`);
 });
+
+// --- Sharding on a native runner ------------------------------------------------
+// `only` needs the vitest reporter. On node, bun and Deno there is none: the call
+// is ONE failing test that says so, and registers nothing else (no scenario, no
+// check). No vitest is needed to prove it, so every native lane runs this.
+test('runFeatures: a call with only on a native runtime is the one failing test', () => {
+  const { status, out } = runFixture('shardonly.fixture.js');
+  assert.notStrictEqual(status, 0, out);
+  assert.match(out, /runFeatures: only needs the gherkin-node-test reporter/);
+  const c = counts(out);
+  assert.strictEqual(c.fail, 1, out);
+  assert.strictEqual(c.pass, 0, `nothing else registered:\n${out}`);
+});

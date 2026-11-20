@@ -45,12 +45,17 @@ for (const [outerPool, innerPool] of [['forks', 'forks'], ['threads', 'threads']
 }
 
 test('a stale variable is no reporter: a shard gets its one failing test, a whole call is untouched', () => {
+  // A complete layout: the directory is fine, so only the pid can refuse it.
   const stale = fs.mkdtempSync(path.join(os.tmpdir(), 'gnt-stale-'));
-  for (const k of ['claims', 'parts', 'poison']) fs.mkdirSync(path.join(stale, k));
-  const shards = runShardProject('stale-shards', three(), { reporter: false, env: { GNT_SHARD_DIR: `1:${stale}` } });
-  assert.notStrictEqual(shards.status, 0, shards.output);
-  assert.strictEqual(shards.failed.length, 3, shards.output);
-  assert.deepStrictEqual(fs.readdirSync(path.join(stale, 'claims')), [], 'nothing was written into the stale directory');
+  try {
+    for (const k of ['claims', 'parts', 'poison', 'calls', 'invoked', 'recorded']) fs.mkdirSync(path.join(stale, k));
+    const shards = runShardProject('stale-shards', three(), { reporter: false, env: { GNT_SHARD_DIR: `1:${stale}` } });
+    assert.notStrictEqual(shards.status, 0, shards.output);
+    assert.strictEqual(shards.failed.length, 3, shards.output);
+    assert.deepStrictEqual(fs.readdirSync(path.join(stale, 'claims')), [], 'nothing was written into the stale directory');
+  } finally {
+    fs.rmSync(stale, { recursive: true, force: true });
+  }
   const whole = runShardProject('stale-whole', { 'all.vitest-spec.mjs': { dir: 'sharded', manifest: 'm.ndjson' } },
     { reporter: false, env: { GNT_SHARD_DIR: '1:/no/such/dir' } });
   assert.strictEqual(whole.status, 0, whole.output);
@@ -224,13 +229,13 @@ test('shards that all spell the directory through a symlink write one manifest',
 
 test('the reporter refuses a vitest without the hooks it needs, naming the minimum', async () => {
   const { default: Reporter } = await import(url.pathToFileURL(path.join(ROOT, 'vitest-reporter.mjs')).href);
-  assert.throws(() => new Reporter().onInit({ version: '2.1.9', getGlobalTestNamePattern() {}, globTestSpecifications() {} }),
+  assert.throws(() => new Reporter().onInit({ version: '2.1.9', globTestSpecifications() {} }),
     /needs vitest 3\.0 or newer.*this is vitest 2\.1\.9/);
   assert.throws(() => new Reporter().onInit({ version: '5.1.0' }),
-    /needs vitest 3\.0 or newer.*lacks getGlobalTestNamePattern, globTestSpecifications/);
+    /needs vitest 3\.0 or newer.*lacks globTestSpecifications/);
   const saved = process.env.GNT_SHARD_DIR;
   try {
-    new Reporter().onInit({ version: '5.1.0', getGlobalTestNamePattern() {}, globTestSpecifications() {} });
+    new Reporter().onInit({ version: '5.1.0', globTestSpecifications() {} });
     assert.match(String(process.env.GNT_SHARD_DIR), new RegExp(`^${process.pid}:`));
   } finally {
     if (saved === undefined) delete process.env.GNT_SHARD_DIR; else process.env.GNT_SHARD_DIR = saved;
@@ -332,4 +337,135 @@ test('the reporter prints its problem lines sorted, whatever order it found them
   const lines = run.output.split('\n').filter((l) => /^gherkin-node-test: (feature file|the shards of)/.test(l));
   assert.strictEqual(lines.length, 2, run.output);
   assert.deepStrictEqual(lines, [...lines].sort());
+});
+
+// --- Round 6: the release-gate review ---------------------------------------------------------
+
+const noManifest = (/** @type {any} */ layout) => Object.fromEntries(Object.entries(layout).map(([f, spec]) => {
+  const { manifest, ...rest } = /** @type {any} */ (spec);
+  void manifest;
+  return [f, rest];
+}));
+
+test('G1: a skipped shard is red on a full run even with no manifest anywhere', () => {
+  const layout = noManifest(three());
+  layout['gamma.vitest-spec.mjs'] = { dir: 'gammaBare', only: ['gamma'], wrap: 'describe.skip' };
+  const run = runShardProject('g1-no-manifest', layout);
+  assert.notStrictEqual(run.status, 0, run.output);
+  assert.match(run.output, /gamma\.vitest-spec\.mjs: its own checks did not run \(first: "/);
+});
+
+test('G2: a wrapper that skips one scenario and empties another is red, not a note', () => {
+  const layout = three();
+  layout['beta.vitest-spec.mjs'] = { ...layout['beta.vitest-spec.mjs'], skipScenario: 'sweep 2', noopScenario: 'sweep 1' };
+  const run = runShardProject('g2-skip-and-empty', layout, { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /no manifest part for "beta" on a full run/);
+  // step-lint: allow unearned-absence -- guarded: the run is red on the named missing-part line (asserted above), so the reporter ran this very check; only the note is absent
+  assert.doesNotMatch(run.output, /run manifest not written for/);
+});
+
+test('G3: a name filter in a run no runFeatures call reported to gets a note, not a red', () => {
+  const run = runShardProject('g3-no-reports', { 'plain.vitest-spec.mjs': { kind: 'plain' } }, { args: ['-t', 'nothing matches this'] });
+  assert.strictEqual(run.status, 0, run.output);
+  assert.match(run.output, /gherkin-node-test: the filter guard did not run because no runFeatures call reported to this reporter \(gherkin-node-test is not used in this run, or a setup file cleared GNT_SHARD_DIR from the worker environment\)/);
+});
+
+test('G3: the no-reporter message names the variable a setup file may have cleared', () => {
+  const run = runShardProject('g3-message', three(), { reporter: false });
+  assert.match(run.output, /or the worker's environment was cleared of GNT_SHARD_DIR/);
+  assert.match(run.output, /the reporter writes the manifest, checks that every feature file is run by exactly one shard and that the shards agree/);
+});
+
+test('G4: --shard is said out loud: no manifest, no unrun-feature check, a note', () => {
+  const run = runShardProject('g4-vitest-shard', three(), { args: ['--shard', '1/2'], seed: SEED });
+  assert.strictEqual(run.status, 0, run.output);
+  assert.ok(run.untouched('m.ndjson'));
+  assert.match(run.output, /gherkin-node-test: vitest ran with --shard: a part of the test files, so no manifest is written for a sharded directory and feature files no test file runs are not checked; both need a run of every test file/);
+});
+
+test('G5: the initial watch run is a full run and writes the manifest', async () => {
+  const project = runShardProject('g5-watch', three(), { run: false });
+  const bin = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
+  const { spawn } = require('node:child_process');
+  const child = spawn('node', [bin, '--watch', '--config', 'vitest.config.mjs'], {
+    cwd: project.dir, stdio: 'ignore', env: { ...process.env, NO_COLOR: '1', CI: '' } });
+  const file = project.manifestPath('m.ndjson');
+  try {
+    const deadline = Date.now() + 30000;
+    while (!fs.existsSync(file) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(fs.existsSync(file), 'the initial watch run wrote the manifest');
+  } finally {
+    child.kill('SIGKILL');
+  }
+  assert.strictEqual(fs.readFileSync(file, 'utf8'), wholeBytes());
+});
+
+test('G11: maxWorkers 1 and --no-file-parallelism give the manifest the default run gives', () => {
+  const bytes = wholeBytes();
+  const one = runShardProject('g11-maxworkers', three(), { config: { maxWorkers: 1 } });
+  const serial = runShardProject('g11-serial', three(), { args: ['--no-file-parallelism'] });
+  assert.strictEqual(one.manifestBytes('m.ndjson'), bytes, one.output);
+  assert.strictEqual(serial.manifestBytes('m.ndjson'), bytes, serial.output);
+});
+
+test('G11: repeats of the last scenario leave the manifest untouched and are red', () => {
+  const layout = three();
+  layout['alpha.vitest-spec.mjs'] = { ...layout['alpha.vitest-spec.mjs'], repeatScenario: 'passes again' };
+  const run = runShardProject('g11-repeats', layout, { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /invoked again after its outcome was recorded/);
+});
+
+test('G11: each feature keeps its own world under shards, and in one call', () => {
+  const shards = runShardProject('g11-worlds', {
+    'aa.vitest-spec.mjs': { dir: 'twoWorlds', only: ['aa'], manifest: 'm.ndjson' },
+    'zz.vitest-spec.mjs': { dir: 'twoWorlds', only: ['zz'], manifest: 'm.ndjson' },
+  });
+  assert.strictEqual(shards.status, 0, shards.output);
+  const whole = runShardProject('g11-worlds-whole', { 'all.vitest-spec.mjs': { dir: 'twoWorlds' } });
+  assert.strictEqual(whole.status, 0, whole.output);
+});
+
+test('G11: a sharded directory beside a whole-directory call over another one, each with its manifest', () => {
+  const run = runShardProject('g11-mixed-dirs', {
+    ...three({ manifest: 'sharded.ndjson' }),
+    'two.vitest-spec.mjs': { dir: 'twofiles', manifest: 'twofiles.ndjson' },
+  });
+  assert.strictEqual(run.status, 0, run.output);
+  const whole = runShardProject('g11-mixed-dirs-whole', {
+    'a.vitest-spec.mjs': { dir: 'sharded', manifest: 'sharded.ndjson' },
+    'two.vitest-spec.mjs': { dir: 'twofiles', manifest: 'twofiles.ndjson' },
+  });
+  for (const f of ['sharded.ndjson', 'twofiles.ndjson']) {
+    assert.ok(whole.manifestBytes(f));
+    assert.strictEqual(run.manifestBytes(f), whole.manifestBytes(f), f);
+  }
+});
+
+test('G11: the reporter loads by its package name, not only by file path', () => {
+  const run = runShardProject('g11-package-name', three(), { reporterName: 'gherkin-node-test/vitest/reporter' });
+  assert.strictEqual(run.status, 0, run.output);
+  assert.strictEqual(run.manifestBytes('m.ndjson'), wholeBytes(), run.output);
+});
+
+test('G11: --reporter=dot on the command line replaces the reporter: three "add the reporter" failures', () => {
+  const run = runShardProject('g11-dot', three(), { args: ['--reporter=dot'] });
+  assert.notStrictEqual(run.status, 0, run.output);
+  assert.strictEqual((run.output.match(/runFeatures: only needs the gherkin-node-test reporter/g) || []).length >= 3, true, run.output);
+});
+
+test('G12: the reporter names a missing temp directory in one line', async () => {
+  const { default: Reporter } = await import(url.pathToFileURL(path.join(ROOT, 'vitest-reporter.mjs')).href);
+  const keys = ['TMPDIR', 'TMP', 'TEMP'];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const saveVar = process.env.GNT_SHARD_DIR;
+  try {
+    for (const k of keys) process.env[k] = '/no/such/tmp';
+    assert.throws(() => new Reporter().onInit({ version: '5.1.0', globTestSpecifications() {} }),
+      /cannot make its run directory under .*no.such.tmp .*ENOENT.*point TMPDIR/);
+  } finally {
+    for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
+    if (saveVar === undefined) delete process.env.GNT_SHARD_DIR; else process.env.GNT_SHARD_DIR = saveVar;
+  }
 });

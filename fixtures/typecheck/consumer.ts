@@ -6,7 +6,7 @@
 // `npm run typecheck`; the CI vitest lane runs it too. Never executed.
 import {
   bindRunner, lintFeature, parseFeature, StepRegistry,
-  type DataTable, type Definer, type Registry,
+  type DataTable, type Definer, type Registry, type StepFn,
 } from 'gherkin-node-test';
 import * as vitestEntry from 'gherkin-node-test/vitest';
 import Reporter from 'gherkin-node-test/vitest/reporter';
@@ -103,4 +103,22 @@ export function typecheckVitestEntry(): void {
   vitestEntry.runFeatures('features', { counter: definer }, { wip, manifest: 'features/run-manifest.ndjson' });
   vitestEntry.runFeature(vitestEntry.parseFeature('Feature: F\nScenario: s\n  Given a\n  Then b\n'), reg);
   void vitestEntry.lintFeature('Feature: F\n');
+}
+
+// Two shapes a consumer wrote against 0.12.0 that must keep compiling whatever
+// happens to the typing of `define`: a subclass that overrides it with the
+// non-generic signature, and a value typed as the registry's own `define`
+// assigned a non-generic function.
+export class LoggingRegistry<W = Record<string, any>> extends StepRegistry<W> {
+  override define(pattern: RegExp | string, fn: StepFn<W>): this {
+    return super.define(pattern, fn);
+  }
+}
+export function typecheckDefineShapes(): void {
+  const viaType: StepRegistry<CounterWorld>['define'] = function (this: any, pattern: RegExp | string, fn: StepFn<CounterWorld>) {
+    void pattern; void fn;
+    return this;
+  };
+  void viaType;
+  void new LoggingRegistry<CounterWorld>().define(/^a$/, (w) => { void w.count; });
 }
