@@ -17,7 +17,7 @@ export declare function runFeatureFile(file: string, registry: Registry<any>): v
 export declare function runFeatures(
   dir: string,
   definers: Record<string, Definer<any>>,
-  opts?: { wip?: Iterable<WipEntry>; manifest?: string },
+  opts?: { wip?: Iterable<WipEntry>; manifest?: string; only?: string[] },
 ): void;
 
 export {

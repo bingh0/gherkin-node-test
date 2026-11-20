@@ -77,6 +77,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert');
 const url = require('node:url');
+const crypto = require('node:crypto');
 
 // Under Bun, register tests natively on bun:test: Bun's node:test shim is
 // partial (its own compat docs say "use bun:test instead") and deliberately
@@ -151,7 +152,7 @@ function methodRegister(t, title, opts, fn) {
  * @param {any} testFn a `test` function with `.skip` and `.todo` methods
  * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry<any>) => void,
  *             runFeatureFile: (file: string, registry: StepRegistry<any>) => void,
- *             runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: { wip?: Iterable<WipEntry>, manifest?: string }) => void }}
+ *             runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: { wip?: Iterable<WipEntry>, manifest?: string, only?: string[] }) => void }}
  */
 function bindRunner(testFn) {
   if (typeof testFn !== 'function' || typeof testFn.skip !== 'function' || typeof testFn.todo !== 'function') {
@@ -1844,6 +1845,23 @@ function compareCodePoints(a, b) {
 }
 
 /**
+ * The account's bytes: the schema declaration, then every row sorted by file,
+ * title, status (code-point order), one fixed-key JSON object per line. The
+ * ONE serializer — the single-call writer and the sharding reporter both call
+ * it, so the two routes write the same bytes by construction.
+ * @param {{ file: string, title: string, status: ManifestStatus }[]} rows
+ * @returns {string}
+ */
+function manifestText(rows) {
+  return MANIFEST_VERSION_LINE + '\n' + [...rows]
+    .sort((a, b) => compareCodePoints(a.file, b.file)
+      || compareCodePoints(a.title, b.title)
+      || compareCodePoints(a.status, b.status))
+    .map((r) => JSON.stringify({ file: r.file, title: r.title, status: r.status }) + '\n')
+    .join('');
+}
+
+/**
  * The recorder behind runFeatures' `manifest` option: a written account of
  * what ran — every registered scenario as one `{file, title, status}` row —
  * so a downstream reader can notice what DIDN'T run. A feature file absent
@@ -1898,9 +1916,14 @@ function compareCodePoints(a, b) {
  *    further is written. A run without failures never triggers retry, so
  *    deterministic suites never see the refusal; bun's --rerun-each re-runs
  *    whole files (fresh recorder per run) and is naturally immune.
+ * A shard (runFeatures with `only`) passes a `sink`: the same "every outcome
+ * recorded, never poisoned" rule decides WHEN it fires, but it receives the
+ * rows instead of the file being written — the reporter merges the shards'
+ * rows and writes the one account.
  * @param {string} manifestPath
+ * @param {(rows: { file: string, title: string, status: ManifestStatus }[]) => void} [sink]
  */
-function createManifestWriter(manifestPath) {
+function createManifestWriter(manifestPath, sink) {
   /** @type {{ file: string, title: string, status: ManifestStatus }[]} */
   const rows = [];
   let pending = 0;        // wrapped scenario bodies not yet resolved
@@ -1911,19 +1934,12 @@ function createManifestWriter(manifestPath) {
   const norm = (f) => path.relative(base, path.resolve(f)).split(path.sep).join('/');
   const maybeWrite = () => {
     if (poisoned || !registered || pending > 0) return;
-    // Every account begins with the in-band schema declaration — the file
-    // must explain itself to whoever holds it, with no other context. The
-    // key names the FORMAT, not the tool: the cargo sibling writes these
-    // exact bytes too. Zero rows (unreachable from the public path — an
-    // empty directory is refused before a recorder exists) still write the
+    // Every account begins with the in-band schema declaration — see
+    // manifestText. Zero rows (unreachable from the public path — an empty
+    // directory is refused before a recorder exists) still write the
     // declaration line: whatever this writer writes is an account.
-    const text = MANIFEST_VERSION_LINE + '\n' + [...rows]
-      .sort((a, b) => compareCodePoints(a.file, b.file)
-        || compareCodePoints(a.title, b.title)
-        || compareCodePoints(a.status, b.status))
-      .map((r) => JSON.stringify({ file: r.file, title: r.title, status: r.status }) + '\n')
-      .join('');
-    fs.writeFileSync(manifestPath, text);
+    if (sink) sink(rows);
+    else fs.writeFileSync(manifestPath, manifestText(rows));
   };
   return {
     /**
@@ -2009,6 +2025,52 @@ function createManifestWriter(manifestPath) {
 // in-process guard's sight — keep one path per feature directory.
 /** @type {Map<string, { identity: string, dir: string }>} */
 const manifestClaims = new Map();
+
+// --- Sharding: one feature file (or a few) per test file -----------------------
+//
+// `runFeatures(dir, definers, { only: [...] })` runs only the named features,
+// so vitest can spread one directory's features over its workers. A shard sees
+// one test file; the things that need the whole run (the manifest, the debt
+// register's orphan check, "every feature file is claimed by some test file",
+// "no whole-directory call beside shards") live in the reporter
+// (vitest-reporter.mjs), which runs in vitest's main process. The two meet in
+// a private run directory the reporter makes at init and publishes to workers
+// in SHARD_ENV. A shard writes there:
+//   claims/  one JSON file per (directory, feature, test file) at registration
+//            — { dir, feature, testFile, manifest }; a whole-directory call
+//            writes one with feature: null, so the reporter can refuse a mix;
+//   parts/   one JSON file per shard whose every expected outcome is recorded
+//            — { dir, manifest, testFile, features, rows }, the rows exactly
+//            as a whole-directory call would hold them (file relative to the
+//            manifest's directory).
+// The names are content hashes, so a watch-mode re-run of the same test file
+// rewrites its own files instead of adding a second claim. Without the
+// reporter there is no run directory, and a call with `only` registers one
+// failing test saying so (see runFeatures): a shard cannot run unwatched.
+const SHARD_ENV = 'GNT_SHARD_DIR';
+
+/**
+ * The live reporter run, or null: the run directory AND the vitest worker's
+ * test file. Both are required — the file identity comes from the worker
+ * state, not the stack, because a helper that wraps runFeatures would
+ * otherwise make every test file look like the helper.
+ * @returns {{ runDir: string, testFile: string } | null}
+ */
+function shardRun() {
+  const runDir = process.env[SHARD_ENV];
+  const testFile = /** @type {any} */ (globalThis).__vitest_worker__?.filepath;
+  return runDir && typeof testFile === 'string' ? { runDir, testFile } : null;
+}
+
+/**
+ * @param {string} runDir @param {'claims' | 'parts'} kind
+ * @param {string[]} identity what makes the file the same file on a re-run
+ * @param {object} body
+ */
+function writeShardFile(runDir, kind, identity, body) {
+  const name = crypto.createHash('sha1').update(JSON.stringify(identity)).digest('hex').slice(0, 20);
+  fs.writeFileSync(path.join(runDir, kind, `${name}.json`), JSON.stringify(body));
+}
 
 // --- High-level runner --------------------------------------------------------
 
@@ -2202,8 +2264,25 @@ function installFilterGuard(probe, dir) {
  *   annotate an entry `Definer<MyWorld>` to type its steps' world — the record
  *   stays `any` deliberately: each feature has its OWN world, and one type
  *   parameter here would collapse them all into one
- * @param {{ wip?: Iterable<WipEntry>, manifest?: string }} [opts] features (or
- *   scenarios) still bootstrapping (TODO allowed); run-manifest output path
+ * `only` (vitest, with the reporter) makes the call a shard: a non-empty
+ * array of feature basenames. The call still lists the whole directory but
+ * parses, registers and runs only those features, so one directory's features
+ * can be spread over test files and vitest's workers. Pass the WHOLE `wip`
+ * list to every shard: each uses the entries for its own features, ignores
+ * entries for features that belong to other shards, and an entry naming no
+ * feature file fails once per run (in the shard running the first feature
+ * file). A name in `only` with no feature file, and a definer for a feature
+ * not in `only`, are registered failing tests. The reporter
+ * (`gherkin-node-test/vitest/reporter`, in the vitest config's `reporters`)
+ * writes the one manifest after a full run, turns the run red when a feature
+ * file in a sharded directory is claimed by no test file or by two, and when
+ * a whole-directory call and shards share a directory. Without the reporter a
+ * call with `only` registers one failing test saying so — native node, bun
+ * and Deno runs do not support `only`.
+ *
+ * @param {{ wip?: Iterable<WipEntry>, manifest?: string, only?: string[] }} [opts] features
+ *   (or scenarios) still bootstrapping (TODO allowed); run-manifest output
+ *   path; the feature basenames this call runs (a shard)
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  */
@@ -2269,6 +2348,37 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     throw new TypeError(`manifest must be a non-empty file path, got ${JSON.stringify(opts.manifest)}`);
   }
 
+  // `only` makes this call a shard (see the sharding section). A malformed
+  // value throws at load like a malformed wip: '' or [] must not silently
+  // become "run everything" or "run nothing".
+  /** @type {string[] | null} */
+  let only = null;
+  if (opts.only !== undefined) {
+    const o = opts.only;
+    if (!Array.isArray(o) || o.length === 0 || o.some((n) => typeof n !== 'string' || n === '')
+      || new Set(o).size !== o.length) {
+      throw new TypeError(
+        `only must be a non-empty array of distinct feature basenames, got ${JSON.stringify(o)}`);
+    }
+    only = [...o];
+  }
+  // A shard needs the reporter: without it nothing writes the manifest, checks
+  // the debt register's orphans, or notices a feature file no test file runs.
+  // One failing test, nothing else registered — a shard must never run green
+  // unwatched. The slot is consumed: this DID register.
+  const shard = only ? shardRun() : null;
+  if (only && !shard) {
+    if (native) filesWithRunFeatures.add(testFile.key);
+    register('runFeatures: only needs the gherkin-node-test reporter', {}, () => {
+      throw new Error(
+        `runFeatures(${JSON.stringify(dir)}, …, { only }) found no gherkin-node-test reporter in this `
+        + 'run — a shard cannot run without it (nothing would write the manifest, check the debt register '
+        + 'or notice an unrun feature file). Add "gherkin-node-test/vitest/reporter" to `reporters` in the '
+        + 'vitest config. Native node, bun and Deno runs do not support `only`; run the whole directory.');
+    });
+    return;
+  }
+
   // Directory refusals are REGISTERED failing tests, not throws, for the
   // Deno-swallow reason the one-call rule documents — and they consume the
   // one-call slot, because they DID register. A missing directory would
@@ -2309,6 +2419,7 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     return;
   }
   const bases = files.map(featureBase);
+  const realDir = fs.realpathSync(dir);
 
   // The filter guard (native runners only; see its comment). Every test this
   // call registers goes through `reg`, so a real failure is seen before the
@@ -2324,7 +2435,7 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
 
   // Validate and parse EVERYTHING before registering any test: a bad definer
   // or an unparseable feature must fail at load, before half a suite exists.
-  const features = files.map((file) => {
+  const features = files.filter((file) => !only || only.includes(featureBase(file))).map((file) => {
     const base = featureBase(file);
     const featureFile = path.join(dir, file);
     const definer = definers[base];
@@ -2355,7 +2466,29 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   // every scenario below still registers and runs.
   /** @type {ManifestRecorder | null} */
   let recorder = null;
-  if (opts.manifest) {
+  const wholeRun = only ? null : shardRun();
+  if (shard || wholeRun) {
+    // The reporter's view of this call: one claim per feature it runs (a
+    // whole-directory call claims the directory itself, feature: null).
+    const run = /** @type {{ runDir: string, testFile: string }} */ (shard || wholeRun);
+    const manifestPath = opts.manifest ? path.resolve(opts.manifest) : null;
+    for (const feature of only ? features.map((f) => f.base) : [null]) {
+      writeShardFile(run.runDir, 'claims', [realDir, feature, run.testFile], {
+        dir: realDir, feature, testFile: run.testFile, manifest: manifestPath,
+      });
+    }
+  }
+  if (shard && opts.manifest) {
+    // Shards of one directory legitimately share a manifest path, so the
+    // in-process claim below does not apply; the reporter checks the paths.
+    const manifestPath = path.resolve(opts.manifest);
+    const ran = features.map((f) => f.base);
+    recorder = createManifestWriter(opts.manifest, (rows) => {
+      writeShardFile(shard.runDir, 'parts', [realDir, manifestPath, shard.testFile], {
+        dir: realDir, manifest: manifestPath, testFile: shard.testFile, features: ran, rows,
+      });
+    });
+  } else if (opts.manifest) {
     const manifest = opts.manifest;
     const identity = `${testFile.key}\u0000${dir}`;
     const claim = manifestClaims.get(manifest);
@@ -2373,12 +2506,30 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     }
   }
 
-  register('step definers and wip entries map only to existing feature files', {}, () => {
-    const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));
-    assert.deepStrictEqual(orphaned, [], `definers with no matching .feature in ${dir}: ${orphaned.join(', ')}`);
+  const wipOrphans = () => {
     const wipOrphaned = [...wip, ...wipScenarios.keys()].filter((k) => !bases.includes(k));
     assert.deepStrictEqual(wipOrphaned, [], `wip entries with no matching .feature in ${dir}: ${wipOrphaned.join(', ')}`);
-  });
+  };
+  if (only) {
+    register('only names and step definers map to feature files this call runs', {}, () => {
+      const missing = only.filter((k) => !bases.includes(k));
+      assert.deepStrictEqual(missing, [], `only names with no matching .feature in ${dir}: ${missing.join(', ')}`);
+      const stray = Object.keys(definers).filter((k) => !only.includes(k));
+      assert.deepStrictEqual(stray, [],
+        `definers for features this call does not run (not in only) in ${dir}: ${stray.join(', ')}`);
+    });
+    // The whole wip list reaches every shard, so the orphan check must fail
+    // once per run, not once per shard: only the shard that runs the first
+    // feature file (sorted) registers it. A wip entry for a feature that
+    // exists but belongs to another shard is that shard's business.
+    if (only.includes(bases[0])) register('wip entries map only to existing feature files', {}, wipOrphans);
+  } else {
+    register('step definers and wip entries map only to existing feature files', {}, () => {
+      const orphaned = Object.keys(definers).filter((k) => !bases.includes(k));
+      assert.deepStrictEqual(orphaned, [], `definers with no matching .feature in ${dir}: ${orphaned.join(', ')}`);
+      wipOrphans();
+    });
+  }
 
   for (const { base, parsed, registry } of features) {
     const titles = wipScenarios.get(base);
@@ -2448,4 +2599,6 @@ module.exports = {
   parseFeature, lintFeature, lintStepDefinitionSource, StepRegistry, executeSteps,
   runFeature, runFeatureFile, runFeatures,
   bindRunner, DataTable, buildSnippet, GherkinSyntaxError,
+  // Internal: the reporter's half of the sharding protocol. Not public API.
+  shardProtocol: { SHARD_ENV, manifestText },
 };

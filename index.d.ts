@@ -18,7 +18,7 @@ declare namespace gnt {
  * @param {any} testFn a `test` function with `.skip` and `.todo` methods
  * @returns {{ runFeature: (parsed: ParsedFeature, registry: StepRegistry<any>) => void,
  *             runFeatureFile: (file: string, registry: StepRegistry<any>) => void,
- *             runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: { wip?: Iterable<WipEntry>, manifest?: string }) => void }}
+ *             runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: { wip?: Iterable<WipEntry>, manifest?: string, only?: string[] }) => void }}
  */
 export function bindRunner(testFn: any): {
     runFeature: (parsed: ParsedFeature, registry: StepRegistry<any>) => void;
@@ -26,6 +26,7 @@ export function bindRunner(testFn: any): {
     runFeatures: (dir: string, definers: Record<string, Definer<any>>, opts?: {
         wip?: Iterable<WipEntry>;
         manifest?: string;
+        only?: string[];
     }) => void;
 };
 export type Step = {
@@ -553,14 +554,16 @@ export type WipEntry = string | {
  *   annotate an entry `Definer<MyWorld>` to type its steps' world — the record
  *   stays `any` deliberately: each feature has its OWN world, and one type
  *   parameter here would collapse them all into one
- * @param {{ wip?: Iterable<WipEntry>, manifest?: string }} [opts] features (or
- *   scenarios) still bootstrapping (TODO allowed); run-manifest output path
+ * @param {{ wip?: Iterable<WipEntry>, manifest?: string, only?: string[] }} [opts] features
+ *   (or scenarios) still bootstrapping (TODO allowed); run-manifest output
+ *   path; the feature basenames this call runs (a shard)
  * @param {typeof registerTest} [register] test-registration hook; supplied by
  *   bindRunner, defaults to the runtime's native runner
  */
 export function runFeatures(dir: string, definers: Record<string, Definer<any>>, opts?: {
     wip?: Iterable<WipEntry>;
     manifest?: string;
+    only?: string[];
 }, register?: typeof registerTest): void;
 
 }

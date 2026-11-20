@@ -9,6 +9,7 @@ import {
   type Definer, type Registry,
 } from 'gherkin-node-test';
 import * as vitestEntry from 'gherkin-node-test/vitest';
+import Reporter from 'gherkin-node-test/vitest/reporter';
 
 export function typecheckMainEntry(): void {
   const parsed = parseFeature('Feature: F\nScenario: s\n  Given a\n  Then b\n', 'f.feature');
@@ -30,6 +31,11 @@ export function typecheckMainEntry(): void {
   bound.runFeature(parsed, reg);
   // 0.8.0 run manifest through the bound surface (never executed — types only).
   bound.runFeatures('features', {}, { manifest: 'features/run-manifest.ndjson' });
+  // 0.12.1 sharding: `only` through both entries, and the reporter class.
+  bound.runFeatures('features', {}, { only: ['a', 'b'], wip: ['c'], manifest: 'm.ndjson' });
+  vitestEntry.runFeatures('features', {}, { only: ['a'] });
+  const reporter = new Reporter();
+  reporter.onInit({});
 }
 
 // Typed worlds. W describes the world's ACCRETED shape (it is born {}), so

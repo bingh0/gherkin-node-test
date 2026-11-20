@@ -20,6 +20,10 @@
       "types": "./vitest.d.ts",
       "default": "./vitest.mjs"
     },
+    "./vitest/reporter": {
+      "types": "./vitest-reporter.d.ts",
+      "default": "./vitest-reporter.mjs"
+    },
     "./index.js": "./index.js",
     "./package.json": "./package.json"
   },
@@ -39,6 +43,8 @@
     "index.d.ts",
     "vitest.mjs",
     "vitest.d.ts",
+    "vitest-reporter.mjs",
+    "vitest-reporter.d.ts",
     "README.md",
     "LICENSE"
   ],
