@@ -846,6 +846,10 @@ runFeatures('features', { counter });  // one world PER FEATURE — no type para
 
 Step args are typed `string | DataTable` — captures arrive as strings, so
 the `Number()` coercion stays in view instead of silently concatenating.
+A handler that annotates its parameters says what its sentence produces:
+`(w, start: string, table: DataTable) => ...` is accepted, and the compiler
+then refuses to read `table` as a string. A parameter typed as anything the
+step cannot receive (`number`) is still a compile error.
 Be honest about what this buys: it is enforced by *your* build, not by the
 runner, and it proves a world key is spelled consistently — never that a
 step has assigned it. Keep `W`'s fields optional; a required field on a

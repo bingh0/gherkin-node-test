@@ -62,9 +62,9 @@ export type ParsedFeature = {
     narrative: NarrativeLine[];
     file: string;
 };
-export type StepFn<W = Record<string, any>> = (world: W & {
+export type StepFn<W = Record<string, any>, A extends (string | DataTable)[] = (string | DataTable)[]> = (world: W & {
     defer(fn: (world: W) => (void | Promise<void>)): void;
-}, ...args: (string | DataTable)[]) => (void | Promise<void>);
+}, ...args: A) => (void | Promise<void>);
 export type Definer<W = Record<string, any>> = (reg: StepRegistry<W>) => unknown;
 export type Registry<W = Record<string, any>> = StepRegistry<W>;
 /** @typedef {{ keyword: string, text: string, line: number, table?: string[][] }} Step */
@@ -297,7 +297,7 @@ export class StepRegistry<W = Record<string, any>> {
      * @param {StepFn<W>} fn
      * @returns {this}
      */
-    define(pattern: RegExp | string, fn: StepFn<W>): this;
+    define<A extends (string | DataTable)[] = (string | DataTable)[]>(pattern: RegExp | string, fn: StepFn<W, A>): this;
     /**
      * @param {string} text
      * @returns {{ fn: StepFn<W>, args: string[], re: RegExp } | null}

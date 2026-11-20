@@ -244,8 +244,13 @@ function currentTestFile() {
  * the regex capture strings plus, when the step has a table, a trailing
  * DataTable — typed as the union because that is what actually arrives; a
  * captured number is a string until the step coerces it.
+ * The second parameter, `A`, is the handler's own argument list. It defaults
+ * to the union above; a handler that annotates its parameters narrows it —
+ * `(w, count: string, table: DataTable)` declares a step with one capture and
+ * a table, and the compiler then rejects reading that table as a string.
  * @template [W=Record<string, any>]
- * @typedef {(world: W & { defer(fn: (world: W) => (void | Promise<void>)): void }, ...args: (string | DataTable)[]) => (void | Promise<void>)} StepFn
+ * @template {(string | DataTable)[]} [A=(string | DataTable)[]]
+ * @typedef {(world: W & { defer(fn: (world: W) => (void | Promise<void>)): void }, ...args: A) => (void | Promise<void>)} StepFn
  */
 /**
  * A step-definer module: receives a feature's scoped registry, defines its

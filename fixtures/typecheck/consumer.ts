@@ -6,7 +6,7 @@
 // `npm run typecheck`; the CI vitest lane runs it too. Never executed.
 import {
   bindRunner, lintFeature, parseFeature, StepRegistry,
-  type Definer, type Registry,
+  type DataTable, type Definer, type Registry,
 } from 'gherkin-node-test';
 import * as vitestEntry from 'gherkin-node-test/vitest';
 
@@ -57,6 +57,33 @@ export function typecheckTypedWorld(): void {
   // Registry<W> now comes from the main entry too, not just the vitest one.
   const alias: Registry<CounterWorld> = reg;
   void alias;
+}
+
+// A handler can declare what its sentence produces: captures as string, a
+// table as DataTable, with no cast and no helper. The args list is inferred
+// from the handler's own parameters, so a table declared as DataTable cannot
+// be read as a string, and the existing union stays the default for a handler
+// that declares nothing.
+export function typecheckTableStep(): void {
+  const reg = new StepRegistry<CounterWorld>();
+  reg.define(/^a table$/, (w, table: DataTable) => { void w; void table.hashes(); });
+  reg.define(/^a counter at (\d+) with$/, async (w, start: string, table: DataTable) => {
+    w.count = Number(start) + table.raw().length;
+  });
+  reg.define(/^a counter at (\d+)$/, (w, start: string) => { w.count = Number(start); });
+  reg.define(/^no arguments$/, () => {});
+  reg.define(/^anything (\d+)$/, (w, ...rest) => { void w; void rest; });
+  reg.define(/^unread (\d+)$/, (w, _n: unknown) => { void w; });
+  // @ts-expect-error — a table declared as DataTable cannot be read as a string
+  reg.define(/^a table$/, (w, table: DataTable) => { void w; table.toUpperCase(); });
+  // @ts-expect-error — a capture declared as string cannot be read as a table
+  reg.define(/^a counter at (\d+)$/, (w, start: string) => { void w; start.hashes(); });
+  // @ts-expect-error — nothing arrives as a number, with or without a table
+  reg.define(/^a counter at (\d+) with$/, (w, start: number, table: DataTable) => { void w; void start; void table; });
+  // @ts-expect-error — a parameter typed narrower than what can arrive is still refused
+  reg.define(/^a counter at (\d+)$/, (w, start: string | number) => { void w; void start; });
+  // The same registry class backs the vitest entry:
+  new vitestEntry.StepRegistry().define(/^a table$/, (w, table: DataTable) => { void w; void table.hashes(); });
 }
 
 export function typecheckVitestEntry(): void {
