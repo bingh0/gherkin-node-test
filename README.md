@@ -678,8 +678,8 @@ failing test above; run the whole directory there.
 - **`--watch`.** The initial watch run is a full run and writes the manifest
   (tested). A re-run of some files is partial and writes nothing; the reporter
   empties its run directory at the start of every re-run (not tested).
-- Not tested by this lane: the `vmThreads`/`vmForks` pools (an independent
-  review ran the nested-run case on them), `--changed`.
+- Not tested by this lane: the `vmThreads`/`vmForks` pools (one review pass
+  during the build ran full runs and nested runs on them by hand), `--changed`.
 - **Windows.** The reporter compares a test module's id with the worker's test
   file path after normalising separators and the drive letter's case (unit
   tested with Windows-shaped inputs); the sharding lane runs on ubuntu, windows

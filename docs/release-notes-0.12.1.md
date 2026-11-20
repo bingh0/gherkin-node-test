@@ -114,8 +114,10 @@ whether the process waits for work still pending after the last test, what a
 throw while a test file loads does, and what a function's source text looks
 like. Each of these decides whether a broken run is reported red.
 
-This release changes none of that. It is why every check in this project is
-run on all four, and all of them pass in CI for this release: node (22.17, 24
+This release changes none of that. It is why the runner's own suite runs on
+node, bun and Deno, with a smaller suite through the vitest adapter, and why
+a fix counts only when it is shown on all four. All of it passes in CI for
+this release: node (22.17, 24
 and 26), bun and Deno on Linux, macOS and Windows, the vitest adapter, and
 the sharding lane on the same three systems. The differences we know of are
 listed below and in the README's limits; 0.13.0 closes the ones a runner can
@@ -124,7 +126,9 @@ close.
 ## Known, not fixed here
 
 Found while building this, present in 0.12.0, and left for the next lockstep
-release because each needs a ruling or reaches both siblings:
+release because each needs a ruling or reaches both siblings. This list is
+not the whole of it: "Coming in 0.13.0" below names more things that are
+silently accepted today.
 
 - With `retry` on, a whole-directory call writes its manifest before the
   second invocation is refused, when the scenario that fails and is retried is
