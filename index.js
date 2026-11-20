@@ -1713,6 +1713,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
   for (const sc of parsed.scenarios) {
     const steps = [...parsed.background, ...sc.steps];
     const title = `${parsed.feature} :: ${sc.name}`;
+    probe?.scenarios.push(title);
     const missing = steps.filter((s) => !registry.find(s.text));
     if (missing.length) {
       const reason = `${missing.length} undefined step(s); first: "${missing[0].text}"`;
@@ -2145,7 +2146,7 @@ function writeShardFile(runDir, kind, identity, body) {
 
 /**
  * @typedef {{ runnable: number, invoked: number, held: number, heldInvoked: number,
- *   failed: boolean, onInvoke?: () => void }} FilterProbe
+ *   failed: boolean, scenarios: string[], onInvoke?: () => void }} FilterProbe
  */
 
 /**
@@ -2462,7 +2463,7 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   // call registers goes through `reg`, so a real failure is seen before the
   // guard could speak. A declared-debt todo placeholder never counts as one.
   /** @type {FilterProbe} */
-  const probe = { runnable: 0, invoked: 0, held: 0, heldInvoked: 0, failed: false };
+  const probe = { runnable: 0, invoked: 0, held: 0, heldInvoked: 0, failed: false, scenarios: [] };
   const rawRegister = register;
   /** @type {typeof registerTest} */
   const tracked = (title, opts, fn) => rawRegister(title, opts, opts.todo ? fn : async () => {
@@ -2672,6 +2673,8 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
       writeShardFile(live.runDir, 'claims', [realDir, feature, live.testFile, live.project], {
         dir: realDir, spelled: path.resolve(dir), feature, testFile: live.testFile,
         project: live.project, manifest: manifestPath, wip: wipList, ownSkips,
+        // the call's scenario tests, and every other test it registered (its checks)
+        scenarios: probe.scenarios, checks: titles.filter((t) => !probe.scenarios.includes(t)),
       });
     }
   }

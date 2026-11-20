@@ -595,14 +595,21 @@ Pass the same `wip` list and the same `manifest` to every shard.
 - **A directory with a problem writes no manifest.** Any red below, for a
   directory, also means the reporter leaves that directory's manifest alone.
 - **Scenarios the test file itself skips.** A wrapper around the test function
-  that turns a scenario into `test.skip` (a host that cannot run it), or a
-  `describe.skip` around a shard, means that shard never records every
-  outcome. The whole-directory call on such a host is green and writes no
-  manifest; so does the shard run: it is **not** red for that, the manifest is
-  not written, and one line says so (`run manifest not written for <dir>: N
-  tests were skipped by the test file itself (first: "…"); a manifest needs
-  every scenario's outcome`). A scenario the feature file skips (`@skip`) does
-  not count. A missing part that no skipped test explains stays a named red.
+  that turns some scenarios into `test.skip` on a host that cannot run them
+  means those shards never record every outcome. The whole-directory call on
+  such a host is green and writes no manifest; so does the shard run, but only
+  in exactly this shape, on a full run: a claimed feature has no part, **and**
+  every check test of that test file's calls (the registry check, the
+  per-feature ratchet, the `only`/definer check, the wip orphan check where the
+  shard has it) ran and passed, **and** the tests that ended skipped are that
+  file's own scenario tests (the name starts with a scenario's title, so a
+  wrapper may rename with a suffix; a feature file's own `@skip` does not
+  count). Then the run is not red for it, the manifest is not written, and one
+  line says so, ending with how to refresh the manifest (a full run on a host
+  that runs every scenario). Anything else with a missing part is a named red:
+  a `describe.skip` around a shard, or a wrapper that skips every test, skips
+  the shard's own checks with the scenarios, so it is red; an unrelated
+  `test.skip` in the file explains nothing.
 - **Red runs** (named in the output): a feature file in a sharded directory that
   no test file runs (full runs only); a feature file run by two test files, or by
   one test file in two vitest projects; a whole-directory call and shards over
@@ -628,8 +635,9 @@ Pass the same `wip` list and the same `manifest` to every shard.
   It is per run, not per file, because with one feature per test file a filter
   naming one feature legitimately runs nothing in the others. One stderr line
   names the pattern. A test that already failed outranks it. The general line
-  names the three causes it cannot tell apart (a misspelled filter, a scenario
-  in a test file outside the run, only skipped scenarios). When the pattern
+  names the causes it cannot tell apart (a misspelled filter, a scenario in a
+  test file outside the run, only skipped scenarios, only the runner's own
+  checks). When the pattern
   matched a `todo` test the line says so: wip-held scenarios register as todo,
   but the reporter cannot tell them from another `test.todo`. Only the global
   `-t` pattern is read. Without the reporter, vitest stays uncovered.

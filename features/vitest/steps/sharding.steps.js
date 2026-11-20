@@ -186,7 +186,7 @@ module.exports = (reg) => {
 
   reg.define(/^the run says the filter ran no scenario$/, (w) => {
     assert.match(w.run.output,
-      /the name filter "no such scenario title" ran no scenario in this run: it is misspelled, or it names a scenario in a test file outside this run, or it matches only skipped scenarios/);
+      /the name filter "no such scenario title" ran no scenario in this run: it is misspelled, or it names a scenario in a test file outside this run, or it matches only skipped scenarios, or only the runner's own checks/);
   });
 
   reg.define(/^the run says the filter matched only todo tests$/, (w) => {
@@ -200,7 +200,7 @@ module.exports = (reg) => {
 
   reg.define(/^the run says the manifest was not written because the test file skipped a test$/, (w) => {
     assert.match(w.run.output,
-      /gherkin-node-test: run manifest not written for .*sharded: 1 test was skipped by the test file itself \(first: "Beta :: sweep 2 \[2\]"\); a manifest needs every scenario's outcome/);
+      /gherkin-node-test: run manifest not written for .*sharded: 1 test was skipped by the test file itself \(first: "Beta :: sweep 2 \[2\] \[host skip: no such host\]"\); a manifest needs every scenario's outcome; it can only be refreshed by a full run on a host that runs every scenario/);
   });
 
   reg.define(/^the run is green$/, (w) => {

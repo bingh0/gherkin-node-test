@@ -156,7 +156,8 @@ export default class GherkinNodeTestReporter {
         if (owners.length < 2) continue;
         const files = new Set(cs.map((c) => c.testFile));
         bad(`feature "${feature}" in ${rel(dir)} is run by ${files.size === 1 ? 'one test file in two projects' : 'two test files'}: `
-          + `${owners.join(' and ')} — each feature file belongs to exactly one shard`);
+          + `${owners.join(' and ')} — each feature file belongs to exactly one shard`
+          + (files.size === 1 ? '; include the test file in one project only' : ''));
       }
       /** @param {string} key @param {(c: any) => string} show @param {string} what @param {string} fix */
       const agree = (key, show, what, fix) => {
@@ -222,12 +223,20 @@ export default class GherkinNodeTestReporter {
 
   /**
    * A full run, a manifest configured, and a claimed feature with no part: its
-   * shard never recorded every scenario's outcome. When the TEST FILE skipped
-   * tests (a wrapper's `test.skip`, a `describe.skip`) that is why, and the
-   * whole-directory call on the same host is green and writes no manifest
-   * either: say so, in a note, and write nothing. A skip the feature file asked
-   * for (an @skip scenario, which the shard records) does not count. A missing
-   * part that skipped tests do not explain stays a named red.
+   * shard never recorded every scenario's outcome. The whole-directory call on a
+   * host whose test wrapper skips scenarios is green and writes no manifest, so
+   * a shard in that exact shape is not red either: a note, and no manifest. The
+   * shape is narrow, and all three of these must hold for the shard's test file:
+   *  - every check test its calls registered (the registry check, the
+   *    per-feature ratchet, the only-names check, the orphan check where the
+   *    shard has it) ran and passed — a skipped describe, or a wrapper that
+   *    skips every title, would otherwise skip the ratchets with the scenarios;
+   *  - at least one of its SCENARIO tests ended skipped: a skipped test whose
+   *    name starts with one of the call's scenario titles (the wrapper renames
+   *    with a suffix) and is not a scenario the feature file itself skips
+   *    (@skip, which the shard records); an unrelated `test.skip` in the file
+   *    explains nothing.
+   * Anything else with a missing part is a named red.
    * @param {string} dir @param {any[]} shards @param {string[]} lacking
    * @param {readonly any[]} modules @param {string[]} problems @param {string[]} notes
    */
@@ -238,20 +247,27 @@ export default class GherkinNodeTestReporter {
     /** @type {string[]} */
     const unexplained = [];
     for (const file of files) {
-      const own = new Set(shards.filter((c) => c.testFile === file).flatMap((c) => c.ownSkips));
-      const names = modules.filter((m) => m.moduleId === file)
-        .flatMap((m) => [...m.children.allTests()])
-        .filter((t) => t.result().state === 'skipped' && !own.has(t.name)).map((t) => t.name);
-      if (names.length > 0) skipped.push(...names); else unexplained.push(file);
+      const mine = shards.filter((c) => c.testFile === file);
+      const own = new Set(mine.flatMap((c) => c.ownSkips));
+      const scenarios = [...new Set(mine.flatMap((c) => c.scenarios))];
+      const checks = new Set(mine.flatMap((c) => c.checks));
+      const tests = modules.filter((m) => m.moduleId === file).flatMap((m) => [...m.children.allTests()]);
+      const checksPassed = [...checks].every((name) => tests.some((t) => t.name === name && t.result().state === 'passed'));
+      const names = tests.filter((t) => t.result().state === 'skipped' && !own.has(t.name)
+        && scenarios.some((title) => t.name.startsWith(title))).map((t) => t.name);
+      if (checksPassed && names.length > 0) skipped.push(...names); else unexplained.push(file);
     }
     if (skipped.length > 0) {
       notes.push(`run manifest not written for ${rel(dir)}: ${skipped.length} test${skipped.length === 1 ? ' was' : 's were'} skipped `
-        + `by the test file itself (first: "${skipped[0]}"); a manifest needs every scenario's outcome`);
+        + `by the test file itself (first: "${skipped[0]}"); a manifest needs every scenario's outcome; `
+        + 'it can only be refreshed by a full run on a host that runs every scenario');
     }
     if (unexplained.length > 0) {
       problems.push(`${rel(dir)}: no manifest part for ${lacking.map((f) => `"${f}"`).join(', ')} on a full run — `
-        + `${unexplained.map(rel).join(', ')} did not record every scenario's outcome and skipped no test to explain it `
-        + '(a test function wrapper that does not run the scenario body?); the manifest was not written and would have gone stale');
+        + `${unexplained.map(rel).join(', ')} did not record every scenario's outcome, and its skipped scenarios (if any) `
+        + 'do not explain it: every check test of its calls must have run and passed, and a scenario must have been skipped by '
+        + 'the test file (a describe.skip, a wrapper that skips every test, or one that does not run a scenario body?); '
+        + 'the manifest was not written and would have gone stale');
     }
   }
 
@@ -286,7 +302,7 @@ export default class GherkinNodeTestReporter {
     problems.push(tests.some(({ t }) => t.options?.mode === 'todo')
       ? `the name filter ${shown} matched only todo tests (wip-held scenarios register as todo); no scenario ran`
       : `the name filter ${shown} ran no scenario in this run: it is misspelled, or it names a scenario in a test file `
-        + 'outside this run, or it matches only skipped scenarios');
+        + 'outside this run, or it matches only skipped scenarios, or only the runner\'s own checks');
   }
 
   /**
