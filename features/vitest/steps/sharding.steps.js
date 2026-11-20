@@ -118,6 +118,18 @@ module.exports = (reg) => {
     w.oneFile = w.project.rerun(['alpha.vitest-spec.mjs']);
   });
 
+  reg.define(/^the suite runs with a name filter that matches no scenario title$/, (w) => {
+    w.run = runLayout(w, 'filter-none', { args: ['-t', 'no such scenario title'] });
+  });
+
+  reg.define(/^the suite runs with a name filter that matches one scenario title$/, (w) => {
+    w.run = runLayout(w, 'filter-one', { args: ['-t', 'alpha passes again'] });
+  });
+
+  reg.define(/^the suite runs with a name filter that matches only a wip-held scenario title$/, (w) => {
+    w.run = runLayout(w, 'filter-held', { args: ['-t', 'pending thing'] });
+  });
+
   reg.define(/^the suite runs on vitest with no reporter configured$/, (w) => {
     w.run = runLayout(w, 'no-reporter', { reporter: false });
   });
@@ -154,6 +166,22 @@ module.exports = (reg) => {
 
   reg.define(/^exactly one test fails: the orphan check of the shard that runs the first feature file$/, (w) => {
     assert.deepStrictEqual(w.run.failed, ['alpha.vitest-spec.mjs > wip entries map only to existing feature files'], w.run.output);
+  });
+
+  reg.define(/^the run says the filter ran no scenario$/, (w) => {
+    assert.match(w.run.output, /the name filter "no such scenario title" ran no scenario in this run/);
+  });
+
+  reg.define(/^the run says the filter matched only wip-held scenarios$/, (w) => {
+    assert.match(w.run.output, /the name filter "pending thing" matched no runnable scenario, only wip-held ones, in this run/);
+  });
+
+  reg.define(/^the run is green$/, (w) => {
+    assert.strictEqual(w.run.status, 0, w.run.output);
+  });
+
+  reg.define(/^no manifest is written$/, (w) => {
+    assert.strictEqual(w.run.manifestBytes('m.ndjson'), null);
   });
 
   reg.define(/^the report names the third feature file as run by no test file$/, (w) => {

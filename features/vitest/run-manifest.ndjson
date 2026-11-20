@@ -3,6 +3,9 @@
 {"file":"sharding.feature","title":"a feature file no test file runs turns the run red","status":"passed"}
 {"file":"sharding.feature","title":"a feature file run by two test files turns the run red","status":"passed"}
 {"file":"sharding.feature","title":"a filtered or partial run writes no manifest","status":"passed"}
+{"file":"sharding.feature","title":"a name filter that reaches only wip-held scenarios is red and says so","status":"passed"}
+{"file":"sharding.feature","title":"a name filter that runs a scenario in one test file is not refused","status":"passed"}
+{"file":"sharding.feature","title":"a name filter that runs no scenario anywhere in the run is red","status":"passed"}
 {"file":"sharding.feature","title":"a shard without the reporter is one failing test","status":"passed"}
 {"file":"sharding.feature","title":"a stale debt entry fails in the one shard that owns it","status":"passed"}
 {"file":"sharding.feature","title":"a whole-directory call beside shards turns the run red","status":"passed"}

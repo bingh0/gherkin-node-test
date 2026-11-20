@@ -233,3 +233,34 @@ test('a name in only with no feature file, and a definer outside only, are faili
     ['a.vitest-spec.mjs > only names and step definers map to feature files this call runs'], stray.output);
   assert.match(stray.output, /definers for features this call does not run \(not in only\) in .*: beta/);
 });
+
+// --- The filter guard, per run ---------------------------------------------------------
+
+test('a whole-directory call under the reporter gets the filter guard too', () => {
+  const run = runShardProject('filter-whole', { 'all.vitest-spec.mjs': { dir: 'sharded' } },
+    { args: ['-t', 'no such scenario title'] });
+  assert.notStrictEqual(run.status, 0, run.output);
+  assert.match(run.output, /the name filter "no such scenario title" ran no scenario in this run/);
+});
+
+test('a filter that reaches only the runner\'s own checks is red', () => {
+  const run = runShardProject('filter-checks', three(), { args: ['-t', 'step definitions'] });
+  assert.notStrictEqual(run.status, 0, run.output);
+  assert.match(run.output, /the name filter "step definitions" ran no scenario in this run/);
+});
+
+test('a test that already failed outranks the filter line', () => {
+  const layout = three({ wip: ['beta'] }); // beta is fully bound: its stale-entry check fails
+  const run = runShardProject('filter-failed', layout, { args: ['-t', 'step definitions'] });
+  assert.deepStrictEqual(run.failed, ['beta.vitest-spec.mjs > beta :: step definitions are unambiguous'], run.output);
+  // step-lint: allow unearned-absence -- guarded: the deepStrictEqual above proves the run failed on the stale-entry check, so the guard had its chance and stayed quiet
+  assert.doesNotMatch(run.output, /ran no scenario in this run/);
+});
+
+test('no name filter, no filter line: shards inside a skipped describe are not a filter refusal', () => {
+  const layout = Object.fromEntries(Object.entries(three()).map(([f, spec]) => [f, { ...spec, wrap: 'describe.skip' }]));
+  const run = runShardProject('filter-none-given', layout);
+  // step-lint: allow unearned-absence -- guarded: the run is red on the missing parts (asserted first), so the reporter ran its checks; only the filter line is absent
+  assert.match(run.output, /no manifest part for/);
+  assert.doesNotMatch(run.output, /the name filter/);
+});

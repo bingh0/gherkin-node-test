@@ -62,3 +62,22 @@ Feature: Sharding a feature directory on vitest
     Given two feature directories, each sharded, each with its own manifest
     When the full run completes
     Then each manifest is byte-for-byte what that directory's whole-directory call writes
+
+  Scenario: a name filter that runs no scenario anywhere in the run is red
+    Given a feature directory of 3 feature files, one shard per feature file
+    When the suite runs with a name filter that matches no scenario title
+    Then the run is red
+    And the run says the filter ran no scenario
+
+  Scenario: a name filter that runs a scenario in one test file is not refused
+    Given a feature directory of 3 feature files, one shard per feature file
+    When the suite runs with a name filter that matches one scenario title
+    Then the run is green
+    And no manifest is written
+
+  Scenario: a name filter that reaches only wip-held scenarios is red and says so
+    Given a feature directory of 3 feature files holding every kind of row, and hostile titles
+    And one test file that runs it whole, and 3 test files that each run one feature file
+    When the suite runs with a name filter that matches only a wip-held scenario title
+    Then the run is red
+    And the run says the filter matched only wip-held scenarios

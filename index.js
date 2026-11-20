@@ -1656,7 +1656,7 @@ function runFeature(parsed, registry, register = registerTest, recorder = null, 
   const counted = (fn) => {
     if (!probe) return fn;
     probe.runnable += 1;
-    return async () => { probe.invoked += 1; await fn(); };
+    return async () => { probe.invoked += 1; probe.onInvoke?.(); await fn(); };
   };
   const base = featureBase(parsed.file);
   if (parsed.scenarios.some((sc) => sc.tags.includes('@only'))) {
@@ -2052,7 +2052,7 @@ const manifestClaims = new Map();
 // reporter there is no run directory, and a call with `only` registers one
 // failing test saying so (see runFeatures): a shard cannot run unwatched.
 const SHARD_ENV = 'GNT_SHARD_DIR';
-const SHARD_KINDS = ['claims', 'parts', 'poison'];
+const SHARD_KINDS = ['claims', 'parts', 'poison', 'calls', 'invoked'];
 
 /**
  * The live reporter run, or null: the run directory AND the vitest worker's
@@ -2091,7 +2091,7 @@ function shardRun() {
 }
 
 /**
- * @param {string} runDir @param {'claims' | 'parts' | 'poison'} kind
+ * @param {string} runDir @param {typeof SHARD_KINDS[number]} kind
  * @param {(string | null)[]} identity what makes the file the same file on a re-run
  * @param {object} body
  */
@@ -2131,13 +2131,14 @@ function writeShardFile(runDir, kind, identity, body) {
 //   bun   afterAll(); throws. (bun test -t <typo> already exits 1 by itself.)
 //   Deno  the unload event, which fires per test file; Deno.exit(1) is the one
 //         way to fail the run from there. Our own line is printed first.
-// vitest is not covered: with every test filtered out neither hook runs.
+// vitest is not covered by these hooks: with every test filtered out neither
+// runs. With the reporter (vitest-reporter.mjs) the guard runs per RUN instead.
 // Filter text is readable on node only. Two different name patterns on node
 // are refused at load (see nameFilterConflict).
 
 /**
  * @typedef {{ runnable: number, invoked: number, held: number, heldInvoked: number,
- *   failed: boolean }} FilterProbe
+ *   failed: boolean, onInvoke?: () => void }} FilterProbe
  */
 
 /**
@@ -2273,8 +2274,8 @@ function installFilterGuard(probe, dir) {
  * runnable scenario and the file ended with none run. The runner's own
  * checks never count; a test that already failed outranks the refusal. On
  * node a skip pattern that leaves nothing to run is red too, and a second,
- * different --test-name-pattern is refused at load. Not covered when the
- * runner is bound to vitest (bindRunner). See the README for the lines'
+ * different --test-name-pattern is refused at load. Bound to vitest
+ * (bindRunner), covered only with the reporter, per run. See the README for the lines'
  * exact text and the per-runtime limits.
  *
  * `manifest` (opt-in) names a file to receive the run manifest: one sorted
@@ -2496,6 +2497,14 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   /** @type {ManifestRecorder | null} */
   let recorder = null;
   const wholeRun = only ? null : shardRun();
+  const live = shard || wholeRun;
+  const liveIdentity = live ? [realDir, only ? [...only].sort().join('\u0000') : null, live.testFile, live.project] : [];
+  if (live) {
+    probe.onInvoke = () => {
+      probe.onInvoke = undefined;
+      writeShardFile(live.runDir, 'invoked', liveIdentity, {});
+    };
+  }
   if (shard || wholeRun) {
     // The reporter's view of this call: one claim per feature it runs (a
     // whole-directory call claims the directory itself, feature: null). Each
@@ -2637,7 +2646,14 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
         + stale.map((t) => `'${t}'`).join(', '));
     });
 
-    runFeature(parsed, registry, register, recorder, native ? probe : null);
+    runFeature(parsed, registry, register, recorder, native || live ? probe : null);
+  }
+  if (live) {
+    // The reporter's filter guard (per RUN, see vitest-reporter.mjs): how many
+    // runnable scenario bodies this call registered (counted exactly as the
+    // native probe counts them), and the file that says one was invoked.
+    writeShardFile(live.runDir, 'calls', liveIdentity, { dir: realDir, testFile: live.testFile,
+      project: live.project, runnable: probe.runnable, held: probe.held });
   }
   // Every row source is now known. If nothing is left pending (every scenario
   // was @skip/@todo/unbound), this is also the write.

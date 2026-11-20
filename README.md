@@ -488,9 +488,11 @@ What still differs — the honest list, pinned by tests:
 - **Node: `--test-only` can still run no scenario and stay green.** With no
   name or skip pattern the guard cannot tell that case from other causes, so it
   leaves it alone.
-- **vitest is not covered.** With every test filtered out, vitest runs no
-  `afterAll` and no exit handler, so a filter that matches nothing exits `0`
-  there. This is a known deviation.
+- **vitest is covered only with the reporter.** With every test filtered out,
+  vitest runs no `afterAll` and no exit handler, so a filter that matches
+  nothing exits `0` there. The [sharding reporter](#sharding-a-feature-directory-over-vitests-workers)
+  closes this per *run* rather than per file (see below); without it, vitest
+  stays a known deviation.
 
 One footnote: `bun test` and `deno test` run those runtimes' own test
 runners; `bun run test` runs this package's `test` script (`node --test`).
@@ -605,6 +607,17 @@ Pass the same `wip` list and the same `manifest` to every shard.
   with a stale variable, does not accept it. A whole-directory call then
   behaves exactly as without the reporter.
 - Several feature directories, each with its own manifest, work in one run.
+- **The filter guard, per run.** With the reporter, a name filter (`-t`) that
+  runs no scenario *anywhere in the run* is red, for sharded and whole-directory
+  calls alike: the run has a name pattern, `runFeatures` calls registered at
+  least one runnable scenario (bound scenarios, `@todo` included; `@skip`,
+  wip-held placeholders and the runner's own checks never count), and none ran.
+  It is per run, not per file, because with one feature per test file a filter
+  naming one feature legitimately runs nothing in the others. One stderr line
+  names the pattern. A test that already failed outranks it. When the pattern
+  reached a wip-held scenario the line says "only wip-held ones" (it reads
+  vitest's `todo` mode, so it cannot tell a held scenario from another
+  `test.todo` in the run). Without the reporter, vitest stays uncovered.
 
 Limits: `only` is vitest-only. Native node, bun and Deno runs get the one
 failing test above; run the whole directory there. The reporter needs vitest

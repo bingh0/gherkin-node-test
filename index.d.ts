@@ -534,8 +534,8 @@ export type WipEntry = string | {
  * runnable scenario and the file ended with none run. The runner's own
  * checks never count; a test that already failed outranks the refusal. On
  * node a skip pattern that leaves nothing to run is red too, and a second,
- * different --test-name-pattern is refused at load. Not covered when the
- * runner is bound to vitest (bindRunner). See the README for the lines'
+ * different --test-name-pattern is refused at load. Bound to vitest
+ * (bindRunner), covered only with the reporter, per run. See the README for the lines'
  * exact text and the per-runtime limits.
  *
  * `manifest` (opt-in) names a file to receive the run manifest: one sorted

@@ -21,6 +21,9 @@
 //   - turns the run red when shards of one directory disagree about the
 //     manifest path, the `wip` register or the spelling of the directory, or
 //     two directories share one manifest path;
+//   - turns the run red when a test name filter ran no scenario anywhere in it
+//     (the filter guard, per RUN: with one test file per feature, a filter
+//     naming one feature legitimately runs nothing in the other files);
 //   - turns a full run red when a claimed feature has no part (a shard whose
 //     scenarios did not all run), so a stale manifest is never silent.
 // A re-invoked scenario body (vitest retry/repeats) withdraws its shard's part,
@@ -91,18 +94,21 @@ export default class GherkinNodeTestReporter {
     const claims = this.readAll('claims');
     const parts = this.readAll('parts');
     const poisoned = this.readAll('poison');
+    const calls = this.readAll('calls');
+    const invoked = this.readAll('invoked');
     /** @type {string[]} */
     const problems = [];
     const dirs = this.groupByDirectory(claims, problems);
     const full = await this.isFullRun(modules, unhandledErrors, reason);
     if (full) this.checkUnclaimed(dirs, problems);
     this.writeManifests(dirs, claims, parts, poisoned, full, problems);
+    this.checkFilter(modules, unhandledErrors, calls, invoked, problems);
     if (problems.length === 0) return;
     for (const p of problems) console.error(`gherkin-node-test: ${p}`);
     process.exitCode = 1;
   }
 
-  /** @param {'claims' | 'parts' | 'poison'} kind @returns {any[]} */
+  /** @param {'claims' | 'parts' | 'poison' | 'calls' | 'invoked'} kind @returns {any[]} */
   readAll(kind) {
     const dir = path.join(this.runDir, kind);
     return fs.readdirSync(dir).sort()
@@ -189,6 +195,36 @@ export default class GherkinNodeTestReporter {
     const key = (/** @type {any} */ s) => `${s.project.name}\u0000${s.moduleId}`;
     const ran = new Set(this.specs.map(key));
     return (await v.globTestSpecifications()).every((s) => ran.has(key(s)));
+  }
+
+  /**
+   * The filter guard, per run: the run has a name pattern, gnt calls in it
+   * registered at least one runnable scenario body (bound scenarios, @todo
+   * included; @skip, wip-held placeholders and the runner's own checks never
+   * count — the native lanes' count), and no such body ran anywhere. A test
+   * that failed outranks it. What it can tell about a wip-held scenario: vitest
+   * keeps a held scenario's `todo` mode when the pattern matches it and turns it
+   * to `skip` when not, so a `todo` test left in the run means the pattern
+   * reached a held scenario. It cannot tell a held scenario from any other
+   * `test.todo` in the run, nor read a pattern that vitest's own `-t` parsing
+   * changed.
+   * @param {readonly any[]} modules @param {readonly unknown[]} unhandledErrors
+   * @param {any[]} calls @param {any[]} invoked @param {string[]} problems
+   */
+  checkFilter(modules, unhandledErrors, calls, invoked, problems) {
+    const text = (/** @type {any} */ p) => (p instanceof RegExp ? p.source : String(p));
+    const patterns = new Set(this.specs.map((s) => s.testNamePattern).filter(Boolean).map(text));
+    const global = this.vitest.getGlobalTestNamePattern();
+    if (global) patterns.add(text(global));
+    if (patterns.size === 0) return;
+    if (calls.reduce((n, c) => n + c.runnable, 0) === 0 || invoked.length > 0) return;
+    if (unhandledErrors.length > 0 || modules.some((m) => m.state() === 'failed')) return;
+    const shown = [...patterns].map((p) => `"${p}"`).join(', ');
+    const held = modules.some((m) => [...m.children.allTests()].some((t) => t.options?.mode === 'todo'));
+    problems.push(held
+      ? `the name filter ${shown} matched no runnable scenario, only wip-held ones, in this run; nothing ran`
+      : `the name filter ${shown} ran no scenario in this run; check its spelling, and that the test file `
+        + 'holding the scenario is part of the run');
   }
 
   /**

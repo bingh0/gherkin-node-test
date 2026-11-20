@@ -3,7 +3,11 @@
 // parameters are `unknown`-shaped on purpose so this file needs no vitest
 // types (vitest passes its own objects in).
 
-/** The sharding reporter: add it to `reporters` in the vitest config. */
+/**
+ * The sharding reporter: add it to `reporters` in the vitest config. Needs
+ * vitest 3.0 or newer; `onInit` throws one error naming the minimum on an older
+ * vitest.
+ */
 export default class GherkinNodeTestReporter {
   onInit(vitest: unknown): void;
   onTestRunStart(specifications: readonly unknown[]): void;
