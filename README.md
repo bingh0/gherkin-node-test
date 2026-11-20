@@ -587,9 +587,9 @@ Pass the same `wip` list and the same `manifest` to every shard.
   claimed feature has its part: the same bytes the single call writes. A
   name-filtered run, a run of some files only, a bailed run, or a run with an
   unhandled error or a spec that failed to collect writes nothing and leaves an
-  existing manifest untouched. On a full run a claimed feature with no part (a
-  shard inside a skipped `describe`, say) is a named red, never a silently stale
-  manifest. A scenario body vitest runs a second time (`retry`, `repeats`)
+  existing manifest untouched. On a full run a claimed feature with no part is a
+  named red, never a silently stale manifest, unless the test file itself
+  skipped tests (see below). A scenario body vitest runs a second time (`retry`, `repeats`)
   withdraws its shard's part, so the directory's manifest is not written; the
   failing test says why, as on the single call.
 - **A directory with a problem writes no manifest.** Any red below, for a
@@ -644,6 +644,13 @@ It is not tested with `vmThreads`/`vmForks`, `--watch` (including the reporter
 emptying its run directory between watch re-runs), `--shard` or `--changed`. In those modes it treats the run as partial where it can tell and
 never writes a manifest from a partial run. Shards and reporter meet in a temp directory
 the reporter makes at init and removes at exit.
+
+Two things about how you start vitest. A `--reporter` flag on the command line
+replaces the config's `reporters`, so it drops this reporter and every shard
+then fails with the one test above: put extra reporters in the config. And a
+test-file path on the command line makes the run partial (no manifest, no
+check for feature files nobody runs): to run only the shards as a full run,
+narrow `include` in a config.
 
 The sharding scenarios (`features/vitest`) start a real vitest, so they run in
 the vitest CI lane only (`npm run test:sharding`); the node, bun and Deno lanes
