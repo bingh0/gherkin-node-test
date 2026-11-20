@@ -34,15 +34,7 @@ for (const [outerPool, innerPool] of [['forks', 'forks'], ['threads', 'threads']
     const bin = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
     const report = path.join(inner.dir, 'inner-report.json');
     const outer = runShardProject(`nested-outer-${outerPool}-${innerPool}`, {
-      'outer.vitest-spec.mjs': { raw: `import { test } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-test('the inner run', () => {
-  const r = spawnSync('node', [${JSON.stringify(bin)}, 'run', '--config', 'vitest.config.mjs'],
-    { cwd: ${JSON.stringify(inner.dir)}, encoding: 'utf8' });
-  fs.writeFileSync(${JSON.stringify(report)}, JSON.stringify({ status: r.status, output: r.stdout + r.stderr }));
-});
-` },
+      'outer.vitest-spec.mjs': { kind: 'nested', bin, cwd: inner.dir, report },
     }, { pool: outerPool });
     assert.strictEqual(outer.status, 0, outer.output);
     const seen = JSON.parse(fs.readFileSync(report, 'utf8'));
@@ -67,11 +59,7 @@ test('a stale variable is no reporter: a shard gets its one failing test, a whol
 
 test('a variable naming this very process but a missing directory is refused, not a raw ENOENT', () => {
   const run = runShardProject('missing-dir', {
-    'all.vitest-spec.mjs': { raw: `process.env.GNT_SHARD_DIR = process.pid + ':/no/such/run-dir';
-const { runFeatures } = await import(${JSON.stringify(url.pathToFileURL(path.join(ROOT, 'vitest.mjs')).href)});
-const { sharded } = await import('./defs.mjs');
-runFeatures(${JSON.stringify(path.join(ROOT, 'features', 'sharded'))}, sharded);
-` },
+    'all.vitest-spec.mjs': { dir: 'sharded', badRunDir: true },
   }, { reporter: false, pool: 'threads' });
   assert.strictEqual(run.status, 0, run.output);
 });
@@ -174,7 +162,7 @@ test('an unrelated test.skip in the shard\'s file explains nothing', () => {
     ...three(),
     'beta.vitest-spec.mjs': [
       { dir: 'sharded', only: ['beta'], manifest: 'm.ndjson', noopScenario: 'sweep 2' },
-      { raw: "test.skip('some unrelated pending unit test', () => {});" },
+      { kind: 'skipUnrelated' },
     ],
   }, { seed: SEED });
   redUntouched(run);
@@ -270,12 +258,7 @@ test('a bailed run is not a full run: no "run by no test file" noise, no manifes
 test('an unhandled error is not a full run: no manifest', () => {
   const run = runShardProject('unhandled', {
     ...three(),
-    'boom.vitest-spec.mjs': { raw: `import { test } from 'vitest';
-test('an unhandled rejection', async () => {
-  setTimeout(() => Promise.reject(new Error('nobody catches this')), 0);
-  await new Promise((r) => setTimeout(r, 50));
-});
-` },
+    'boom.vitest-spec.mjs': { kind: 'unhandled' },
   }, { seed: SEED });
   redUntouched(run);
 });
@@ -283,7 +266,7 @@ test('an unhandled rejection', async () => {
 test('a spec that throws at collection is not a full run: no manifest', () => {
   const run = runShardProject('module-error', {
     ...three(),
-    'boom.vitest-spec.mjs': { raw: "throw new Error('cannot collect');\n" },
+    'boom.vitest-spec.mjs': { kind: 'collectError' },
   }, { seed: SEED });
   redUntouched(run);
 });
