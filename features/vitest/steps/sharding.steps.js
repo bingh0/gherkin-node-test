@@ -12,7 +12,7 @@ const oneEach = (names, dir = 'sharded') => Object.fromEntries(names.map((n) => 
   { dir, only: [n], manifest: 'm.ndjson' }]));
 
 /** @param {any} w @param {string} name @param {any} [opt] */
-const runLayout = (w, name, opt) => runShardProject(name, w.layout, opt);
+const runLayout = (w, name, opt) => runShardProject(name, w.layout, { seed: w.seed, ...opt });
 
 /** @param {any} w every shard is given the same register */
 const withWip = (w) => {
@@ -27,7 +27,7 @@ module.exports = (reg) => {
     // features/sharded-rich: passed, failed, skipped, todo and wip-held rows, an
     // outline, and titles with an astral character, a quote and a backslash.
     w.names = ['one', 'two', 'three'];
-    w.wip = [{ feature: 'two', scenarios: ['pending thing'] }];
+    w.wip = [{ feature: 'two', scenarios: ['pending thing'] }, { feature: 'one', scenarios: ['one pending'] }];
   });
 
   reg.define(/^one test file that runs it whole, and 3 test files that each run one feature file$/, (w) => {
@@ -69,6 +69,18 @@ module.exports = (reg) => {
     w.before = w.project.manifestBytes('m.ndjson');
     assert.ok(w.before && w.before.split('\n').length > 3, 'the premise holds: a full account exists');
     w.beforeStat = fs.statSync(w.project.manifestPath('m.ndjson')).mtimeMs;
+  });
+
+  reg.define(/^a manifest is already on disk$/, (w) => {
+    w.seed = ['m.ndjson'];
+  });
+
+  reg.define(/^one shard's test file turns a scenario into a skipped test$/, (w) => {
+    w.layout['beta.vitest-spec.mjs'].skipScenario = 'sweep 2';
+  });
+
+  reg.define(/^a test file of plain unit tests sits beside them$/, (w) => {
+    w.layout['plain.vitest-spec.mjs'] = { raw: "import { test } from 'vitest';\ntest('a plain unit test', () => {});\n" };
   });
 
   reg.define(/^a test file that runs one feature file as a shard$/, (w) => {
@@ -126,6 +138,10 @@ module.exports = (reg) => {
     w.run = runLayout(w, 'filter-one', { args: ['-t', 'alpha passes again'] });
   });
 
+  reg.define(/^the suite runs with a name filter that matches only a plain unit test$/, (w) => {
+    w.run = runLayout(w, 'filter-plain', { args: ['-t', 'a plain unit test'] });
+  });
+
   reg.define(/^the suite runs with a name filter that matches only a wip-held scenario title$/, (w) => {
     w.run = runLayout(w, 'filter-held', { args: ['-t', 'pending thing'] });
   });
@@ -169,11 +185,22 @@ module.exports = (reg) => {
   });
 
   reg.define(/^the run says the filter ran no scenario$/, (w) => {
-    assert.match(w.run.output, /the name filter "no such scenario title" ran no scenario in this run/);
+    assert.match(w.run.output,
+      /the name filter "no such scenario title" ran no scenario in this run: it is misspelled, or it names a scenario in a test file outside this run, or it matches only skipped scenarios/);
   });
 
-  reg.define(/^the run says the filter matched only wip-held scenarios$/, (w) => {
-    assert.match(w.run.output, /the name filter "pending thing" matched no runnable scenario, only wip-held ones, in this run/);
+  reg.define(/^the run says the filter matched only todo tests$/, (w) => {
+    assert.match(w.run.output,
+      /the name filter "pending thing" matched only todo tests \(wip-held scenarios register as todo\); no scenario ran/);
+  });
+
+  reg.define(/^the manifest on disk is untouched, bytes and timestamp$/, (w) => {
+    assert.ok(w.run.untouched('m.ndjson'), 'the manifest on disk kept its bytes and its timestamp');
+  });
+
+  reg.define(/^the run says the manifest was not written because the test file skipped a test$/, (w) => {
+    assert.match(w.run.output,
+      /gherkin-node-test: run manifest not written for .*sharded: 1 test was skipped by the test file itself \(first: "Beta :: sweep 2 \[2\]"\); a manifest needs every scenario's outcome/);
   });
 
   reg.define(/^the run is green$/, (w) => {

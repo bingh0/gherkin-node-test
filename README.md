@@ -592,6 +592,17 @@ Pass the same `wip` list and the same `manifest` to every shard.
   manifest. A scenario body vitest runs a second time (`retry`, `repeats`)
   withdraws its shard's part, so the directory's manifest is not written; the
   failing test says why, as on the single call.
+- **A directory with a problem writes no manifest.** Any red below, for a
+  directory, also means the reporter leaves that directory's manifest alone.
+- **Scenarios the test file itself skips.** A wrapper around the test function
+  that turns a scenario into `test.skip` (a host that cannot run it), or a
+  `describe.skip` around a shard, means that shard never records every
+  outcome. The whole-directory call on such a host is green and writes no
+  manifest; so does the shard run: it is **not** red for that, the manifest is
+  not written, and one line says so (`run manifest not written for <dir>: N
+  tests were skipped by the test file itself (first: "…"); a manifest needs
+  every scenario's outcome`). A scenario the feature file skips (`@skip`) does
+  not count. A missing part that no skipped test explains stays a named red.
 - **Red runs** (named in the output): a feature file in a sharded directory that
   no test file runs (full runs only); a feature file run by two test files, or by
   one test file in two vitest projects; a whole-directory call and shards over
@@ -603,21 +614,25 @@ Pass the same `wip` list and the same `manifest` to every shard.
 - **No reporter, no run.** A call with `only` in a run without the reporter
   registers one failing test saying to add it, and nothing else. A reporter
   counts only for its own run: the variable that names its run directory carries
-  the reporter's process id, and a vitest started from inside another run, or
-  with a stale variable, does not accept it. A whole-directory call then
+  the reporter's process id, and a vitest started from inside another run (in a
+  forks or a threads pool, whatever its own pool), or with a stale variable,
+  does not accept it. A whole-directory call then
   behaves exactly as without the reporter.
 - Several feature directories, each with its own manifest, work in one run.
 - **The filter guard, per run.** With the reporter, a name filter (`-t`) that
-  runs no scenario *anywhere in the run* is red, for sharded and whole-directory
-  calls alike: the run has a name pattern, `runFeatures` calls registered at
+  runs no scenario and no test of your own *anywhere in the run* (a plain unit
+  test beside the feature runners that the filter matches makes it an honest
+  run) is red, for sharded and whole-directory calls alike: the run has a name pattern, `runFeatures` calls registered at
   least one runnable scenario (bound scenarios, `@todo` included; `@skip`,
   wip-held placeholders and the runner's own checks never count), and none ran.
   It is per run, not per file, because with one feature per test file a filter
   naming one feature legitimately runs nothing in the others. One stderr line
-  names the pattern. A test that already failed outranks it. When the pattern
-  reached a wip-held scenario the line says "only wip-held ones" (it reads
-  vitest's `todo` mode, so it cannot tell a held scenario from another
-  `test.todo` in the run). Without the reporter, vitest stays uncovered.
+  names the pattern. A test that already failed outranks it. The general line
+  names the three causes it cannot tell apart (a misspelled filter, a scenario
+  in a test file outside the run, only skipped scenarios). When the pattern
+  matched a `todo` test the line says so: wip-held scenarios register as todo,
+  but the reporter cannot tell them from another `test.todo`. Only the global
+  `-t` pattern is read. Without the reporter, vitest stays uncovered.
 
 Limits: `only` is vitest-only. Native node, bun and Deno runs get the one
 failing test above; run the whole directory there. The reporter needs vitest
@@ -625,8 +640,8 @@ failing test above; run the whole directory there. The reporter needs vitest
 `getGlobalTestNamePattern()`, `globTestSpecifications()`) and refuses to start
 on an older one with one error naming the minimum; the package's own peer range
 is unchanged. It is tested on vitest 5.1, forks and threads pools, and `retry`.
-It is not tested with `vmThreads`/`vmForks`, `--watch`, `--shard` or
-`--changed`. In those modes it treats the run as partial where it can tell and
+It is not tested with `vmThreads`/`vmForks`, `--watch` (including the reporter
+emptying its run directory between watch re-runs), `--shard` or `--changed`. In those modes it treats the run as partial where it can tell and
 never writes a manifest from a partial run. Shards and reporter meet in a temp directory
 the reporter makes at init and removes at exit.
 

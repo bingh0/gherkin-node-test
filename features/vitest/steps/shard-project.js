@@ -46,18 +46,26 @@ export const twofiles = { aa: bound, zz: bound };
 export const pick = (defs, names) => Object.fromEntries(Object.entries(defs).filter(([k]) => names.includes(k)));
 `;
 
+// A manifest already on disk, with a timestamp from long ago: after a run, the
+// bytes and the mtime say whether anything touched it.
+const SEED_TEXT = '{"run-manifest":1}\n{"file":"seed.feature","title":"already here","status":"passed"}\n';
+const SEED_TIME = new Date('2001-01-01T00:00:00Z');
+
 const CORPUS = { sharded: 'sharded', shardedRed: 'sharded', lastRed: 'sharded', richDefs: 'sharded-rich', twofiles: 'twofiles' };
 
 /**
  * @typedef {{ dir: 'sharded' | 'shardedRed' | 'lastRed' | 'richDefs' | 'twofiles', only?: string[],
- *   definers?: string[], wip?: any[], manifest?: string, link?: string, wrap?: 'describe.skip' }
+ *   definers?: string[], wip?: any[], manifest?: string, link?: string, wrap?: 'describe.skip', skipScenario?: string, noopBodies?: boolean }
  *   | { raw: string }} Call
  * @typedef {Call | Call[]} TestFileSpec
  *   `dir` names the definers export (and so the corpus); `only` absent = a
  *   whole-directory call; `definers` defaults to `only` (or to every definer);
  *   `manifest` is a file name inside the project; `link` runs the call through
- *   a symlink of that name to the corpus directory; `raw` is a spec file's own
- *   source.
+ *   a symlink of that name to the corpus directory; `skipScenario` runs the call
+ *   through a test-function wrapper that turns the scenario with that title into
+ *   `test.skip` (what a consumer does on a host that cannot run it);
+ *   `noopBodies` through one that registers every test with an empty body; `raw`
+ *   is a spec file's own source.
  */
 
 /**
@@ -66,7 +74,8 @@ const CORPUS = { sharded: 'sharded', shardedRed: 'sharded', lastRed: 'sharded', 
  * @param {Record<string, TestFileSpec>} files spec file name → its content (an
  *   array is several calls in one file)
  * @param {{ pool?: string, reporter?: boolean, args?: string[], projects?: string[],
- *   config?: Record<string, any>, env?: Record<string, string>, run?: boolean }} [opt]
+ *   config?: Record<string, any>, env?: Record<string, string>, run?: boolean,
+ *   seed?: string[] }} [opt]
  */
 function runShardProject(name, files, opt = {}) {
   const dir = path.join(OUT, name);
@@ -99,18 +108,29 @@ function runShardProject(name, files, opt = {}) {
         ...(spec.manifest ? { manifest: path.join(dir, spec.manifest) } : {}) };
       const names = spec.definers || spec.only;
       const definers = names ? `pick(${spec.dir}, ${JSON.stringify(names)})` : spec.dir;
-      const call = `runFeatures(${JSON.stringify(target)}, ${definers}, ${JSON.stringify(opts)});`;
+      const args = `${JSON.stringify(target)}, ${definers}, ${JSON.stringify(opts)}`;
+      const wrapper = spec.skipScenario !== undefined
+        ? `(name, fn) => (name.includes(${JSON.stringify(spec.skipScenario)}) ? test.skip(name, fn) : test(name, fn))`
+        : spec.noopBodies ? '(name) => test(name, () => {})' : null;
+      const call = wrapper
+        ? `gnt.bindRunner(Object.assign(${wrapper}, { skip: test.skip, todo: test.todo })).runFeatures(${args});`
+        : `runFeatures(${args});`;
       return { raw: spec.wrap ? `${spec.wrap}('wrapped', () => { ${call} });` : call, names: [spec.dir] };
     });
     const raws = calls.filter((c) => c.names.length === 0);
     if (raws.length > 0 && calls.length === 1) { fs.writeFileSync(path.join(dir, file), raws[0].raw); continue; }
     const used = [...new Set(calls.flatMap((c) => c.names)), 'pick'];
-    fs.writeFileSync(path.join(dir, file), `import { describe } from 'vitest';
+    fs.writeFileSync(path.join(dir, file), `import { describe, test } from 'vitest';
+import gnt from ${JSON.stringify(url.pathToFileURL(path.join(ROOT, 'index.js')).href)};
 import { runFeatures } from ${JSON.stringify(vitestUrl)};
 import { ${used.join(', ')} } from './defs.mjs';
-void describe;
+void describe; void test; void gnt;
 ${calls.map((c) => c.raw).join('\n')}
 `);
+  }
+  for (const f of opt.seed || []) {
+    fs.writeFileSync(path.join(dir, f), SEED_TEXT);
+    fs.utimesSync(path.join(dir, f), SEED_TIME, SEED_TIME);
   }
   const vitestBin = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
   /** @param {string[]} args */
@@ -136,6 +156,11 @@ ${calls.map((c) => c.raw).join('\n')}
     manifestBytes: (file) => {
       const p = path.join(dir, file);
       return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
+    },
+    /** @param {string} file the seeded manifest still has its seeded bytes and its old mtime */
+    untouched: (file) => {
+      const p = path.join(dir, file);
+      return fs.readFileSync(p, 'utf8') === SEED_TEXT && fs.statSync(p).mtimeMs === SEED_TIME.getTime();
     },
     /** @param {string} file */
     manifestPath: (file) => path.join(dir, file),

@@ -13,6 +13,12 @@ const { runShardProject, ROOT } = require('./steps/shard-project');
 
 const three = (/** @type {any} */ extra = {}, dir = 'sharded') => Object.fromEntries(
   ['alpha', 'beta', 'gamma'].map((n) => [`${n}.vitest-spec.mjs`, { dir, only: [n], manifest: 'm.ndjson', ...extra }]));
+// A red run that must not have touched the manifest already on disk.
+const SEED = ['m.ndjson'];
+const redUntouched = (/** @type {any} */ run) => {
+  assert.notStrictEqual(run.status, 0, run.output);
+  assert.ok(run.untouched('m.ndjson'), `the manifest on disk kept its bytes and its timestamp\n${run.output}`);
+};
 const wholeBytes = () => {
   const whole = runShardProject('edge-whole', { 'all.vitest-spec.mjs': { dir: 'sharded', manifest: 'm.ndjson' } });
   return /** @type {string} */ (whole.manifestBytes('m.ndjson'));
@@ -20,12 +26,15 @@ const wholeBytes = () => {
 
 // --- D1: the run directory belongs to the process that made it --------------
 
-test('a vitest run without the reporter, started inside a run that has one, gets its shards\' one failing test', () => {
-  const inner = runShardProject('nested-inner', three(), { reporter: false, run: false });
-  const bin = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
-  const report = path.join(inner.dir, 'inner-report.json');
-  const outer = runShardProject('nested-outer', {
-    'outer.vitest-spec.mjs': { raw: `import { test } from 'vitest';
+// The inner vitest is a child process of the outer run's worker. Whatever the
+// pools, it must not take the outer reporter's run directory for its own.
+for (const [outerPool, innerPool] of [['forks', 'forks'], ['threads', 'threads'], ['threads', 'forks']]) {
+  test(`outer ${outerPool} with the reporter, inner ${innerPool} without: the inner shards get their one failing test`, () => {
+    const inner = runShardProject(`nested-inner-${outerPool}-${innerPool}`, three(), { reporter: false, run: false, pool: innerPool });
+    const bin = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
+    const report = path.join(inner.dir, 'inner-report.json');
+    const outer = runShardProject(`nested-outer-${outerPool}-${innerPool}`, {
+      'outer.vitest-spec.mjs': { raw: `import { test } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 test('the inner run', () => {
@@ -34,13 +43,14 @@ test('the inner run', () => {
   fs.writeFileSync(${JSON.stringify(report)}, JSON.stringify({ status: r.status, output: r.stdout + r.stderr }));
 });
 ` },
+    }, { pool: outerPool });
+    assert.strictEqual(outer.status, 0, outer.output);
+    const seen = JSON.parse(fs.readFileSync(report, 'utf8'));
+    assert.notStrictEqual(seen.status, 0, seen.output);
+    assert.ok((seen.output.match(/runFeatures: only needs the gherkin-node-test reporter/g) || []).length >= 3, seen.output);
+    assert.strictEqual(inner.manifestBytes('m.ndjson'), null, 'the outer reporter wrote nothing for the inner project');
   });
-  assert.strictEqual(outer.status, 0, outer.output);
-  const seen = JSON.parse(fs.readFileSync(report, 'utf8'));
-  assert.notStrictEqual(seen.status, 0, seen.output);
-  assert.strictEqual((seen.output.match(/runFeatures: only needs the gherkin-node-test reporter/g) || []).length >= 3, true, seen.output);
-  assert.strictEqual(inner.manifestBytes('m.ndjson'), null, 'the outer reporter wrote nothing for the inner project');
-});
+}
 
 test('a stale variable is no reporter: a shard gets its one failing test, a whole call is untouched', () => {
   const stale = fs.mkdtempSync(path.join(os.tmpdir(), 'gnt-stale-'));
@@ -71,18 +81,30 @@ runFeatures(${JSON.stringify(path.join(ROOT, 'features', 'sharded'))}, sharded);
 test('shards given different debt registers turn the run red, naming them', () => {
   const layout = three();
   layout['beta.vitest-spec.mjs'].wip = ['ghost']; // the orphan, given to a shard that does not hold the first feature
-  const run = runShardProject('wip-disagree', layout);
-  assert.notStrictEqual(run.status, 0, run.output);
-  assert.match(run.output, /disagree about the wip register: .*beta\.vitest-spec\.mjs/);
+  const run = runShardProject('wip-disagree', layout, { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /disagree about the wip register: "ghost" is in the register given to .*beta\.vitest-spec\.mjs but not in the one given to .*(alpha|gamma)\.vitest-spec\.mjs/);
+});
+
+test('the same debt register in a different order is the same register', () => {
+  const orders = [
+    [{ feature: 'two', scenarios: ['pending thing'] }, { feature: 'one', scenarios: ['one pending'] }],
+    [{ feature: 'one', scenarios: ['one pending'] }, { feature: 'two', scenarios: ['pending thing'] }],
+  ];
+  const rich = Object.fromEntries(['one', 'two', 'three'].map((n, i) => [`${n}.vitest-spec.mjs`,
+    { dir: 'richDefs', only: [n], manifest: 'm.ndjson', wip: orders[i % 2] }]));
+  const run = runShardProject('wip-order', rich);
+  // step-lint: allow unearned-absence -- guarded: the manifest assertion below proves the reporter ran its full-run checks and wrote
+  assert.doesNotMatch(run.output, /disagree about the wip register/);
+  assert.ok(run.manifestBytes('m.ndjson'), run.output);
 });
 
 // --- D3: retry/repeats withdraw the part ------------------------------------------
 
 test('a re-invoked last scenario (retry) leaves no manifest', () => {
-  const run = runShardProject('retry', three({}, 'lastRed'), { config: { retry: 1 } });
-  assert.notStrictEqual(run.status, 0, run.output);
+  const run = runShardProject('retry', three({}, 'lastRed'), { config: { retry: 1 }, seed: SEED });
+  redUntouched(run);
   assert.match(run.output, /invoked again after its outcome was recorded/);
-  assert.strictEqual(run.manifestBytes('m.ndjson'), null, 'the poisoned directory wrote no manifest');
 });
 
 // --- D4: a claimed feature with no part is named, never silent --------------------
@@ -99,13 +121,21 @@ test('two shard calls over different features in one test file are legal and wri
   assert.strictEqual(run.manifestBytes('m.ndjson'), wholeBytes());
 });
 
-test('a shard whose scenarios did not run (describe.skip) is a named red on a full run', () => {
+test('a shard inside a skipped describe is not red: the test file skipped it, and the run says so', () => {
   const layout = three();
   layout['beta.vitest-spec.mjs'] = { ...layout['beta.vitest-spec.mjs'], wrap: 'describe.skip' };
-  const run = runShardProject('skipped-shard', layout);
-  assert.notStrictEqual(run.status, 0, run.output);
-  assert.match(run.output, /no manifest part for "beta" on a full run/);
-  assert.strictEqual(run.manifestBytes('m.ndjson'), null);
+  const run = runShardProject('skipped-shard', layout, { seed: SEED });
+  assert.strictEqual(run.status, 0, run.output);
+  assert.ok(run.untouched('m.ndjson'));
+  assert.match(run.output, /gherkin-node-test: run manifest not written for .*sharded: 4 tests were skipped by the test file itself \(first: "[^"]+"\); a manifest needs every scenario's outcome/);
+});
+
+test('a missing part that no skipped test explains stays a named red', () => {
+  const layout = three();
+  layout['beta.vitest-spec.mjs'] = { ...layout['beta.vitest-spec.mjs'], noopBodies: true };
+  const run = runShardProject('noop-shard', layout, { seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /no manifest part for "beta" on a full run — .*beta\.vitest-spec\.mjs did not record every scenario's outcome and skipped no test to explain it/);
 });
 
 // --- D5: a shared manifest path, whole calls included ------------------------------
@@ -114,26 +144,30 @@ test('a whole-directory call and shards of another directory sharing a manifest 
   const run = runShardProject('shared-whole', {
     ...three({ manifest: 'm.ndjson' }),
     'two.vitest-spec.mjs': { dir: 'twofiles', manifest: 'm.ndjson' },
-  });
+  }, { seed: SEED });
+  // The whole-directory call writes its own account as it always did, so only
+  // the verdict and the line can be asserted: the reporter must not add the
+  // shards' account on top.
   assert.notStrictEqual(run.status, 0, run.output);
   assert.match(run.output, /is the manifest of two feature directories/);
+  assert.ok(!(run.manifestBytes('m.ndjson') ?? '').includes('alpha.feature'), 'the shards\' rows did not overwrite the whole call\'s account');
 });
 
 test('two sharded directories sharing a manifest path are red', () => {
   const run = runShardProject('shared-shards', {
     'alpha.vitest-spec.mjs': { dir: 'sharded', only: ['alpha', 'beta', 'gamma'], manifest: 'm.ndjson' },
     'aa.vitest-spec.mjs': { dir: 'twofiles', only: ['aa', 'zz'], manifest: 'm.ndjson' },
-  });
-  assert.notStrictEqual(run.status, 0, run.output);
+  }, { seed: SEED });
+  redUntouched(run);
   assert.match(run.output, /is the manifest of two feature directories/);
 });
 
 // --- D6: one feature claimed from two projects ------------------------------------
 
 test('the same shard file in two vitest projects is a double claim', () => {
-  const run = runShardProject('two-projects', three(), { projects: ['p1', 'p2'] });
-  assert.notStrictEqual(run.status, 0, run.output);
-  assert.match(run.output, /is run by two test files: .*\(project p1\) and .*\(project p2\)/);
+  const run = runShardProject('two-projects', three(), { projects: ['p1', 'p2'], seed: SEED });
+  redUntouched(run);
+  assert.match(run.output, /is run by one test file in two projects: .*\(project p1\) and .*\(project p2\)/);
 });
 
 // --- D7: one directory, two spellings ----------------------------------------------
@@ -142,8 +176,8 @@ test('shards spelling one directory two ways are red', () => {
   const layout = three();
   layout['beta.vitest-spec.mjs'] = { ...layout['beta.vitest-spec.mjs'], link: 'link' };
   layout['gamma.vitest-spec.mjs'] = { ...layout['gamma.vitest-spec.mjs'], link: 'link' };
-  const run = runShardProject('two-spellings', layout);
-  assert.notStrictEqual(run.status, 0, run.output);
+  const run = runShardProject('two-spellings', layout, { seed: SEED });
+  redUntouched(run);
   assert.match(run.output, /disagree about the directory's spelling/);
 });
 
@@ -177,18 +211,17 @@ test('the reporter refuses a vitest without the hooks it needs, naming the minim
 test('a disagreement about the manifest is red', () => {
   const layout = three();
   delete layout['gamma.vitest-spec.mjs'].manifest;
-  const run = runShardProject('manifest-disagree', layout);
-  assert.notStrictEqual(run.status, 0, run.output);
+  const run = runShardProject('manifest-disagree', layout, { seed: SEED });
+  redUntouched(run);
   assert.match(run.output, /disagree about the manifest/);
 });
 
 test('a bailed run is not a full run: no "run by no test file" noise, no manifest', () => {
   const layout = three({}, 'shardedRed');
-  const run = runShardProject('bail', layout, { args: ['--bail', '1', '--no-file-parallelism'] });
-  assert.notStrictEqual(run.status, 0, run.output);
+  const run = runShardProject('bail', layout, { args: ['--bail', '1', '--no-file-parallelism'], seed: SEED });
+  redUntouched(run);
   // step-lint: allow unearned-absence -- guarded: the run is red (asserted above) and its failing shard is in the output, so the reporter ran; only the unclaimed-file refusal is absent
   assert.doesNotMatch(run.output, /is run by no test file/);
-  assert.strictEqual(run.manifestBytes('m.ndjson'), null);
 });
 
 test('an unhandled error is not a full run: no manifest', () => {
@@ -200,18 +233,16 @@ test('an unhandled rejection', async () => {
   await new Promise((r) => setTimeout(r, 50));
 });
 ` },
-  });
-  assert.notStrictEqual(run.status, 0, run.output);
-  assert.strictEqual(run.manifestBytes('m.ndjson'), null);
+  }, { seed: SEED });
+  redUntouched(run);
 });
 
 test('a spec that throws at collection is not a full run: no manifest', () => {
   const run = runShardProject('module-error', {
     ...three(),
     'boom.vitest-spec.mjs': { raw: "throw new Error('cannot collect');\n" },
-  });
-  assert.notStrictEqual(run.status, 0, run.output);
-  assert.strictEqual(run.manifestBytes('m.ndjson'), null);
+  }, { seed: SEED });
+  redUntouched(run);
 });
 
 // --- `only` names and definers ------------------------------------------------------
@@ -260,7 +291,19 @@ test('a test that already failed outranks the filter line', () => {
 test('no name filter, no filter line: shards inside a skipped describe are not a filter refusal', () => {
   const layout = Object.fromEntries(Object.entries(three()).map(([f, spec]) => [f, { ...spec, wrap: 'describe.skip' }]));
   const run = runShardProject('filter-none-given', layout);
-  // step-lint: allow unearned-absence -- guarded: the run is red on the missing parts (asserted first), so the reporter ran its checks; only the filter line is absent
-  assert.match(run.output, /no manifest part for/);
+  // step-lint: allow unearned-absence -- guarded: the run says its manifest was not written for skipped tests (asserted first), so the reporter ran its checks; only the filter line is absent
+  assert.match(run.output, /run manifest not written for/);
   assert.doesNotMatch(run.output, /the name filter/);
+});
+
+// --- Deterministic output ----------------------------------------------------------------
+
+test('the reporter prints its problem lines sorted, whatever order it found them in', () => {
+  // The wip disagreement is found first (claims), the unclaimed file second (full run).
+  const layout = { 'alpha.vitest-spec.mjs': { dir: 'sharded', only: ['alpha'], manifest: 'm.ndjson', wip: ['ghost'] },
+    'beta.vitest-spec.mjs': { dir: 'sharded', only: ['beta'], manifest: 'm.ndjson' } };
+  const run = runShardProject('sorted', layout);
+  const lines = run.output.split('\n').filter((l) => /^gherkin-node-test: (feature file|the shards of)/.test(l));
+  assert.strictEqual(lines.length, 2, run.output);
+  assert.deepStrictEqual(lines, [...lines].sort());
 });

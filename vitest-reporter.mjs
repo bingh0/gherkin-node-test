@@ -98,13 +98,17 @@ export default class GherkinNodeTestReporter {
     const invoked = this.readAll('invoked');
     /** @type {string[]} */
     const problems = [];
+    /** @type {string[]} */
+    const notes = [];
     const dirs = this.groupByDirectory(claims, problems);
     const full = await this.isFullRun(modules, unhandledErrors, reason);
     if (full) this.checkUnclaimed(dirs, problems);
-    this.writeManifests(dirs, claims, parts, poisoned, full, problems);
+    this.writeManifests(dirs, claims, parts, poisoned, modules, full, problems, notes);
     this.checkFilter(modules, unhandledErrors, calls, invoked, problems);
+    // Sorted, so the same run prints the same lines in the same order.
+    for (const n of notes.sort()) console.error(`gherkin-node-test: ${n}`);
     if (problems.length === 0) return;
-    for (const p of problems) console.error(`gherkin-node-test: ${p}`);
+    for (const p of problems.sort()) console.error(`gherkin-node-test: ${p}`);
     process.exitCode = 1;
   }
 
@@ -150,8 +154,9 @@ export default class GherkinNodeTestReporter {
       for (const [feature, cs] of byFeature) {
         const owners = whoAll(cs);
         if (owners.length < 2) continue;
-        bad(`feature "${feature}" in ${rel(dir)} is run by two test files: ${owners.join(' and ')} — `
-          + 'each feature file belongs to exactly one shard');
+        const files = new Set(cs.map((c) => c.testFile));
+        bad(`feature "${feature}" in ${rel(dir)} is run by ${files.size === 1 ? 'one test file in two projects' : 'two test files'}: `
+          + `${owners.join(' and ')} — each feature file belongs to exactly one shard`);
       }
       /** @param {string} key @param {(c: any) => string} show @param {string} what @param {string} fix */
       const agree = (key, show, what, fix) => {
@@ -164,13 +169,31 @@ export default class GherkinNodeTestReporter {
       };
       agree('manifest', (c) => (c.manifest === null ? 'no manifest' : rel(c.manifest)), 'the manifest',
         'pass the same manifest option to every shard');
-      agree('wip', (c) => `register ${c.wip}`, 'the wip register',
-        'pass the whole, same wip list to every shard');
+      this.agreeOnWip(shards, rel(dir), who, bad);
       agree('spelled', (c) => rel(c.spelled), 'the directory\'s spelling',
         'spell the directory the same way in every shard (a symlink or another path to it would write mixed file paths)');
       out.set(dir, { shards, dirBad });
     }
     return out;
+  }
+
+  /**
+   * Shards of one directory must hold the same wip list (each claim carries it
+   * normalized and sorted). Names the first entry that differs and one test
+   * file on each side.
+   * @param {any[]} shards @param {string} where @param {(c: any) => string} who
+   * @param {(message: string) => void} bad
+   */
+  agreeOnWip(shards, where, who, bad) {
+    const first = shards[0];
+    const other = shards.find((c) => JSON.stringify(c.wip) !== JSON.stringify(first.wip));
+    if (!other) return;
+    const has = (/** @type {any} */ c, /** @type {string} */ e) => c.wip.includes(e);
+    const entry = [...first.wip, ...other.wip].find((e) => has(first, e) !== has(other, e));
+    const holder = has(first, entry) ? first : other;
+    const lacker = holder === first ? other : first;
+    bad(`the shards of ${where} disagree about the wip register: ${entry} is in the register given to ${who(holder)} `
+      + `but not in the one given to ${who(lacker)} — pass the whole, same wip list to every shard`);
   }
 
   /**
@@ -198,33 +221,72 @@ export default class GherkinNodeTestReporter {
   }
 
   /**
+   * A full run, a manifest configured, and a claimed feature with no part: its
+   * shard never recorded every scenario's outcome. When the TEST FILE skipped
+   * tests (a wrapper's `test.skip`, a `describe.skip`) that is why, and the
+   * whole-directory call on the same host is green and writes no manifest
+   * either: say so, in a note, and write nothing. A skip the feature file asked
+   * for (an @skip scenario, which the shard records) does not count. A missing
+   * part that skipped tests do not explain stays a named red.
+   * @param {string} dir @param {any[]} shards @param {string[]} lacking
+   * @param {readonly any[]} modules @param {string[]} problems @param {string[]} notes
+   */
+  explainMissing(dir, shards, lacking, modules, problems, notes) {
+    const files = [...new Set(shards.filter((c) => lacking.includes(c.feature)).map((c) => c.testFile))].sort();
+    /** @type {string[]} */
+    const skipped = [];
+    /** @type {string[]} */
+    const unexplained = [];
+    for (const file of files) {
+      const own = new Set(shards.filter((c) => c.testFile === file).flatMap((c) => c.ownSkips));
+      const names = modules.filter((m) => m.moduleId === file)
+        .flatMap((m) => [...m.children.allTests()])
+        .filter((t) => t.result().state === 'skipped' && !own.has(t.name)).map((t) => t.name);
+      if (names.length > 0) skipped.push(...names); else unexplained.push(file);
+    }
+    if (skipped.length > 0) {
+      notes.push(`run manifest not written for ${rel(dir)}: ${skipped.length} test${skipped.length === 1 ? ' was' : 's were'} skipped `
+        + `by the test file itself (first: "${skipped[0]}"); a manifest needs every scenario's outcome`);
+    }
+    if (unexplained.length > 0) {
+      problems.push(`${rel(dir)}: no manifest part for ${lacking.map((f) => `"${f}"`).join(', ')} on a full run — `
+        + `${unexplained.map(rel).join(', ')} did not record every scenario's outcome and skipped no test to explain it `
+        + '(a test function wrapper that does not run the scenario body?); the manifest was not written and would have gone stale');
+    }
+  }
+
+  /**
    * The filter guard, per run: the run has a name pattern, gnt calls in it
    * registered at least one runnable scenario body (bound scenarios, @todo
    * included; @skip, wip-held placeholders and the runner's own checks never
-   * count — the native lanes' count), and no such body ran anywhere. A test
-   * that failed outranks it. What it can tell about a wip-held scenario: vitest
-   * keeps a held scenario's `todo` mode when the pattern matches it and turns it
-   * to `skip` when not, so a `todo` test left in the run means the pattern
-   * reached a held scenario. It cannot tell a held scenario from any other
-   * `test.todo` in the run, nor read a pattern that vitest's own `-t` parsing
-   * changed.
+   * count — the native lanes' count), no such body ran anywhere, and no test of
+   * the consumer's own ran either (a plain unit test beside the feature
+   * runners: `vitest -t "that test"` is an honest run). A test that failed
+   * outranks it. Only global patterns are read: a per-spec pattern exists only
+   * through vitest's programmatic API, which this reporter does not cover. What
+   * it can tell about the lines: a `todo` test left in the run (vitest keeps a
+   * held scenario's `todo` mode when the pattern matches it, `skip` when not)
+   * means the pattern reached todo tests; it cannot tell a scenario the filter
+   * skipped from one the test file or an @skip tag skipped, so the general line
+   * names all the causes.
    * @param {readonly any[]} modules @param {readonly unknown[]} unhandledErrors
    * @param {any[]} calls @param {any[]} invoked @param {string[]} problems
    */
   checkFilter(modules, unhandledErrors, calls, invoked, problems) {
-    const text = (/** @type {any} */ p) => (p instanceof RegExp ? p.source : String(p));
-    const patterns = new Set(this.specs.map((s) => s.testNamePattern).filter(Boolean).map(text));
-    const global = this.vitest.getGlobalTestNamePattern();
-    if (global) patterns.add(text(global));
-    if (patterns.size === 0) return;
+    const pattern = this.vitest.getGlobalTestNamePattern();
+    if (!pattern) return;
     if (calls.reduce((n, c) => n + c.runnable, 0) === 0 || invoked.length > 0) return;
     if (unhandledErrors.length > 0 || modules.some((m) => m.state() === 'failed')) return;
-    const shown = [...patterns].map((p) => `"${p}"`).join(', ');
-    const held = modules.some((m) => [...m.children.allTests()].some((t) => t.options?.mode === 'todo'));
-    problems.push(held
-      ? `the name filter ${shown} matched no runnable scenario, only wip-held ones, in this run; nothing ran`
-      : `the name filter ${shown} ran no scenario in this run; check its spelling, and that the test file `
-        + 'holding the scenario is part of the run');
+    /** @type {Map<string, Set<string>>} */
+    const ours = new Map();
+    for (const c of calls) ours.set(c.testFile, new Set([...(ours.get(c.testFile) || []), ...c.titles]));
+    const tests = modules.flatMap((m) => [...m.children.allTests()].map((t) => ({ file: m.moduleId, t })));
+    if (tests.some(({ file, t }) => t.result().state === 'passed' && !ours.get(file)?.has(t.name))) return;
+    const shown = `"${pattern instanceof RegExp ? pattern.source : String(pattern)}"`;
+    problems.push(tests.some(({ t }) => t.options?.mode === 'todo')
+      ? `the name filter ${shown} matched only todo tests (wip-held scenarios register as todo); no scenario ran`
+      : `the name filter ${shown} ran no scenario in this run: it is misspelled, or it names a scenario in a test file `
+        + 'outside this run, or it matches only skipped scenarios');
   }
 
   /**
@@ -232,10 +294,11 @@ export default class GherkinNodeTestReporter {
    * @param {Map<string, { shards: any[], dirBad: boolean }>} dirs @param {string[]} problems
    */
   checkUnclaimed(dirs, problems) {
-    for (const [dir, { shards }] of dirs) {
-      const claimed = new Set(shards.map((c) => c.feature));
+    for (const [dir, entry] of dirs) {
+      const claimed = new Set(entry.shards.map((c) => c.feature));
       for (const feature of this.featureFiles(dir)) {
         if (claimed.has(feature)) continue;
+        entry.dirBad = true; // a directory with a problem writes no manifest
         problems.push(`feature file ${rel(path.join(dir, `${feature}.feature`))} is run by no test file — `
           + `its directory is sharded, so add "${feature}" to the \`only\` of one runFeatures call`);
       }
@@ -258,9 +321,10 @@ export default class GherkinNodeTestReporter {
    * already named why.
    * @param {Map<string, { shards: any[], dirBad: boolean }>} dirs
    * @param {any[]} claims @param {any[]} parts @param {any[]} poisoned
-   * @param {boolean} full @param {string[]} problems
+   * @param {readonly any[]} modules
+   * @param {boolean} full @param {string[]} problems @param {string[]} notes
    */
-  writeManifests(dirs, claims, parts, poisoned, full, problems) {
+  writeManifests(dirs, claims, parts, poisoned, modules, full, problems, notes) {
     // Which directories use which manifest path — whole-directory calls too:
     // a whole call over directory B and shards of directory A sharing a path
     // would have the reporter overwrite B's account.
@@ -283,10 +347,7 @@ export default class GherkinNodeTestReporter {
       const have = new Set(mine.flatMap((p) => p.features));
       const lacking = [...new Set(shards.map((c) => c.feature))].filter((f) => !have.has(f)).sort();
       if (lacking.length > 0) {
-        problems.push(`${rel(dir)}: no manifest part for ${lacking.map((f) => `"${f}"`).join(', ')} on a full run — `
-          + `${[...new Set(shards.filter((c) => lacking.includes(c.feature)).map((c) => rel(c.testFile)))].join(', ')} `
-          + 'did not run every scenario of it (a skipped describe or test?), so the manifest was not written and '
-          + 'would have gone stale');
+        this.explainMissing(dir, shards, lacking, modules, problems, notes);
         continue;
       }
       try {

@@ -28,15 +28,19 @@ Feature: Sharding a feature directory on vitest
 
   Scenario: a feature file no test file runs turns the run red
     Given a feature directory of 3 feature files and shards that cover 2 of them
+    And a manifest is already on disk
     When the full run completes
     Then the run is red
     And the report names the third feature file as run by no test file
+    And the manifest on disk is untouched, bytes and timestamp
 
   Scenario: a feature file run by two test files turns the run red
     Given a feature directory of 3 feature files and two shards that both run one of them
+    And a manifest is already on disk
     When the full run completes
     Then the run is red
     And the report names that feature and both test files
+    And the manifest on disk is untouched, bytes and timestamp
 
   Scenario: a filtered or partial run writes no manifest
     Given a full run that has written the shards' manifest
@@ -44,6 +48,15 @@ Feature: Sharding a feature directory on vitest
     And again with one test file named
     Then both of those runs are green
     And the manifest is untouched, bytes and timestamp
+
+  Scenario: a scenario the test file itself skips leaves the manifest unwritten, and says so
+    Given a feature directory of 3 feature files, one shard per feature file
+    And one shard's test file turns a scenario into a skipped test
+    And a manifest is already on disk
+    When the full run completes
+    Then the run is green
+    And the manifest on disk is untouched, bytes and timestamp
+    And the run says the manifest was not written because the test file skipped a test
 
   Scenario: a shard without the reporter is one failing test
     Given a test file that runs one feature file as a shard
@@ -54,9 +67,11 @@ Feature: Sharding a feature directory on vitest
   Scenario: a whole-directory call beside shards turns the run red
     Given a feature directory of 3 feature files, one shard per feature file
     And another test file that runs the same directory whole
+    And a manifest is already on disk
     When the full run completes
     Then the run is red
     And the report names the whole-directory test file and the shards
+    And the manifest on disk is untouched, bytes and timestamp
 
   Scenario: two sharded directories in one run each get their manifest
     Given two feature directories, each sharded, each with its own manifest
@@ -65,19 +80,27 @@ Feature: Sharding a feature directory on vitest
 
   Scenario: a name filter that runs no scenario anywhere in the run is red
     Given a feature directory of 3 feature files, one shard per feature file
+    And a test file of plain unit tests sits beside them
     When the suite runs with a name filter that matches no scenario title
     Then the run is red
     And the run says the filter ran no scenario
 
   Scenario: a name filter that runs a scenario in one test file is not refused
     Given a feature directory of 3 feature files, one shard per feature file
+    And a test file of plain unit tests sits beside them
     When the suite runs with a name filter that matches one scenario title
     Then the run is green
     And no manifest is written
 
-  Scenario: a name filter that reaches only wip-held scenarios is red and says so
+  Scenario: a name filter that runs only a plain unit test is not refused
+    Given a feature directory of 3 feature files, one shard per feature file
+    And a test file of plain unit tests sits beside them
+    When the suite runs with a name filter that matches only a plain unit test
+    Then the run is green
+
+  Scenario: a name filter that reaches only todo tests, wip-held scenarios among them, is red and says so
     Given a feature directory of 3 feature files holding every kind of row, and hostile titles
     And one test file that runs it whole, and 3 test files that each run one feature file
     When the suite runs with a name filter that matches only a wip-held scenario title
     Then the run is red
-    And the run says the filter matched only wip-held scenarios
+    And the run says the filter matched only todo tests

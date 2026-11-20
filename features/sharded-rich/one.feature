@@ -7,6 +7,10 @@ Feature: One
     Given a bound step that fails
     Then the outcome is visible
 
+  Scenario: one pending
+    Given an unbuilt interface responds
+    Then the outcome is visible
+
   Scenario Outline: sweep <k>
     Given a bound step
     When case <k> of two runs

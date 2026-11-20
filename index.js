@@ -77,6 +77,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert');
 const url = require('node:url');
+const { isMainThread } = require('node:worker_threads');
 const crypto = require('node:crypto');
 
 // Under Bun, register tests natively on bun:test: Bun's node:test shim is
@@ -2061,8 +2062,9 @@ const SHARD_KINDS = ['claims', 'parts', 'poison', 'calls', 'invoked'];
  * otherwise make every test file look like the helper.
  *
  * The variable is `<pid>:<dir>`, the pid being the reporter's own process. A
- * worker accepts it only when that pid is its own (threads pools) or its
- * parent's (forks pools), and the directory has the layout the reporter makes.
+ * worker accepts it only when that pid is its own (the caller is a worker
+ * thread, threads pools) or its parent's (the caller is the main thread of a
+ * forked child, forks pools), and the directory has the layout the reporter makes.
  * Environment variables are inherited by every child, so without the pid a
  * vitest run with NO reporter started from inside a run that has one (or with
  * a stale variable) would write into the outer run's directory. A refused
@@ -2081,7 +2083,12 @@ function shardRun() {
   const colon = raw ? raw.indexOf(':') : -1;
   if (!raw || colon < 1) return null;
   const pid = Number(raw.slice(0, colon));
-  if (pid !== process.pid && pid !== process.ppid) return null;
+  // Whose run is it? A worker THREAD shares the reporter's process, so its
+  // pid is the reporter's. A forked worker's main thread is the reporter's
+  // child, so its parent is. The two are not interchangeable: a vitest started
+  // from inside a worker thread is a child of the reporter's process too, and
+  // its own worker threads would see the reporter's pid as their ppid.
+  if (pid !== (isMainThread ? process.ppid : process.pid)) return null;
   const runDir = raw.slice(colon + 1);
   const layout = SHARD_KINDS.every((k) => {
     try { return fs.statSync(path.join(runDir, k)).isDirectory(); } catch { return false; }
@@ -2499,31 +2506,26 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
   const wholeRun = only ? null : shardRun();
   const live = shard || wholeRun;
   const liveIdentity = live ? [realDir, only ? [...only].sort().join('\u0000') : null, live.testFile, live.project] : [];
+  // Every title this call registers, and the ones it registers as skipped
+  // (its own @skip scenarios): the reporter needs the first to tell a test the
+  // consumer's own code ran from the runner's, and the second to tell a
+  // scenario the TEST FILE skipped from one the feature file did.
+  /** @type {string[]} */
+  const titles = [];
+  /** @type {string[]} */
+  const ownSkips = [];
   if (live) {
+    const inner = register;
+    /** @type {typeof registerTest} */
+    register = (title, o, fn) => {
+      titles.push(title);
+      if (o.skip) ownSkips.push(title);
+      return inner(title, o, fn);
+    };
     probe.onInvoke = () => {
       probe.onInvoke = undefined;
       writeShardFile(live.runDir, 'invoked', liveIdentity, {});
     };
-  }
-  if (shard || wholeRun) {
-    // The reporter's view of this call: one claim per feature it runs (a
-    // whole-directory call claims the directory itself, feature: null). Each
-    // claim carries the call's whole debt register as a digest, so the
-    // reporter can refuse shards of one directory that were given different
-    // registers, and the directory as spelled, so it can refuse two spellings
-    // of one directory (they would write mixed `file` paths).
-    const run = /** @type {{ runDir: string, testFile: string, project: string }} */ (shard || wholeRun);
-    const manifestPath = opts.manifest ? path.resolve(opts.manifest) : null;
-    const wipDigest = crypto.createHash('sha1').update(JSON.stringify([
-      ...[...wip].map((f) => [f, null]),
-      ...[...wipScenarios].map(([f, t]) => [f, [...t].sort()]),
-    ].map((e) => JSON.stringify(e)).sort())).digest('hex').slice(0, 12);
-    for (const feature of only ? features.map((f) => f.base) : [null]) {
-      writeShardFile(run.runDir, 'claims', [realDir, feature, run.testFile, run.project], {
-        dir: realDir, spelled: path.resolve(dir), feature, testFile: run.testFile,
-        project: run.project, manifest: manifestPath, wip: wipDigest,
-      });
-    }
   }
   if (shard && opts.manifest) {
     // Shards of one directory legitimately share a manifest path, so the
@@ -2653,7 +2655,25 @@ function runFeatures(dir, definers, opts = {}, register = registerTest) {
     // runnable scenario bodies this call registered (counted exactly as the
     // native probe counts them), and the file that says one was invoked.
     writeShardFile(live.runDir, 'calls', liveIdentity, { dir: realDir, testFile: live.testFile,
-      project: live.project, runnable: probe.runnable, held: probe.held });
+      project: live.project, runnable: probe.runnable, held: probe.held, titles });
+    // The reporter's view of this call: one claim per feature it runs (a
+    // whole-directory call claims the directory itself, feature: null). Each
+    // claim carries the call's whole debt register (normalized, sorted), so the
+    // reporter can refuse shards of one directory that were given different
+    // registers, and the directory as spelled, so it can refuse two spellings
+    // of one directory (they would write mixed `file` paths). Written after the
+    // registrations so it can carry the call's own @skip titles.
+    const manifestPath = opts.manifest ? path.resolve(opts.manifest) : null;
+    const wipList = [
+      ...[...wip].map((f) => JSON.stringify(f)),
+      ...[...wipScenarios].map(([f, t]) => JSON.stringify({ feature: f, scenarios: [...t].sort() })),
+    ].sort();
+    for (const feature of only ? features.map((f) => f.base) : [null]) {
+      writeShardFile(live.runDir, 'claims', [realDir, feature, live.testFile, live.project], {
+        dir: realDir, spelled: path.resolve(dir), feature, testFile: live.testFile,
+        project: live.project, manifest: manifestPath, wip: wipList, ownSkips,
+      });
+    }
   }
   // Every row source is now known. If nothing is left pending (every scenario
   // was @skip/@todo/unbound), this is also the write.
