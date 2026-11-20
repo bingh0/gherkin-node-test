@@ -72,6 +72,15 @@
 {"file":"features/run-manifest.feature","title":"opting out writes nothing","status":"passed"}
 {"file":"features/run-manifest.feature","title":"the account speaks for itself","status":"passed"}
 {"file":"features/run-manifest.feature","title":"the bytes do not depend on the runtime","status":"unbound"}
+{"file":"features/sharding.feature","title":"a debt entry naming no feature file fails once","status":"passed"}
+{"file":"features/sharding.feature","title":"a feature file no test file runs turns the run red","status":"passed"}
+{"file":"features/sharding.feature","title":"a feature file run by two test files turns the run red","status":"passed"}
+{"file":"features/sharding.feature","title":"a filtered or partial run writes no manifest","status":"passed"}
+{"file":"features/sharding.feature","title":"a shard without the reporter is one failing test","status":"passed"}
+{"file":"features/sharding.feature","title":"a stale debt entry fails in the one shard that owns it","status":"passed"}
+{"file":"features/sharding.feature","title":"a whole-directory call beside shards turns the run red","status":"passed"}
+{"file":"features/sharding.feature","title":"shards write the manifest the whole-directory call writes","status":"passed"}
+{"file":"features/sharding.feature","title":"two sharded directories in one run each get their manifest","status":"passed"}
 {"file":"features/step-lint.feature","title":"a bare marker sanctions nothing","status":"passed"}
 {"file":"features/step-lint.feature","title":"a comment about a negation is not a negation","status":"passed"}
 {"file":"features/step-lint.feature","title":"a custom pattern enters with its reason","status":"passed"}

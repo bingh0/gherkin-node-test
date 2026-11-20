@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const { runShardProject } = require('./shard-project');
 
 /** @param {string[]} names @returns {Record<string, any>} one shard per feature file */
-const oneEach = (names) => Object.fromEntries(names.map((n) => [`${n}.test.mjs`,
+const oneEach = (names) => Object.fromEntries(names.map((n) => [`${n}.vitest-spec.mjs`,
   { dir: 'sharded', only: [n], manifest: 'm.ndjson' }]));
 
 /** @param {any} w @param {string} name @param {any} [opt] */
@@ -28,7 +28,7 @@ module.exports = (reg) => {
   });
 
   reg.define(/^one test file that runs it whole, and 3 test files that each run one feature file$/, (w) => {
-    w.whole = { 'all.test.mjs': { dir: 'sharded', manifest: 'single.ndjson' } };
+    w.whole = { 'all.vitest-spec.mjs': { dir: 'sharded', manifest: 'single.ndjson' } };
     w.layout = oneEach(w.names);
   });
 
@@ -53,8 +53,8 @@ module.exports = (reg) => {
 
   reg.define(/^a feature directory of 3 feature files and two shards that both run one of them$/, (w) => {
     w.layout = {
-      'first.test.mjs': { dir: 'sharded', only: ['alpha', 'beta'], manifest: 'm.ndjson' },
-      'second.test.mjs': { dir: 'sharded', only: ['beta', 'gamma'], manifest: 'm.ndjson' },
+      'first.vitest-spec.mjs': { dir: 'sharded', only: ['alpha', 'beta'], manifest: 'm.ndjson' },
+      'second.vitest-spec.mjs': { dir: 'sharded', only: ['beta', 'gamma'], manifest: 'm.ndjson' },
     };
   });
 
@@ -68,23 +68,23 @@ module.exports = (reg) => {
   });
 
   reg.define(/^a test file that runs one feature file as a shard$/, (w) => {
-    w.layout = { 'alpha.test.mjs': { dir: 'sharded', only: ['alpha'] } };
+    w.layout = { 'alpha.vitest-spec.mjs': { dir: 'sharded', only: ['alpha'] } };
   });
 
   reg.define(/^another test file that runs the same directory whole$/, (w) => {
-    w.layout['whole.test.mjs'] = { dir: 'sharded' };
+    w.layout['whole.vitest-spec.mjs'] = { dir: 'sharded' };
   });
 
   reg.define(/^two feature directories, each sharded, each with its own manifest$/, (w) => {
     w.layout = {
-      'alpha.test.mjs': { dir: 'sharded', only: ['alpha'], manifest: 'sharded.ndjson' },
-      'beta-gamma.test.mjs': { dir: 'sharded', only: ['beta', 'gamma'], manifest: 'sharded.ndjson' },
-      'aa.test.mjs': { dir: 'twofiles', only: ['aa'], manifest: 'twofiles.ndjson' },
-      'zz.test.mjs': { dir: 'twofiles', only: ['zz'], manifest: 'twofiles.ndjson' },
+      'alpha.vitest-spec.mjs': { dir: 'sharded', only: ['alpha'], manifest: 'sharded.ndjson' },
+      'beta-gamma.vitest-spec.mjs': { dir: 'sharded', only: ['beta', 'gamma'], manifest: 'sharded.ndjson' },
+      'aa.vitest-spec.mjs': { dir: 'twofiles', only: ['aa'], manifest: 'twofiles.ndjson' },
+      'zz.vitest-spec.mjs': { dir: 'twofiles', only: ['zz'], manifest: 'twofiles.ndjson' },
     };
     w.whole = {
-      'sharded.test.mjs': { dir: 'sharded', manifest: 'sharded.ndjson' },
-      'twofiles.test.mjs': { dir: 'twofiles', manifest: 'twofiles.ndjson' },
+      'sharded.vitest-spec.mjs': { dir: 'sharded', manifest: 'sharded.ndjson' },
+      'twofiles.vitest-spec.mjs': { dir: 'twofiles', manifest: 'twofiles.ndjson' },
     };
   });
 
@@ -108,7 +108,7 @@ module.exports = (reg) => {
   });
 
   reg.define(/^again with one test file named$/, (w) => {
-    w.oneFile = w.project.rerun(['alpha.test.mjs']);
+    w.oneFile = w.project.rerun(['alpha.vitest-spec.mjs']);
   });
 
   reg.define(/^the suite runs on vitest with no reporter configured$/, (w) => {
@@ -138,11 +138,11 @@ module.exports = (reg) => {
   });
 
   reg.define(/^exactly one test fails: the stale-entry check of the shard that runs that feature$/, (w) => {
-    assert.deepStrictEqual(w.run.failed, ['beta.test.mjs > beta :: step definitions are unambiguous'], w.run.output);
+    assert.deepStrictEqual(w.run.failed, ['beta.vitest-spec.mjs > beta :: step definitions are unambiguous'], w.run.output);
   });
 
   reg.define(/^exactly one test fails: the orphan check of the shard that runs the first feature file$/, (w) => {
-    assert.deepStrictEqual(w.run.failed, ['alpha.test.mjs > wip entries map only to existing feature files'], w.run.output);
+    assert.deepStrictEqual(w.run.failed, ['alpha.vitest-spec.mjs > wip entries map only to existing feature files'], w.run.output);
   });
 
   reg.define(/^the report names the third feature file as run by no test file$/, (w) => {
@@ -150,7 +150,7 @@ module.exports = (reg) => {
   });
 
   reg.define(/^the report names that feature and both test files$/, (w) => {
-    assert.match(w.run.output, /feature "beta" .* is run by two test files: .*first\.test\.mjs and .*second\.test\.mjs/);
+    assert.match(w.run.output, /feature "beta" .* is run by two test files: .*first\.vitest-spec\.mjs and .*second\.vitest-spec\.mjs/);
   });
 
   reg.define(/^the manifest is untouched, bytes and timestamp$/, (w) => {
@@ -164,13 +164,13 @@ module.exports = (reg) => {
   });
 
   reg.define(/^the one test that ran fails, telling the author to add the reporter$/, (w) => {
-    assert.deepStrictEqual(w.run.failed, ['alpha.test.mjs > runFeatures: only needs the gherkin-node-test reporter'], w.run.output);
+    assert.deepStrictEqual(w.run.failed, ['alpha.vitest-spec.mjs > runFeatures: only needs the gherkin-node-test reporter'], w.run.output);
     assert.match(w.run.output, /Tests {2}1 failed \(1\)/);
     assert.match(w.run.output, /Add "gherkin-node-test\/vitest\/reporter" to `reporters`/);
   });
 
   reg.define(/^the report names the whole-directory test file and the shards$/, (w) => {
-    assert.match(w.run.output, /is run whole by .*whole\.test\.mjs and as shards by .*alpha\.test\.mjs/);
+    assert.match(w.run.output, /is run whole by .*whole\.vitest-spec\.mjs and as shards by .*alpha\.vitest-spec\.mjs/);
   });
 
   reg.define(/^each manifest is byte-for-byte what that directory's whole-directory call writes$/, (w) => {

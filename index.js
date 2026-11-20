@@ -2057,14 +2057,18 @@ const SHARD_ENV = 'GNT_SHARD_DIR';
  * @returns {{ runDir: string, testFile: string } | null}
  */
 function shardRun() {
-  const runDir = process.env[SHARD_ENV];
+  // The worker check comes FIRST: outside a vitest worker the environment is
+  // never read (Deno refuses an env read without --allow-env, and a
+  // whole-directory call must not need a permission it did not need before).
   const testFile = /** @type {any} */ (globalThis).__vitest_worker__?.filepath;
-  return runDir && typeof testFile === 'string' ? { runDir, testFile } : null;
+  if (typeof testFile !== 'string') return null;
+  const runDir = process.env[SHARD_ENV];
+  return runDir ? { runDir, testFile } : null;
 }
 
 /**
  * @param {string} runDir @param {'claims' | 'parts'} kind
- * @param {string[]} identity what makes the file the same file on a re-run
+ * @param {(string | null)[]} identity what makes the file the same file on a re-run
  * @param {object} body
  */
 function writeShardFile(runDir, kind, identity, body) {

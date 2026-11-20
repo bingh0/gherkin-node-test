@@ -26,6 +26,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      # The sharding scenarios (features/sharding.feature) run a real vitest, so
+      # every lane that runs the suite installs the dev dependencies first.
+      - run: npm ci
       - run: node --test
       # The committed account must match what the run just wrote — a stale
       # run-manifest.ndjson is coverage accounting that silently lies in git
@@ -47,6 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+      - run: npm ci
       - run: bun test
 
   # The same suite again under Deno, which runs it via its native node:test
@@ -69,6 +73,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - run: npm ci
       - run: deno test --allow-read --allow-env --allow-run --allow-write=fixtures/.manifest-out,run-manifest.ndjson --no-check
 
   # The vitest adapter (`gherkin-node-test/vitest`) smoke suite: the bound

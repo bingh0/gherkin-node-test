@@ -555,6 +555,57 @@ Details worth knowing:
   binding this package ships and CI-tests; anything else, you're holding the
   binding.
 
+### Sharding a feature directory over vitest's workers
+
+One `runFeatures(dir, …)` call puts every feature of the directory in one test
+file, so on vitest they all run on one worker. To spread them, give each test
+file `only` (the feature basenames it runs) and add the reporter:
+
+```ts
+// vitest.config.ts
+export default defineConfig({
+  test: { reporters: ['default', 'gherkin-node-test/vitest/reporter'] },
+});
+
+// features-a.test.ts — and one more file per shard
+import { runFeatures } from 'gherkin-node-test/vitest';
+import { wip } from './wip';
+runFeatures('features', { alpha: defineAlpha }, { only: ['alpha'], wip, manifest: 'features/run-manifest.ndjson' });
+```
+
+Nothing the whole-directory call gives is lost. Every shard still lists the
+whole directory; it parses, registers and runs only its `only` features.
+Pass the same `wip` list and the same `manifest` to every shard.
+
+- **The debt register.** A shard uses the `wip` entries for its own features
+  (both directions of the ratchet, unchanged) and ignores entries for features
+  that belong to other shards. An entry naming *no* feature file fails exactly
+  once per run, in the shard that runs the first feature file (sorted).
+- **The manifest** is written by the reporter, after a full run, once every
+  feature file of the directory has its part: the same bytes the single call
+  writes. A name-filtered run, a run of some files only, a bailed or crashed run
+  writes nothing and leaves an existing manifest untouched.
+- **Red runs** (named in the output): a feature file in a sharded directory that
+  no test file runs (full runs only); a feature file run by two test files; a
+  whole-directory call and shards over the same directory in one run; shards of
+  one directory that disagree about `manifest`; two directories sharing one
+  manifest path. A name in `only` with no feature file, and a definer for a
+  feature not in `only`, are failing tests.
+- **No reporter, no run.** A call with `only` in a run without the reporter
+  registers one failing test saying to add it, and nothing else.
+- Several feature directories, each with its own manifest, work in one run.
+
+Limits: `only` is vitest-only. Native node, bun and Deno runs get the one
+failing test above; run the whole directory there. The reporter needs a vitest
+with the `onTestRunStart`/`onTestRunEnd` reporter hooks and
+`getGlobalTestNamePattern()` (vitest 3+); it is tested on vitest 5.1, forks and
+threads pools. It is not tested with `vmThreads`/`vmForks`, `--watch`,
+`--shard`, `--changed`, multiple vitest `projects`, or `--bail`. In those modes
+it treats the run as partial where it can tell (it never writes a manifest from
+one) and the filter guard (a name filter that runs no scenario) is not
+covered under vitest at all. Shards and reporter meet in a temp directory the
+reporter makes at init and removes at exit.
+
 ## Running the suite
 
 This section is for a project starting on this runner, and for the build agent
@@ -1067,7 +1118,7 @@ The niche here is exactly: Gherkin on the runtime's built-in runner —
 
 | Export | Purpose |
 |---|---|
-| `runFeatures(dir, definers, { wip, manifest }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; `wip` takes basenames or `{ feature, scenarios }`; `manifest` opts into the [run manifest](#the-run-manifest); **one call per test file** (a second call is refused loudly) |
+| `runFeatures(dir, definers, { wip, manifest, only }?)` | **high-level runner**: discover every `.feature`, scoped registries, guard tests; `wip` takes basenames or `{ feature, scenarios }`; `manifest` opts into the [run manifest](#the-run-manifest); **one call per test file** (a second call is refused loudly); `only` makes it a [shard](#sharding-a-feature-directory-over-vitests-workers) (vitest, with the reporter) |
 | `parseFeature(text, filename?)` | parse → `{ feature, background, scenarios, outlines }`; throws `GherkinSyntaxError` |
 | `lintFeature(text, filename?)` | **linter**: dialect gate + spec lints as `{ rule, severity, line, message }[]` — pure text-in/findings-out, for use under another runner |
 | `lintStepDefinitionSource(text, filename?, config?)` | **step-source linter**: the other side of the contract — `unearned-absence` (literal-needle negations, every assertion dialect) and `rest-signature` sightings, warn-class, sanctioned by a statement-attached `// step-lint: allow <rule> -- <reason>` marker whose staleness is itself sighted; `config.rules` adds `{ pattern, reason }` pairs (all sharing the rule name `custom` — one `allow custom` marker sanctions every config rule on that statement). Scan everything your steps import — the field incident behind this rule came from files outside the lint's roots. |

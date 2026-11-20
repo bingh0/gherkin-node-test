@@ -51,7 +51,7 @@ function runShardProject(name, files, opt = {}) {
   const reporterUrl = url.pathToFileURL(path.join(ROOT, 'vitest-reporter.mjs')).href;
   fs.writeFileSync(path.join(dir, 'defs.mjs'), DEFS);
   fs.writeFileSync(path.join(dir, 'vitest.config.mjs'), `export default { test: {
-  include: ['*.test.mjs'],
+  include: ['*.vitest-spec.mjs'],
   pool: ${JSON.stringify(opt.pool || 'forks')},
   reporters: ${JSON.stringify(opt.reporter === false ? ['default'] : ['default', reporterUrl])},
 } };\n`);
